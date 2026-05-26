@@ -1,0 +1,137 @@
+# MultiAnimation — Functional Specification
+
+## Purpose
+
+A Roblox Studio Plugin that lets an animator pose R6 character rigs in the viewport,
+capture those poses as keyframes on a shared timeline, and export the result as
+animation data that plays back simultaneously on multiple rigs in a live game.
+
+The initial scope targets two R6 rigs. The design must support N rigs without
+architectural changes.
+
+---
+
+## Actors
+
+- **Animator** — the human using Roblox Studio with the plugin installed.
+- **Player** — a Roblox player in a live game who experiences the animation playback.
+
+---
+
+## User Stories
+
+### Plugin panel
+
+| ID | Story |
+|----|-------|
+| P-01 | As an animator, I can open/close the MultiAnimation panel from the Studio toolbar so it does not clutter my workspace when not in use. |
+| P-02 | As an animator, the panel docks inside Studio so it does not cover the viewport. |
+| P-03 | As an animator, the panel shows all R6 rigs found in `Workspace.FIGURES` so I know what is available. |
+| P-04 | As an animator, I can press Refresh to re-scan `Workspace.FIGURES` after adding or removing a rig. |
+
+### Rig selection
+
+| ID | Story |
+|----|-------|
+| R-01 | As an animator, I can toggle each rig on or off for recording so I can animate one rig independently or both simultaneously. |
+| R-02 | As an animator, at least one rig must remain active; the UI prevents deselecting all rigs at once. |
+| R-03 | As an animator, toggling a rig off mid-session does not delete its already-recorded keyframes. |
+
+### Keyframe capture
+
+| ID | Story |
+|----|-------|
+| K-01 | As an animator, I pose a rig by selecting its parts in the viewport and using Studio's Move / Rotate / Scale tools. |
+| K-02 | As an animator, I press "Add Keyframe" to capture the current pose of all active rigs at the current frame. |
+| K-03 | As an animator, pressing "Add Keyframe" on a frame that already has a keyframe overwrites it for active rigs only; inactive rigs keep their previous data. |
+| K-04 | As an animator, joint rotations and positions are captured for all six R6 Motor6D joints per rig. |
+| K-05 | As an animator, part scale (Size) is captured for all seven R6 body parts per rig alongside the joint data. |
+| K-06 | As an animator, newly added keyframes appear immediately as markers on the track lane. |
+
+### Timeline
+
+| ID | Story |
+|----|-------|
+| T-01 | As an animator, I can scrub the timeline to any frame using a slider. |
+| T-02 | As an animator, scrubbing applies the stored pose (interpolated between adjacent keyframes) live in the viewport so I can see the result without playing. |
+| T-03 | As an animator, I can click a keyframe marker dot to jump directly to that frame. |
+| T-04 | As an animator, I can navigate to the previous or next keyframe with dedicated buttons. |
+| T-05 | As an animator, I can set the session FPS (default 24) and total frame count before recording. |
+| T-06 | As an animator, I can delete a selected keyframe from the timeline. |
+
+### Preview playback (in-editor)
+
+| ID | Story |
+|----|-------|
+| V-01 | As an animator, I can press Play to step through the timeline at the configured FPS and see both rigs animate in the viewport (edit mode, no play mode required). |
+| V-02 | As an animator, I can press Stop at any time to halt preview and stay at the current frame. |
+| V-03 | As an animator, preview playback applies interpolated poses to all rigs regardless of which are toggled active for recording. |
+
+### Export
+
+| ID | Story |
+|----|-------|
+| E-01 | As an animator, I can press Export to write the animation data into `ServerStorage.MultiAnimationData` under a named scene folder. |
+| E-02 | As an animator, I can name the scene before exporting; the default name is `Scene_001` incrementing automatically. |
+| E-03 | As an animator, the export creates one `KeyframeSequence` per rig (joint data) and one `ModuleScript` (scale data) inside the scene folder. |
+| E-04 | As an animator, exporting a scene that already exists prompts for overwrite confirmation. |
+
+### In-game playback
+
+| ID | Story |
+|----|-------|
+| G-01 | As a developer, I can require `MultiAnimPlayer` and call `player.play(sceneName, rigMap)` to start playback. |
+| G-02 | As a player, both rigs begin their animations in the same frame, with no perceptible offset. |
+| G-03 | As a developer, scale changes are tweened between keyframes using `TweenService`, matching the session FPS. |
+| G-04 | As a developer, I can call `player.stop()` to halt playback on all rigs at any time. |
+
+---
+
+## Rig Detection Rules (R6)
+
+A Model in `Workspace.FIGURES` is recognised as an R6 rig if it contains:
+- A `Humanoid` instance
+- A `Part` named `Torso` (R6 marker; R15 uses `UpperTorso`)
+- At least one `Motor6D` in the Torso
+
+---
+
+## Motor6D Joints Captured (R6)
+
+| Motor6D Name | Part0 | Part1 |
+|---|---|---|
+| RootJoint | HumanoidRootPart | Torso |
+| Neck | Torso | Head |
+| Right Shoulder | Torso | Right Arm |
+| Left Shoulder | Torso | Left Arm |
+| Right Hip | Torso | Right Leg |
+| Left Hip | Torso | Left Leg |
+
+---
+
+## Body Parts Scaled
+
+`Head`, `Torso`, `Left Arm`, `Right Arm`, `Left Leg`, `Right Leg`, `HumanoidRootPart`
+
+---
+
+## Non-Functional Requirements
+
+| ID | Requirement |
+|----|-------------|
+| NF-01 | The plugin must not error or hang if no rigs are present in `Workspace.FIGURES`. |
+| NF-02 | Preview playback must not enter Roblox play mode; it operates entirely in edit mode. |
+| NF-03 | Closing the plugin panel must not discard recorded session data; reopening resumes the session. |
+| NF-04 | The plugin must not interfere with Roblox's undo/redo stack during preview (pose applies are non-destructive or wrapped in ChangeHistoryService). |
+| NF-05 | In-game playback (`MultiAnimPlayer`) must have no dependency on the plugin being installed. |
+
+---
+
+## Out of Scope (v1)
+
+- Auto-capture on transform change (future Phase 6)
+- R15 rig support
+- Easing curve editor per keyframe (all interpolation is linear in v1)
+- Audio sync
+- Uploading animations to Roblox asset catalogue
+- Rig FK/IK controls
