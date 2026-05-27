@@ -1,0 +1,74 @@
+-- KeyframeMarker — a single clickable dot on a TrackLane.
+--
+-- Positioned by the TrackLane at the correct proportional X offset.
+-- Fires onClicked(frame) when the user clicks it.
+
+local MARKER_SIZE   = 10
+local COLOR_DEFAULT = Color3.fromRGB(255, 200,  60)
+local COLOR_HOVER   = Color3.fromRGB(255, 230, 120)
+local COLOR_ACTIVE  = Color3.fromRGB(255, 255, 255)
+
+local KeyframeMarker = {}
+KeyframeMarker.__index = KeyframeMarker
+
+function KeyframeMarker.new(parent, frame)
+    local self = setmetatable({}, KeyframeMarker)
+    self.frame = frame
+
+    local clicked = Instance.new("BindableEvent")
+    self.onClicked = clicked.Event
+    self._clicked  = clicked
+
+    local btn = Instance.new("TextButton")
+    btn.Name            = "KF_" .. frame
+    btn.Size            = UDim2.new(0, MARKER_SIZE, 0, MARKER_SIZE)
+    btn.AnchorPoint     = Vector2.new(0.5, 0.5)
+    -- X position is set by TrackLane; Y centred in lane
+    btn.Position        = UDim2.new(0, 0, 0.5, 0)
+    btn.BackgroundColor3 = COLOR_DEFAULT
+    btn.BorderSizePixel = 0
+    btn.Text            = ""
+    btn.AutoButtonColor = false
+    btn.ZIndex          = 3
+    btn.Parent          = parent
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(1, 0)   -- full circle
+    corner.Parent       = btn
+
+    btn.MouseEnter:Connect(function()
+        btn.BackgroundColor3 = COLOR_HOVER
+    end)
+    btn.MouseLeave:Connect(function()
+        btn.BackgroundColor3 = COLOR_DEFAULT
+    end)
+    btn.MouseButton1Click:Connect(function()
+        btn.BackgroundColor3 = COLOR_ACTIVE
+        task.delay(0.1, function()
+            if btn and btn.Parent then
+                btn.BackgroundColor3 = COLOR_DEFAULT
+            end
+        end)
+        clicked:Fire(frame)
+    end)
+
+    self._btn = btn
+    return self
+end
+
+function KeyframeMarker:setXOffset(xPixels)
+    self._btn.Position = UDim2.new(0, xPixels, 0.5, 0)
+end
+
+function KeyframeMarker:setActive(isActive)
+    self._btn.BackgroundColor3 = isActive and COLOR_ACTIVE or COLOR_DEFAULT
+end
+
+function KeyframeMarker:destroy()
+    self._clicked:Destroy()
+    if self._btn and self._btn.Parent then
+        self._btn:Destroy()
+    end
+end
+
+return KeyframeMarker
