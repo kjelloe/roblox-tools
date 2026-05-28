@@ -230,12 +230,38 @@ Load from ServerStorage.MultiAnimationData.Scene_001
 
 ## Key Technical Decisions
 
+### Motor6D Weld Behaviour in Studio Edit Mode
+
+**Critical finding (confirmed via live `execute_luau` tests):**
+
+In Studio edit mode, Motor6D joints act as rigid welds:
+- Setting `Part.CFrame` via script moves the **entire connected assembly**, not just that part.
+- Writing `Motor6D.Transform` has **no visual effect** — the property is inert until
+  the physics engine runs (play mode).
+- Reconnecting a motor (`Part0` nil → valid) immediately snaps `Part1` to the
+  rest-pose position, regardless of any `Transform` value written beforehand.
+
+**Consequence for capture:**  
+Studio's viewport tools move the whole rig together, so `Motor6D.Transform` is never
+updated and relative joint positions never change — making pose data unrecordable
+while motors are connected.
+
+**Fix — permanent motor disconnect:**  
+`JointCapture.disconnectAll(rig)` sets `motor.Part0 = nil` for all 6 joints at
+session start.  While disconnected:
+- Individual parts can be freely moved/rotated in the viewport (no weld cascade).
+- `capture()` computes `Transform = C0:Inv * Part0.CFrame:Inv * Part1.CFrame * C1`
+  from actual positions — correct and non-identity for posed limbs.
+- `apply()` sets each `Part.CFrame` via forward kinematics with no interference.
+
+`reconnectAll()` restores `Part0` on plugin unload, leaving the rig in a clean state.
+
 ### Motor6D Transform vs. C0/C1
 
 Roblox animations store `Pose.Transform` — the deviation of the joint from its rest
-`C0 * C1:Inverse()` offset. We capture `Motor6D.Transform` directly (Roblox updates
-this property when you move parts in the viewport), which gives the value already in
-the correct space for `KeyframeSequence`.
+`C0 * C1:Inverse()` offset. We derive this value from actual part CFrames:
+`Transform = C0:Inv * Part0.CFrame:Inv * Part1.CFrame * C1`
+This formula gives the value already in the correct space for `KeyframeSequence`.
 
 ### Rest Pose Baseline
 

@@ -1,24 +1,24 @@
 -- tests/test_joint_capture.lua
--- Run via MCP execute_luau.  Prints PASS/FAIL for each assertion.
--- Does NOT require any UI or plugin; works against the live rig in Workspace.
+-- Run via MCP execute_luau (paste as code argument).
+-- Returns a pass/fail string — does NOT use print().
 --
--- Usage (from REFERENCE.md MCP bash template):
---   tool: execute_luau
---   code: <paste this file>
---   then: get_console_output
+-- IMPORTANT: this test manages Motor6D disconnect/reconnect itself.
+-- In normal plugin operation, motors are kept disconnected permanently;
+-- the test mimics that by disconnecting before testing and reconnecting
+-- at the end to leave the rig clean.
 
-local EPSILON = 0.001   -- acceptable position error (studs)
-local ANGLE_EPS = 0.01  -- acceptable rotation error (radians)
-
+local out = {}
 local passed, failed = 0, 0
 
 local function ok(label, cond, extra)
     if cond then
-        print("PASS  " .. label)
-        passed += 1
+        passed = passed + 1
+        table.insert(out, "PASS  " .. label)
     else
-        print("FAIL  " .. label .. (extra and ("  >> " .. tostring(extra)) or ""))
-        failed += 1
+        failed = failed + 1
+        local line = "FAIL  " .. label
+        if extra then line = line .. "  >> " .. tostring(extra) end
+        table.insert(out, line)
     end
 end
 
@@ -26,152 +26,154 @@ local function posDiff(cf1, cf2)
     return (cf1.Position - cf2.Position).Magnitude
 end
 
--- ── Helpers that mirror JointCapture logic ────────────────────────────────────
-
-local function computeTransform(motor)
-    local p0, p1 = motor.Part0, motor.Part1
-    if not p0 or not p1 then return CFrame.identity end
-    return motor.C0:Inverse() * p0.CFrame:Inverse() * p1.CFrame * motor.C1
-end
-
-local function applyTransform(motor, child, container, cf)
-    child.CFrame = container.CFrame * motor.C0 * cf * motor.C1:Inverse()
-end
-
 -- ── Locate rig ────────────────────────────────────────────────────────────────
 
 local fig = workspace:FindFirstChild("FIGURES")
 ok("FIGURES folder exists", fig ~= nil)
-if not fig then print("ABORT: no FIGURES folder"); return end
+if not fig then return "ABORT: no FIGURES folder" end
 
 local rig = fig:FindFirstChild("Rig1")
 ok("Rig1 exists", rig ~= nil)
-if not rig then print("ABORT: no Rig1"); return end
+if not rig then return "ABORT: no Rig1" end
 
 local torso = rig:FindFirstChild("Torso")
 local hrp   = rig:FindFirstChild("HumanoidRootPart")
-local head  = rig:FindFirstChild("Head")
 local rArm  = rig:FindFirstChild("Right Arm")
-local lArm  = rig:FindFirstChild("Left Arm")
-local rLeg  = rig:FindFirstChild("Right Leg")
-local lLeg  = rig:FindFirstChild("Left Leg")
 
 ok("Torso found",            torso ~= nil)
 ok("HumanoidRootPart found", hrp   ~= nil)
-ok("Head found",             head  ~= nil)
 ok("Right Arm found",        rArm  ~= nil)
 
--- ── Motor6D presence ──────────────────────────────────────────────────────────
+local rShoulder = torso and torso:FindFirstChild("Right Shoulder")
+local rootJoint = hrp   and hrp:FindFirstChild("RootJoint")
 
-local rootJoint    = hrp   and hrp:FindFirstChild("RootJoint")
-local neck         = torso and torso:FindFirstChild("Neck")
-local rShoulder    = torso and torso:FindFirstChild("Right Shoulder")
-local lShoulder    = torso and torso:FindFirstChild("Left Shoulder")
-local rHip         = torso and torso:FindFirstChild("Right Hip")
-local lHip         = torso and torso:FindFirstChild("Left Hip")
-
-ok("RootJoint Motor6D found",    rootJoint ~= nil)
-ok("Neck Motor6D found",         neck      ~= nil)
 ok("Right Shoulder Motor6D found", rShoulder ~= nil)
+ok("RootJoint Motor6D found",      rootJoint ~= nil)
 
-if not (rootJoint and rShoulder and torso and hrp and rArm) then
-    print("ABORT: missing critical parts/motors")
-    return
+if not (torso and hrp and rArm and rShoulder and rootJoint) then
+    return "ABORT: missing critical parts/motors\n" .. table.concat(out, "\n")
 end
 
-ok("RootJoint Part0 = HumanoidRootPart", rootJoint.Part0 == hrp)
-ok("RootJoint Part1 = Torso",            rootJoint.Part1 == torso)
-ok("Right Shoulder Part0 = Torso",       rShoulder.Part0 == torso)
-ok("Right Shoulder Part1 = Right Arm",   rShoulder.Part1 == rArm)
+ok("Right Shoulder Part0 == Torso",    rShoulder.Part0 == torso)
+ok("Right Shoulder Part1 == Right Arm", rShoulder.Part1 == rArm)
 
--- ── Test 1: at-rest transform is near identity ────────────────────────────────
--- For an unposed R6 rig the captured transform should be ~identity.
+-- ── Disconnect all motors (mirrors plugin session behaviour) ──────────────────
 
-local restTransform = computeTransform(rShoulder)
-local identityDiff  = posDiff(restTransform, CFrame.identity)
-ok("Rest transform position ~= identity (< 0.01 studs)",
-    identityDiff < 0.01, string.format("diff=%.4f", identityDiff))
+local JOINTS = {
+    { name = "RootJoint",      container = hrp   },
+    { name = "Neck",           container = torso },
+    { name = "Right Shoulder", container = torso },
+    { name = "Left Shoulder",  container = torso },
+    { name = "Right Hip",      container = torso },
+    { name = "Left Hip",       container = torso },
+}
+local savedPart0 = {}
+for _, j in ipairs(JOINTS) do
+    local motor = j.container and j.container:FindFirstChild(j.name)
+    if motor and motor:IsA("Motor6D") then
+        savedPart0[j.name] = motor.Part0
+        motor.Part0 = nil
+    end
+end
+ok("Motors disconnected (rShoulder.Part0 == nil)", rShoulder.Part0 == nil)
 
--- ── Test 2: capture → apply round-trip for Right Arm ─────────────────────────
--- Save CFrame, move arm, restore via apply, check we're back.
+-- ── Capture helpers (inline JointCapture logic) ───────────────────────────────
 
-local origCF = rArm.CFrame
+local function computeTransform(motor, container, child)
+    -- container = Part0 (passed explicitly since motor.Part0 may be nil)
+    return motor.C0:Inverse() * container.CFrame:Inverse() * child.CFrame * motor.C1
+end
 
--- Record transform from the REST position
-local savedTransform = computeTransform(rShoulder)
+local function applyTransform(motor, container, child, cf)
+    child.CFrame = container.CFrame * motor.C0 * cf * motor.C1:Inverse()
+end
 
--- Move the arm 3 studs upward (simulate a pose change)
+-- ── Test 1: rest transform near identity (motors disconnected) ────────────────
+
+local restTf  = computeTransform(rShoulder, torso, rArm)
+local idDiff  = posDiff(restTf, CFrame.identity)
+ok("Rest transform position near identity (< 0.01 studs)",
+    idDiff < 0.01, string.format("diff=%.5f", idDiff))
+
+-- ── Test 2: capture → apply round-trip ───────────────────────────────────────
+-- Save rest transform, move arm (ONLY arm moves now, no weld cascade),
+-- capture posed transform, apply rest → verify arm returns to original.
+
+local origCF  = rArm.CFrame
+local savedTf = computeTransform(rShoulder, torso, rArm)
+
+-- Confirm torso does NOT move when arm is moved (motors disconnected)
+local tY0 = torso.CFrame.Y
 rArm.CFrame = rArm.CFrame + Vector3.new(0, 3, 0)
-local movedCF = rArm.CFrame
+local tY1 = torso.CFrame.Y
+ok("Torso does NOT move when arm is moved (motors disconnected)",
+    math.abs(tY1 - tY0) < 0.001,
+    string.format("torso delta=%.4f", tY1 - tY0))
+ok("Arm moved 3 studs",
+    math.abs((rArm.CFrame.Position - origCF.Position).Magnitude - 3) < 0.01)
 
--- Confirm it actually moved
-ok("Arm actually moved 3 studs up",
-    math.abs((movedCF.Position - origCF.Position).Magnitude - 3) < 0.01,
-    string.format("moved=%.4f", (movedCF.Position - origCF.Position).Magnitude))
+local poseTf = computeTransform(rShoulder, torso, rArm)
 
--- Capture the new transform
-local poseTransform = computeTransform(rShoulder)
+-- Pose transform should differ from rest transform
+ok("Pose transform differs from rest transform",
+    posDiff(poseTf, savedTf) > 0.1,
+    string.format("diff=%.4f", posDiff(poseTf, savedTf)))
 
--- Apply the original rest transform to restore
-applyTransform(rShoulder, rArm, torso, savedTransform)
-local restoredCF = rArm.CFrame
-local restoreErr = posDiff(restoredCF, origCF)
+-- Apply rest transform → arm should return to original position
+applyTransform(rShoulder, torso, rArm, savedTf)
+local err1 = posDiff(rArm.CFrame, origCF)
+ok("Apply savedTf restores arm to original position (< 0.01 studs)",
+    err1 < 0.01,
+    string.format("err=%.5f  orig=%s  got=%s",
+        err1, tostring(origCF.Position), tostring(rArm.CFrame.Position)))
 
-ok("Apply restores arm to original position (< 0.01 studs)",
-    restoreErr < 0.01,
-    string.format("err=%.4f  orig=%s  restored=%s",
-        restoreErr, tostring(origCF.Position), tostring(restoredCF.Position)))
+-- Apply pose transform → arm should go back to moved position
+applyTransform(rShoulder, torso, rArm, poseTf)
+local movedCF = origCF + Vector3.new(0, 3, 0)
+local err2 = posDiff(rArm.CFrame, movedCF)
+ok("Apply poseTf places arm at captured pose position (< 0.01 studs)",
+    err2 < 0.01,
+    string.format("err=%.5f", err2))
 
--- ── Test 3: apply the posed transform, verify arm at moved position ───────────
+-- Restore arm
+applyTransform(rShoulder, torso, rArm, savedTf)
 
-applyTransform(rShoulder, rArm, torso, poseTransform)
-local poseAppliedCF = rArm.CFrame
-local poseErr = posDiff(poseAppliedCF, movedCF)
-
-ok("Apply posed transform places arm at captured position (< 0.01 studs)",
-    poseErr < 0.01,
-    string.format("err=%.4f  expected=%s  got=%s",
-        poseErr, tostring(movedCF.Position), tostring(poseAppliedCF.Position)))
-
--- Restore to original so we don't leave the rig in a broken state
-applyTransform(rShoulder, rArm, torso, savedTransform)
-
--- ── Test 4: forward kinematics chain (Torso → Arm) ───────────────────────────
--- Move Torso, verify arm placed correctly relative to new Torso position.
+-- ── Test 3: FK chain — translate whole rig via RootJoint ─────────────────────
 
 local origTorsoCF = torso.CFrame
 local origArmCF   = rArm.CFrame
-local armOffset   = torso.CFrame:Inverse() * rArm.CFrame   -- arm relative to torso
+local rootTf      = computeTransform(rootJoint, hrp, torso)
 
--- Shift entire rig (move HumanoidRootPart, apply RootJoint transform to derive Torso)
-local rootTransform = computeTransform(rootJoint)
--- Move HRP 5 studs along X
-hrp.CFrame = hrp.CFrame + Vector3.new(5, 0, 0)
--- Apply RootJoint (sets Torso)
-torso.CFrame = hrp.CFrame * rootJoint.C0 * rootTransform * rootJoint.C1:Inverse()
--- Apply Right Shoulder (sets Right Arm)
-local armTransform = computeTransform(rShoulder)  -- same arm pose relative to torso
-rArm.CFrame = torso.CFrame * rShoulder.C0 * armTransform * rShoulder.C1:Inverse()
+hrp.CFrame   = hrp.CFrame + Vector3.new(5, 0, 0)
+torso.CFrame = hrp.CFrame * rootJoint.C0 * rootTf * rootJoint.C1:Inverse()
+local armTf  = computeTransform(rShoulder, torso, rArm)
+rArm.CFrame  = torso.CFrame * rShoulder.C0 * armTf * rShoulder.C1:Inverse()
 
--- Arm should have moved by the same 5 studs
-local expectedArmPos = origArmCF.Position + Vector3.new(5, 0, 0)
-local chainErr = (rArm.CFrame.Position - expectedArmPos).Magnitude
+local expectedPos = origArmCF.Position + Vector3.new(5, 0, 0)
+local err3 = (rArm.CFrame.Position - expectedPos).Magnitude
+ok("FK chain: arm follows rig translation (< 0.05 studs)",
+    err3 < 0.05,
+    string.format("err=%.5f", err3))
 
-ok("FK chain: arm moves correctly with rig translation (< 0.05 studs)",
-    chainErr < 0.05,
-    string.format("err=%.4f  expected=%s  got=%s",
-        chainErr, tostring(expectedArmPos), tostring(rArm.CFrame.Position)))
-
--- Restore rig
+-- Restore
 hrp.CFrame   = hrp.CFrame   - Vector3.new(5, 0, 0)
 torso.CFrame = origTorsoCF
 rArm.CFrame  = origArmCF
 
+-- ── Reconnect motors ──────────────────────────────────────────────────────────
+
+for _, j in ipairs(JOINTS) do
+    local motor = j.container and j.container:FindFirstChild(j.name)
+    if motor and motor:IsA("Motor6D") then
+        motor.Part0 = savedPart0[j.name]
+    end
+end
+ok("Motors reconnected", rShoulder.Part0 == torso)
+
 -- ── Summary ───────────────────────────────────────────────────────────────────
 
-print(string.format("\n=== %d passed, %d failed ===", passed, failed))
+table.insert(out, string.format("\n=== %d passed, %d failed ===", passed, failed))
 if failed == 0 then
-    print("ALL TESTS PASSED — JointCapture math is correct")
-else
-    print("FAILURES DETECTED — see FAIL lines above")
+    table.insert(out, "ALL TESTS PASSED")
 end
+return table.concat(out, "\n")

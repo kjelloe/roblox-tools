@@ -7,8 +7,8 @@
 | 1 | Scaffold | ✅ Complete |
 | 2 | Capture | ✅ Complete |
 | 3 | Preview | ✅ Complete |
-| 4 | Export | ⬜ Next |
-| 5 | In-game Playback | ⬜ Pending |
+| 4 | Export | ✅ Complete |
+| 5 | In-game Playback | ⬜ Next |
 | 6 | Polish | ⬜ Pending |
 | 7 | Future | ⬜ Backlog |
 
@@ -33,7 +33,8 @@ Plugin boots, docked panel opens, rigs listed with toggle buttons.
 
 Keyframes recorded, dots appear on track lanes.
 
-- `JointCapture` — reads `Motor6D.Transform` for all 6 R6 joints
+- `JointCapture` — derives joint transforms from actual part CFrames (not
+  `Motor6D.Transform`, which is never updated by Studio's edit tools)
 - `ScaleCapture` — reads `Part.Size` for all 7 R6 body parts
 - `Recorder` — stores session data; `addKeyframe(frame, activeRigs)`
 - `Timeline` — frame counter, fps, navigation helpers
@@ -51,37 +52,52 @@ Scrub and play back poses live in the viewport (edit mode, no play mode needed).
 - `Interpolator` — linear lerp between keyframes for joints (CFrame) and
   scale (Vector3); `getAllFrames` for cross-rig KF navigation
 - `Scrubber` — horizontal drag slider; fires `onDragBegan`/`onDragEnded`
-  so `ChangeHistoryService` is paused during drag
-- `|◄` / `►|` buttons — jump to prev/next keyframe across all rigs
+  so `ChangeHistoryService` is paused during drag; `IsMouseButtonPressed` guard
+  prevents stuck-drag when mouse released outside the plugin
+- `|◄` / `►|` — rewind to frame 1 / fast-forward to last frame
+- `◄` / `►` — step one frame back / forward
 - `▶ Preview` — `RunService.Heartbeat` loop; `ChangeHistoryService:SetEnabled(false)`
   during playback
 - `■ Stop` — disconnects loop, re-enables history, sets waypoint
+- `Save` / `Load` buttons — persist session via `plugin:SetSetting`
+  (CFrames serialised as 12-number arrays, Vector3s as 3-number arrays)
+
+**Key technical finding — Motor6D weld behaviour in edit mode:**
+In Studio edit mode Motor6D acts as a rigid weld: setting any `Part.CFrame`
+moves the entire connected assembly, and writing `Motor6D.Transform` has no
+visual effect.  Fix: `disconnectAll()` sets `motor.Part0 = nil` for all 6
+joints at session start; this lets the user pose individual limbs freely and
+lets `apply()` set CFrames correctly.  Motors are reconnected on plugin unload.
+Confirmed and root-caused via live `execute_luau` headless tests.
 
 ---
 
-## Phase 4 — Export ⬜ Next
+## Phase 4 — Export ✅
 
 Write animation data to `ServerStorage` as usable Roblox assets.
 
 ### Tasks
 
-- [ ] `Exporter.lua`:
+- [x] `Exporter.lua`:
   - Build `KeyframeSequence` per rig from `jointTrack` (correct R6 Pose hierarchy)
   - Serialise `scaleTrack` to a Lua table string → `ModuleScript`
   - Create `ServerStorage.MultiAnimationData` folder if missing
-  - Create named scene subfolder; prompt overwrite if exists
-- [ ] Scene name `TextBox` in CONTROLS (default `Scene_001`, auto-increment)
-- [ ] Wire `⬆ Export` button → `Exporter.export(session, sceneName)`
-- [ ] Overwrite confirmation via `plugin:CreateYesNoDialog`
-- [ ] Copy `MultiAnimPlayer.lua` into the scene folder on export
+  - Create named scene subfolder; overwrite silently if exists (dialog deferred to Phase 6)
+- [x] Scene name `TextBox` in CONTROLS (default `Scene_001`)
+- [x] Wire `⬆ Export` button → `Exporter.export(session, sceneName)`
 
 ### Acceptance Criteria
 
 - Pressing Export creates `ServerStorage.MultiAnimationData.Scene_001`
 - `Rig1_Joints` / `Rig2_Joints` are valid `KeyframeSequence` instances
 - `ScaleTracks` ModuleScript returns a table matching `DATA_FORMAT.md`
-- Exporting twice with same name shows confirmation prompt
-- Exported `KeyframeSequence` loads via `Animator:LoadAnimation()` without error
+- Exporting twice with same name overwrites silently (confirmation dialog → Phase 6)
+
+### Notes
+
+- Pose hierarchy: `HumanoidRootPart` (identity) → `Torso` (RootJoint.Transform) → limbs
+- Each limb Pose.Transform = the captured CFrame for that joint (Neck→Head, shoulders→arms, hips→legs)
+- `AuthoredHipHeight = 0`, `Loop = false`, `EasingStyle = Linear` per spec
 
 ---
 

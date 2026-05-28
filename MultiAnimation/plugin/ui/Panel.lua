@@ -289,8 +289,14 @@ function Panel.new(widget)
     self._scrubber.onDragBegan:Connect(function() eScrubBgn:Fire() end)
     self._scrubber.onDragEnded:Connect(function() eScrubEnd:Fire() end)
 
-    -- Row 3: action buttons
-    local actRow = hrow(ctrlSec, 3, 4)
+    -- Row 3: scene name input
+    local sceneRow     = hrow(ctrlSec, 3, 4)
+    lbl(sceneRow, "Scene:", 42, 1)
+    local sceneNameBox = textBox(sceneRow, "Scene_001", 120, 2)
+    self._sceneNameBox = sceneNameBox
+
+    -- Row 4: action buttons
+    local actRow = hrow(ctrlSec, 4, 4)
 
     local addKFBtn  = btn(actRow, "+ Add Keyframe", 1, true)
     local previewBtn = btn(actRow, "▶  Preview",     2)
@@ -313,7 +319,7 @@ function Panel.new(widget)
         eStop:Fire()
     end)
     exportBtn.MouseButton1Click:Connect(function()
-        if not self._isPlaying then eExport:Fire() end
+        if not self._isPlaying then eExport:Fire(sceneNameBox.Text) end
     end)
 
     prevKFBtn.MouseButton1Click:Connect(function() eRewind:Fire() end)   -- |◄ = go to frame 1

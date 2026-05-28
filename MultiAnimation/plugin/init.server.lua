@@ -18,6 +18,7 @@ local Recorder     = require(script.core.Recorder)
 local Timeline     = require(script.core.Timeline)
 local Interpolator = require(script.core.Interpolator)
 local PoseApplier  = require(script.core.PoseApplier)
+local Exporter     = require(script.core.Exporter)
 local Panel        = require(script.ui.Panel)
 
 -- ── Toolbar & widget ──────────────────────────────────────────────────────────
@@ -346,8 +347,11 @@ panel.onReloadRequested:Connect(loadSession)
 panel.onPreviewRequested:Connect(startPlayback)
 panel.onStopRequested:Connect(stopPlayback)
 
-panel.onExportRequested:Connect(function()
-    print("[MultiAnimation] Export — coming in Phase 4")
+panel.onExportRequested:Connect(function(sceneName)
+    local ok, result = Exporter.export(recorder:getSession(), sceneName)
+    if not ok then
+        warn(string.format("[MultiAnimation] Export failed: %s", result))
+    end
 end)
 
 -- ── Clean up on unload ────────────────────────────────────────────────────────
