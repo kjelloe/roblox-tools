@@ -8,6 +8,13 @@
 -- Public methods:
 --   scrubber:setFrame(n)        — update thumb position without firing event
 --   scrubber:setFrameCount(n)   — update scale (repositions thumb)
+--
+-- COORDINATE SPACE NOTE
+--   GuiObject.AbsolutePosition and InputObject.Position (from GuiObject.InputBegan
+--   and UserInputService.InputChanged) are in the same coordinate space.
+--   UserInputService:GetMouseLocation() is NOT — it uses OS screen coordinates
+--   which differ on multi-monitor setups and are offset from AbsolutePosition.
+--   All position reads therefore use input.Position.X only.
 
 local UserInputService = game:GetService("UserInputService")
 
@@ -18,6 +25,8 @@ local TRACK_BG  = Color3.fromRGB(28,  28,  28)
 local FILL_COL  = Color3.fromRGB(0,  100, 170)
 local THUMB_COL = Color3.fromRGB(210, 210, 210)
 local THUMB_HOV = Color3.fromRGB(255, 255, 255)
+
+local DEBUG = true   -- prints coordinate info to Studio output; set false once verified
 
 local Scrubber = {}
 Scrubber.__index = Scrubber
@@ -98,11 +107,12 @@ function Scrubber.new(parent, frameCount, layoutOrder)
 
     -- ── Helpers ───────────────────────────────────────────────────────────────
 
-    local function frameFromScreenX(screenX)
+    -- inputX must come from InputObject.Position.X (same space as AbsolutePosition).
+    local function frameFromInputX(inputX)
         local left  = track.AbsolutePosition.X
         local width = track.AbsoluteSize.X
         if width <= 0 then return self._current end
-        local frac = math.clamp((screenX - left) / width, 0, 1)
+        local frac = math.clamp((inputX - left) / width, 0, 1)
         return math.round(1 + frac * (self._frameCount - 1))
     end
 
@@ -125,11 +135,17 @@ function Scrubber.new(parent, frameCount, layoutOrder)
         if not self._dragging then thumb.BackgroundColor3 = THUMB_COL end
     end)
 
-    -- Unified drag-start: always uses GetMouseLocation() so coordinate space
-    -- matches the AbsolutePosition used in frameFromScreenX.
-    local function startDrag()
-        local mouseX = UserInputService:GetMouseLocation().X
-        local frame  = frameFromScreenX(mouseX)
+    -- Unified drag-start.  inputX comes from InputObject.Position.X which is
+    -- in the same coordinate space as track.AbsolutePosition.X.
+    local function startDragAt(inputX)
+        local left  = track.AbsolutePosition.X
+        local width = track.AbsoluteSize.X
+        local frame = frameFromInputX(inputX)
+        if DEBUG then
+            print(string.format(
+                "[Scrubber] click inputX=%.0f  trackLeft=%.0f  trackW=%.0f  → frame %d/%d",
+                inputX, left, width, frame, self._frameCount))
+        end
         self._dragging = true
         self._current  = frame
         updateVisual(frame)
@@ -138,18 +154,21 @@ function Scrubber.new(parent, frameCount, layoutOrder)
         eChanged:Fire(frame)
     end
 
-    -- Clicking the thumb starts a drag from the thumb's current position.
+    -- Clicking the thumb: use InputBegan to receive input.Position.X.
+    -- (thumb is ZIndex 5, hitArea is ZIndex 3 — thumb gets the click first.)
     thumb.InputBegan:Connect(function(input)
         if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-        startDrag()
+        startDragAt(input.Position.X)
     end)
 
-    -- Clicking anywhere on the track also starts a drag.
-    hitArea.MouseButton1Down:Connect(function()
-        startDrag()
+    -- Clicking anywhere else on the track: use InputBegan for input.Position.X.
+    -- MouseButton1Down does NOT supply an InputObject so we cannot use it here.
+    hitArea.InputBegan:Connect(function(input)
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+        startDragAt(input.Position.X)
     end)
 
-    -- Track mouse movement globally so drag continues past the thumb edges.
+    -- Track mouse movement globally so drag continues past the thumb/track edges.
     local moveConn = UserInputService.InputChanged:Connect(function(input)
         if not self._dragging then return end
         if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
@@ -160,7 +179,8 @@ function Scrubber.new(parent, frameCount, layoutOrder)
             eEnded:Fire()
             return
         end
-        local frame = frameFromScreenX(UserInputService:GetMouseLocation().X)
+        -- input.Position.X is in the same space as AbsolutePosition.X here too.
+        local frame = frameFromInputX(input.Position.X)
         if frame ~= self._current then
             self._current = frame
             updateVisual(frame)
@@ -194,7 +214,7 @@ function Scrubber:destroy()
     for _, c in ipairs(self._conns) do c:Disconnect() end
     for _, e in ipairs(self._events) do e:Destroy() end
     if self._track and self._track.Parent then
-        self._track.Parent:Destroy()  -- destroy container
+        self._track.Parent:Destroy()   -- destroy the ScrubberContainer
     end
 end
 
