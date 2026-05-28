@@ -226,6 +226,12 @@ local function startPlayback()
         return
     end
 
+    -- If already at the last frame, rewind to 1 so playback doesn't stop immediately.
+    if timeline:getCurrent() >= timeline:getFrameCount() then
+        local f = timeline:setCurrent(1)
+        panel:setFrameDisplay(f, timeline:getFrameCount())
+    end
+
     isPlaying = true
     panel:setPlaybackState(true)
     ChangeHistoryService:SetEnabled(false)

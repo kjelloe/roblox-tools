@@ -125,37 +125,42 @@ function Scrubber.new(parent, frameCount, layoutOrder)
         if not self._dragging then thumb.BackgroundColor3 = THUMB_COL end
     end)
 
-    -- Start drag from thumb
-    thumb.InputBegan:Connect(function(input)
-        if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-        self._dragging = true
-        thumb.BackgroundColor3 = THUMB_HOV
-        eBegan:Fire()
-    end)
-
-    -- Click anywhere on track to jump
-    hitArea.MouseButton1Down:Connect(function()
-        local mousePos = UserInputService:GetMouseLocation()
-        local frame = frameFromScreenX(mousePos.X)
+    -- Unified drag-start: always uses GetMouseLocation() so coordinate space
+    -- matches the AbsolutePosition used in frameFromScreenX.
+    local function startDrag()
+        local mouseX = UserInputService:GetMouseLocation().X
+        local frame  = frameFromScreenX(mouseX)
         self._dragging = true
         self._current  = frame
         updateVisual(frame)
+        thumb.BackgroundColor3 = THUMB_HOV
         eBegan:Fire()
         eChanged:Fire(frame)
+    end
+
+    -- Clicking the thumb starts a drag from the thumb's current position.
+    thumb.InputBegan:Connect(function(input)
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+        startDrag()
     end)
 
-    -- Track mouse movement globally (so drag works past the thumb edges)
+    -- Clicking anywhere on the track also starts a drag.
+    hitArea.MouseButton1Down:Connect(function()
+        startDrag()
+    end)
+
+    -- Track mouse movement globally so drag continues past the thumb edges.
     local moveConn = UserInputService.InputChanged:Connect(function(input)
         if not self._dragging then return end
         if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
-        -- Release drag if button was released outside the plugin (InputEnded can miss this)
+        -- Guard: release if button was dropped outside the plugin window
         if not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
             self._dragging = false
             thumb.BackgroundColor3 = THUMB_COL
             eEnded:Fire()
             return
         end
-        local frame = frameFromScreenX(input.Position.X)
+        local frame = frameFromScreenX(UserInputService:GetMouseLocation().X)
         if frame ~= self._current then
             self._current = frame
             updateVisual(frame)
