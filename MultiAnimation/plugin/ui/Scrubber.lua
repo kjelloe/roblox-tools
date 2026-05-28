@@ -148,6 +148,13 @@ function Scrubber.new(parent, frameCount, layoutOrder)
     local moveConn = UserInputService.InputChanged:Connect(function(input)
         if not self._dragging then return end
         if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+        -- Release drag if button was released outside the plugin (InputEnded can miss this)
+        if not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+            self._dragging = false
+            thumb.BackgroundColor3 = THUMB_COL
+            eEnded:Fire()
+            return
+        end
         local frame = frameFromScreenX(input.Position.X)
         if frame ~= self._current then
             self._current = frame

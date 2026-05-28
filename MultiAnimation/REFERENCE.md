@@ -92,4 +92,15 @@ rojo build default.project.json -o MultiAnimation.rbxm   # build plugin file
 
 `C:\Users\kjell\AppData\Local\Roblox\Plugins\MultiAnimation.rbxm`
 
-## Phase Status → see PHASES.md
+## Phase Status
+
+| Phase | Status |
+|-------|--------|
+| 1 Scaffold | ✅ |
+| 2 Capture | ✅ |
+| 3 Preview | ✅ |
+| 4 Export | ⬜ Next |
+| 5 In-game Playback | ⬜ |
+| 6 Polish | ⬜ |
+
+See `PHASES.md` for full task lists.

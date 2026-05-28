@@ -210,6 +210,10 @@ function Panel.new(widget)
     local eScrubEnd = mkEvent("onScrubEnded")
     local ePrevKF   = mkEvent("onPrevKeyframeRequested")
     local eNextKF   = mkEvent("onNextKeyframeRequested")
+    local eRewind   = mkEvent("onRewindRequested")
+    local eFF       = mkEvent("onFastForwardRequested")
+    local eSave     = mkEvent("onSaveRequested")
+    local eReload   = mkEvent("onReloadRequested")
     self._evts = evts
 
     self._trackLanes   = {}
@@ -230,8 +234,13 @@ function Panel.new(widget)
     local rigsSec = section(root, "RIGS IN SCENE", 1)
     self.rigSelector = RigSelector.new(rigsSec)
     divider(rigsSec, 5)
-    local refreshBtn = btn(rigsSec, "↺  Refresh", 6)
+    local sessionRow = hrow(rigsSec, 6, 4)
+    local refreshBtn = btn(sessionRow, "↺  Refresh", 1)
+    local saveBtn    = btn(sessionRow, "Save",       2)
+    local reloadBtn  = btn(sessionRow, "Load",       3)
     refreshBtn.MouseButton1Click:Connect(function() eRefresh:Fire() end)
+    saveBtn.MouseButton1Click:Connect(function() eSave:Fire() end)
+    reloadBtn.MouseButton1Click:Connect(function() eReload:Fire() end)
 
     divider(root, 2)
 
@@ -307,14 +316,14 @@ function Panel.new(widget)
         if not self._isPlaying then eExport:Fire() end
     end)
 
-    prevKFBtn.MouseButton1Click:Connect(function() ePrevKF:Fire() end)
-    nextKFBtn.MouseButton1Click:Connect(function() eNextKF:Fire() end)
+    prevKFBtn.MouseButton1Click:Connect(function() eRewind:Fire() end)   -- |◄ = go to frame 1
+    nextKFBtn.MouseButton1Click:Connect(function() eFF:Fire() end)       -- ►| = go to last frame
 
-    prevFrBtn.MouseButton1Click:Connect(function()
+    prevFrBtn.MouseButton1Click:Connect(function()                        -- ◄ = step -1
         local f = math.max(1, self._currentFrame - 1)
         eFrame:Fire(f)
     end)
-    nextFrBtn.MouseButton1Click:Connect(function()
+    nextFrBtn.MouseButton1Click:Connect(function()                        -- ► = step +1
         local f = math.min(self._frameCount, self._currentFrame + 1)
         eFrame:Fire(f)
     end)

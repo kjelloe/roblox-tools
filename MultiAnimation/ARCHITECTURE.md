@@ -42,6 +42,28 @@
 
 ---
 
+## Module Inventory
+
+| Module | Layer | Purpose |
+|--------|-------|---------|
+| `init.server.lua` | Entry | Toolbar, widget, event wiring, playback loop |
+| `core/RigScanner` | Core | Detects R6 rigs in Workspace.FIGURES |
+| `core/Recorder` | Core | Session data storage; addKeyframe |
+| `core/JointCapture` | Core | Reads/writes Motor6D.Transform |
+| `core/ScaleCapture` | Core | Reads/writes Part.Size |
+| `core/Timeline` | Core | Frame counter, fps, prev/next KF helpers |
+| `core/Interpolator` | Core | Linear lerp between keyframes |
+| `core/PoseApplier` | Core | Applies poses; manages ChangeHistoryService |
+| `core/Exporter` | Core | Builds KeyframeSequence + ScaleTracks (Phase 4) |
+| `ui/Panel` | UI | Root layout; owns all sections and events |
+| `ui/RigSelector` | UI | Per-rig toggle buttons |
+| `ui/TrackLane` | UI | One horizontal keyframe lane per rig |
+| `ui/KeyframeMarker` | UI | Individual clickable dot on a TrackLane |
+| `ui/Scrubber` | UI | Horizontal drag slider for frame position |
+| `game/MultiAnimPlayer` | Game | In-game simultaneous playback (Phase 5) |
+
+---
+
 ## Component Map
 
 ### Plugin (`plugin/`)

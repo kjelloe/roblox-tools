@@ -103,6 +103,25 @@ function Recorder:deleteKeyframe(frame)
     end
 end
 
+function Recorder:clearSession()
+    self._session.rigs = {}
+    self._restPoses    = {}
+end
+
+function Recorder:setJointData(rigName, frame, jointData)
+    if not self._session.rigs[rigName] then
+        self._session.rigs[rigName] = { jointTrack = {}, scaleTrack = {} }
+    end
+    self._session.rigs[rigName].jointTrack[frame] = jointData
+end
+
+function Recorder:setScaleData(rigName, frame, scaleData)
+    if not self._session.rigs[rigName] then
+        self._session.rigs[rigName] = { jointTrack = {}, scaleTrack = {} }
+    end
+    self._session.rigs[rigName].scaleTrack[frame] = scaleData
+end
+
 function Recorder:destroy()
     self._added:Destroy()
 end
