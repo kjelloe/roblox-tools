@@ -1,13 +1,14 @@
 -- test_scrubber.lua
--- Run via MCP execute_luau.  Two sections:
---   1. Pure math — frameFromInputX logic with mock coordinates (no GUI needed)
---   2. Live diagnostic — reads the real scrubber's AbsolutePosition/Size and
---      shows all three coordinate values so we can spot any space mismatch.
+-- Run via MCP execute_luau.  Three sections:
 --
--- Usage:
---   Section 1: always runs, tells you if the math is correct.
---   Section 2: requires Studio to have the MultiAnimation plugin open.
---              Move your mouse over the scrubber before running for best data.
+--   Section 1: Pure math — verifies frameFromInputX logic (no GUI needed).
+--   Section 2: Coordinate diagnostic — reads real scrubber positions and shows
+--              whether GetMouseLocation() matches AbsolutePosition space.
+--   Section 3: InputChanged diagnostic — runs for 2 seconds and counts how many
+--              MouseMovement events fire; confirms whether InputChanged works
+--              in the DockWidget context (move your mouse while it runs).
+--
+-- Usage:  move mouse over/around the plugin panel before running section 3.
 
 local UserInputService = game:GetService("UserInputService")
 
@@ -17,90 +18,113 @@ local function ok(label, cond, extra)
     p((cond and "PASS" or "FAIL") .. "  " .. label .. (extra ~= nil and ("  [" .. tostring(extra) .. "]") or ""))
 end
 
--- ── Section 1: frame calculation math ────────────────────────────────────────
+-- ── Section 1: frame calculation math (mock track) ───────────────────────────
 
-p("── Section 1: frame math (mock track: left=200 width=400 frameCount=120) ──")
+p("── Section 1: frameFromInputX math  (trackLeft=200 trackW=400 fc=120) ──")
 
-local function makeCalc(left, width, frameCount)
+local function makeCalc(left, width, fc)
     return function(inputX)
         if width <= 0 then return 1 end
         local frac = math.clamp((inputX - left) / width, 0, 1)
-        return math.round(1 + frac * (frameCount - 1))
+        return math.round(1 + frac * (fc - 1))
     end
 end
 
 do
-    local fc = makeCalc(200, 400, 120)
-    ok("frame 1 at left edge   (inputX=200)",    fc(200)  == 1,   fc(200))
-    ok("frame 120 at right edge(inputX=600)",    fc(600)  == 120, fc(600))
-    ok("frame 1 before left    (inputX=50)",     fc(50)   == 1,   fc(50))
-    ok("frame 120 after right  (inputX=900)",    fc(900)  == 120, fc(900))
-    ok("frame ~60 at midpoint  (inputX=400)",    fc(400) >= 59 and fc(400) <= 61, fc(400))
-    ok("frame ~30 at 25%       (inputX=300)",    fc(300) >= 29 and fc(300) <= 31, fc(300))
-    ok("frame ~90 at 75%       (inputX=500)",    fc(500) >= 89 and fc(500) <= 91, fc(500))
+    local f = makeCalc(200, 400, 120)
+    ok("frame 1   at left edge    inputX=200", f(200) == 1,   f(200))
+    ok("frame 120 at right edge   inputX=600", f(600) == 120, f(600))
+    ok("frame 1   before left     inputX=50",  f(50)  == 1,   f(50))
+    ok("frame 120 past right      inputX=900", f(900) == 120, f(900))
+    ok("frame ~60 midpoint        inputX=400", f(400) >= 59 and f(400) <= 61, f(400))
+    ok("frame ~30 at 25%          inputX=300", f(300) >= 29 and f(300) <= 31, f(300))
+    ok("frame ~90 at 75%          inputX=500", f(500) >= 89 and f(500) <= 91, f(500))
 end
 
 p("")
-p("── Section 1b: same math for frameCount=24 (small timeline) ──")
-
+p("── Section 1b: coordOffset correction math ──")
+-- Simulate: AbsolutePosition.X = 500 (Roblox GUI space)
+--           GetMouseLocation().X = 50  (OS space, 450px smaller)
+--           coordOffset = 500 - 50 = 450
+-- During drag: GetMouseLocation() = 80  →  corrected = 80 + 450 = 530
+-- Expected frame from corrected = f(530) with trackLeft=500, trackW=200
 do
-    local fc = makeCalc(200, 400, 24)
-    ok("frame 1  at left",     fc(200) == 1,  fc(200))
-    ok("frame 24 at right",    fc(600) == 24, fc(600))
-    ok("frame 12-13 at mid",   fc(400) >= 12 and fc(400) <= 13, fc(400))
+    local trackLeft = 500
+    local trackW    = 200
+    local fc        = 120
+    local f = makeCalc(trackLeft, trackW, fc)
+    local coordOffset = trackLeft - 50   -- = 450 (inputX_at_start - mlX_at_start when inputX = trackLeft)
+    local function corrected(mlX) return mlX + coordOffset end
+
+    ok("corrected at left  (mlX=50  → corrX=500)",  f(corrected(50))  == 1,   f(corrected(50)))
+    ok("corrected at right (mlX=250 → corrX=700)",  f(corrected(250)) == 120, f(corrected(250)))
+    ok("corrected at mid   (mlX=150 → corrX=600)",  f(corrected(150)) >= 59 and f(corrected(150)) <= 61, f(corrected(150)))
 end
 
 -- ── Section 2: live coordinate diagnostic ────────────────────────────────────
 
 p("")
-p("── Section 2: live coordinate diagnostic ──")
+p("── Section 2: live coordinates ──")
 
--- GetMouseLocation (OS screen coords — NOT consistent with AbsolutePosition)
 local ml = UserInputService:GetMouseLocation()
-p("GetMouseLocation():  X=" .. string.format("%.0f", ml.X) .. "  Y=" .. string.format("%.0f", ml.Y))
-p("(This value is in OS screen space — expected to differ from AbsolutePosition.X)")
+p(string.format("GetMouseLocation:  X=%.0f  Y=%.0f  (OS screen space)", ml.X, ml.Y))
 
--- Try to find the plugin GUI
-local found = false
+local pluginFound = false
 for _, gui in ipairs(game:GetService("CoreGui"):GetChildren()) do
     if gui.Name == "MultiAnimation" then
         local root = gui:FindFirstChild("MultiAnimRoot")
         if root then
             local track = root:FindFirstChild("Track", true)
             if track then
-                found = true
+                pluginFound = true
                 local ap = track.AbsolutePosition
                 local as = track.AbsoluteSize
-                p("")
-                p("Track.AbsolutePosition: X=" .. string.format("%.0f", ap.X) .. "  Y=" .. string.format("%.0f", ap.Y))
-                p("Track.AbsoluteSize:     X=" .. string.format("%.0f", as.X) .. "  Y=" .. string.format("%.0f", as.Y))
-                p("")
-
-                if as.X > 0 then
-                    -- Show what frame would result from a click at the current mouse position
-                    -- using AbsolutePosition (as used in frameFromInputX).
-                    local frac = math.clamp((ml.X - ap.X) / as.X, 0, 1)
-                    local frameAtMouse_GetMouseLoc = math.round(1 + frac * 119)
-                    p("IF GetMouseLocation is used as inputX: frame would be " .. frameAtMouse_GetMouseLoc
-                        .. "  (frac=" .. string.format("%.3f", frac) .. ")")
-                    p("  If this is always 1, GetMouseLocation X < Track AbsolutePosition X — coordinate space mismatch confirmed.")
-                    p("  inputX from input.Position.X (InputBegan) should match AbsolutePosition.X space.")
+                local offset = ap.X - ml.X
+                p(string.format("Track AbsolutePosition: X=%.0f  Y=%.0f", ap.X, ap.Y))
+                p(string.format("Track AbsoluteSize:     X=%.0f  Y=%.0f", as.X, as.Y))
+                p(string.format("coordOffset (AbsPos.X - mlX) = %.0f", offset))
+                if math.abs(offset) > 50 then
+                    p("  → MISMATCH confirmed: coordOffset=" .. string.format("%.0f", offset)
+                        .. "  Heartbeat+correctedX approach needed for drag.")
                 else
-                    p("Track.AbsoluteSize.X = 0 — widget may not be visible yet")
+                    p("  → Spaces appear consistent (offset < 50px).")
                 end
-            else
-                p("Track frame not found inside MultiAnimRoot")
             end
-        else
-            p("MultiAnimRoot not found in MultiAnimation gui")
         end
         break
     end
 end
+if not pluginFound then
+    p("Plugin GUI not found — open the MultiAnimation panel first.")
+end
 
-if not found then
-    p("MultiAnimation DockWidgetPluginGui not found in CoreGui.")
-    p("Make sure the plugin is loaded and the panel is open.")
+-- ── Section 3: InputChanged fires-in-plugin diagnostic ───────────────────────
+
+p("")
+p("── Section 3: InputChanged MouseMovement count (2-second window) ──")
+p("Move your mouse now...")
+
+local moveCount = 0
+local firstMoveX, lastMoveX
+
+local conn = UserInputService.InputChanged:Connect(function(input)
+    if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+    moveCount += 1
+    if not firstMoveX then firstMoveX = input.Position.X end
+    lastMoveX = input.Position.X
+end)
+
+task.wait(2)
+conn:Disconnect()
+
+if moveCount == 0 then
+    p("FAIL  InputChanged (MouseMovement) fired 0 times over 2 seconds.")
+    p("      → UserInputService.InputChanged does NOT fire over DockWidgets.")
+    p("      → Heartbeat+IsMouseButtonPressed is the correct drag approach.")
+else
+    p(string.format("PASS  InputChanged fired %d times  (firstX=%.0f lastX=%.0f)",
+        moveCount, firstMoveX or 0, lastMoveX or 0))
+    p("      → InputChanged does fire in plugin context.")
 end
 
 return table.concat(out, "\n")

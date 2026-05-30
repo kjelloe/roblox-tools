@@ -9,14 +9,19 @@
 --   scrubber:setFrame(n)        — update thumb position without firing event
 --   scrubber:setFrameCount(n)   — update scale (repositions thumb)
 --
--- COORDINATE SPACE NOTE
---   GuiObject.AbsolutePosition and InputObject.Position (from GuiObject.InputBegan
---   and UserInputService.InputChanged) are in the same coordinate space.
---   UserInputService:GetMouseLocation() is NOT — it uses OS screen coordinates
---   which differ on multi-monitor setups and are offset from AbsolutePosition.
---   All position reads therefore use input.Position.X only.
+-- COORDINATE / INPUT NOTES (Studio DockWidget context)
+--   Only GuiObject events work reliably in a Studio plugin DockWidget.
+--   UserInputService.InputChanged (MouseMovement) does not fire over the panel.
+--   UserInputService:IsMouseButtonPressed() always returns false over the panel.
+--   Solution: at drag-start create a transparent overlay Frame covering the full
+--   panel (dragRoot). overlay.InputChanged captures movement. The element that
+--   received InputBegan owns the mouse-button capture, so its InputEnded fires
+--   on release even if the mouse has moved elsewhere.
 
-local UserInputService = game:GetService("UserInputService")
+local DEBUG = true   -- set false once confirmed working
+
+local Scrubber = {}
+Scrubber.__index = Scrubber
 
 local TRACK_H   = 14
 local THUMB_W   = 10
@@ -26,12 +31,10 @@ local FILL_COL  = Color3.fromRGB(0,  100, 170)
 local THUMB_COL = Color3.fromRGB(210, 210, 210)
 local THUMB_HOV = Color3.fromRGB(255, 255, 255)
 
-local DEBUG = true   -- prints coordinate info to Studio output; set false once verified
-
-local Scrubber = {}
-Scrubber.__index = Scrubber
-
-function Scrubber.new(parent, frameCount, layoutOrder)
+-- dragRoot: the root Frame of the panel (passed from Panel.new).
+-- A full-size transparent overlay is parented here during drag so that
+-- InputChanged fires for mouse movement anywhere inside the panel.
+function Scrubber.new(parent, frameCount, layoutOrder, dragRoot)
     local self = setmetatable({}, Scrubber)
     self._frameCount = math.max(2, frameCount or 120)
     self._current    = 1
@@ -45,7 +48,7 @@ function Scrubber.new(parent, frameCount, layoutOrder)
     self.onDragEnded    = eEnded.Event
     self._events = { eChanged, eBegan, eEnded }
 
-    -- Outer container (gives vertical centering room for the tall thumb)
+    -- Container
     local container = Instance.new("Frame")
     container.Name             = "ScrubberContainer"
     container.Size             = UDim2.new(1, 0, 0, THUMB_H + 2)
@@ -54,7 +57,7 @@ function Scrubber.new(parent, frameCount, layoutOrder)
     container.LayoutOrder      = layoutOrder or 1
     container.Parent           = parent
 
-    -- Track (the thin horizontal rail)
+    -- Track rail
     local track = Instance.new("Frame")
     track.Name             = "Track"
     track.Size             = UDim2.new(1, 0, 0, TRACK_H)
@@ -67,7 +70,7 @@ function Scrubber.new(parent, frameCount, layoutOrder)
     track.Parent           = container
     Instance.new("UICorner", track).CornerRadius = UDim.new(0, 4)
 
-    -- Fill bar (progress)
+    -- Fill bar
     local fill = Instance.new("Frame")
     fill.Name             = "Fill"
     fill.Size             = UDim2.new(0, 0, 1, 0)
@@ -77,7 +80,7 @@ function Scrubber.new(parent, frameCount, layoutOrder)
     fill.Parent           = track
     Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 4)
 
-    -- Invisible hit area over the whole track (for click-to-jump)
+    -- Hit area (receives clicks on the track, behind the thumb)
     local hitArea = Instance.new("TextButton")
     hitArea.Name             = "HitArea"
     hitArea.Size             = UDim2.new(1, 0, 1, 0)
@@ -87,7 +90,7 @@ function Scrubber.new(parent, frameCount, layoutOrder)
     hitArea.ZIndex           = 3
     hitArea.Parent           = track
 
-    -- Thumb (the draggable handle)
+    -- Thumb (draggable handle)
     local thumb = Instance.new("TextButton")
     thumb.Name             = "Thumb"
     thumb.Size             = UDim2.new(0, THUMB_W, 0, THUMB_H)
@@ -101,13 +104,12 @@ function Scrubber.new(parent, frameCount, layoutOrder)
     thumb.Parent           = track
     Instance.new("UICorner", thumb).CornerRadius = UDim.new(0, 3)
 
-    self._track   = track
-    self._fill    = fill
-    self._thumb   = thumb
+    self._track = track
+    self._fill  = fill
+    self._thumb = thumb
 
     -- ── Helpers ───────────────────────────────────────────────────────────────
 
-    -- inputX must come from InputObject.Position.X (same space as AbsolutePosition).
     local function frameFromInputX(inputX)
         local left  = track.AbsolutePosition.X
         local width = track.AbsoluteSize.X
@@ -126,79 +128,115 @@ function Scrubber.new(parent, frameCount, layoutOrder)
     end
     self._updateVisual = updateVisual
 
-    -- ── Input handling ────────────────────────────────────────────────────────
+    -- ── Drag ─────────────────────────────────────────────────────────────────
+    --
+    -- sourceElement: the thumb or hitArea that received InputBegan.
+    --   Roblox routes InputEnded to whichever element got InputBegan,
+    --   so we listen there for the mouse-button release.
+    --
+    -- overlay: full-panel transparent Frame whose InputChanged tracks
+    --   mouse movement while the button is held.  Destroyed on drag end.
 
-    thumb.MouseEnter:Connect(function()
-        thumb.BackgroundColor3 = THUMB_HOV
-    end)
-    thumb.MouseLeave:Connect(function()
-        if not self._dragging then thumb.BackgroundColor3 = THUMB_COL end
-    end)
-
-    -- Unified drag-start.  inputX comes from InputObject.Position.X which is
-    -- in the same coordinate space as track.AbsolutePosition.X.
-    local function startDragAt(inputX)
-        local left  = track.AbsolutePosition.X
-        local width = track.AbsoluteSize.X
+    local function startDragAt(inputX, sourceElement)
         local frame = frameFromInputX(inputX)
+
         if DEBUG then
             print(string.format(
-                "[Scrubber] click inputX=%.0f  trackLeft=%.0f  trackW=%.0f  → frame %d/%d",
-                inputX, left, width, frame, self._frameCount))
+                "[Scrubber] drag start  inputX=%.0f  trackLeft=%.0f  trackW=%.0f  → frame %d/%d",
+                inputX, track.AbsolutePosition.X, track.AbsoluteSize.X,
+                frame, self._frameCount))
         end
+
         self._dragging = true
         self._current  = frame
         updateVisual(frame)
         thumb.BackgroundColor3 = THUMB_HOV
         eBegan:Fire()
         eChanged:Fire(frame)
-    end
 
-    -- Clicking the thumb: use InputBegan to receive input.Position.X.
-    -- (thumb is ZIndex 5, hitArea is ZIndex 3 — thumb gets the click first.)
-    thumb.InputBegan:Connect(function(input)
-        if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-        startDragAt(input.Position.X)
-    end)
+        -- Transparent overlay covering the panel so InputChanged fires everywhere
+        local overlay
+        if dragRoot then
+            overlay = Instance.new("Frame")
+            overlay.Name             = "ScrubDragOverlay"
+            overlay.Size             = UDim2.new(1, 0, 1, 0)
+            overlay.BackgroundTransparency = 1
+            overlay.BorderSizePixel  = 0
+            overlay.ZIndex           = 999
+            overlay.Parent           = dragRoot
+        end
 
-    -- Clicking anywhere else on the track: use InputBegan for input.Position.X.
-    -- MouseButton1Down does NOT supply an InputObject so we cannot use it here.
-    hitArea.InputBegan:Connect(function(input)
-        if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-        startDragAt(input.Position.X)
-    end)
+        local cleanedUp = false
+        local sourceEndConn
 
-    -- Track mouse movement globally so drag continues past the thumb/track edges.
-    local moveConn = UserInputService.InputChanged:Connect(function(input)
-        if not self._dragging then return end
-        if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
-        -- Guard: release if button was dropped outside the plugin window
-        if not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+        local function cleanup()
+            if cleanedUp then return end
+            cleanedUp = true
+            if sourceEndConn then sourceEndConn:Disconnect() end
+            if overlay then overlay:Destroy() end
             self._dragging = false
             thumb.BackgroundColor3 = THUMB_COL
             eEnded:Fire()
-            return
+            if DEBUG then print("[Scrubber] drag ended") end
         end
-        -- input.Position.X is in the same space as AbsolutePosition.X here too.
-        local frame = frameFromInputX(input.Position.X)
-        if frame ~= self._current then
-            self._current = frame
-            updateVisual(frame)
-            eChanged:Fire(frame)
+
+        -- Movement: overlay.InputChanged fires while mouse is over overlay
+        if overlay then
+            overlay.InputChanged:Connect(function(input)
+                if not self._dragging then return end
+                if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+                local f = frameFromInputX(input.Position.X)
+                if f ~= self._current then
+                    if DEBUG then
+                        print(string.format(
+                            "[Scrubber] drag update  inputX=%.0f  → frame %d",
+                            input.Position.X, f))
+                    end
+                    self._current = f
+                    updateVisual(f)
+                    eChanged:Fire(f)
+                end
+            end)
+
+            -- Release detected on overlay (mouse released while over the panel)
+            overlay.InputEnded:Connect(function(input)
+                if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+                cleanup()
+            end)
         end
+
+        -- Release detected on source element (GuiObject owns the button capture
+        -- and fires InputEnded on release even if mouse has moved away)
+        sourceEndConn = sourceElement.InputEnded:Connect(function(input)
+            if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+            cleanup()
+        end)
+    end
+
+    -- ── Click events ──────────────────────────────────────────────────────────
+
+    thumb.MouseEnter:Connect(function()
+        if not self._dragging then thumb.BackgroundColor3 = THUMB_HOV end
+    end)
+    thumb.MouseLeave:Connect(function()
+        if not self._dragging then thumb.BackgroundColor3 = THUMB_COL end
     end)
 
-    local endConn = UserInputService.InputEnded:Connect(function(input)
+    thumb.InputBegan:Connect(function(input)
         if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-        if not self._dragging then return end
-        self._dragging = false
-        thumb.BackgroundColor3 = THUMB_COL
-        eEnded:Fire()
+        startDragAt(input.Position.X, thumb)
     end)
 
-    self._conns = { moveConn, endConn }
+    hitArea.InputBegan:Connect(function(input)
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+        startDragAt(input.Position.X, hitArea)
+    end)
+
+    self._conns = {}   -- no persistent UserInputService connections needed
     return self
 end
+
+-- ── Public API ────────────────────────────────────────────────────────────────
 
 function Scrubber:setFrame(frame)
     self._current = math.clamp(math.round(frame), 1, self._frameCount)
@@ -214,7 +252,7 @@ function Scrubber:destroy()
     for _, c in ipairs(self._conns) do c:Disconnect() end
     for _, e in ipairs(self._events) do e:Destroy() end
     if self._track and self._track.Parent then
-        self._track.Parent:Destroy()   -- destroy the ScrubberContainer
+        self._track.Parent:Destroy()
     end
 end
 
