@@ -18,8 +18,6 @@
 --   received InputBegan owns the mouse-button capture, so its InputEnded fires
 --   on release even if the mouse has moved elsewhere.
 
-local DEBUG = true   -- set false once confirmed working
-
 local Scrubber = {}
 Scrubber.__index = Scrubber
 
@@ -140,13 +138,6 @@ function Scrubber.new(parent, frameCount, layoutOrder, dragRoot)
     local function startDragAt(inputX, sourceElement)
         local frame = frameFromInputX(inputX)
 
-        if DEBUG then
-            print(string.format(
-                "[Scrubber] drag start  inputX=%.0f  trackLeft=%.0f  trackW=%.0f  → frame %d/%d",
-                inputX, track.AbsolutePosition.X, track.AbsoluteSize.X,
-                frame, self._frameCount))
-        end
-
         self._dragging = true
         self._current  = frame
         updateVisual(frame)
@@ -177,7 +168,6 @@ function Scrubber.new(parent, frameCount, layoutOrder, dragRoot)
             self._dragging = false
             thumb.BackgroundColor3 = THUMB_COL
             eEnded:Fire()
-            if DEBUG then print("[Scrubber] drag ended") end
         end
 
         -- Movement: overlay.InputChanged fires while mouse is over overlay
@@ -187,11 +177,6 @@ function Scrubber.new(parent, frameCount, layoutOrder, dragRoot)
                 if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
                 local f = frameFromInputX(input.Position.X)
                 if f ~= self._current then
-                    if DEBUG then
-                        print(string.format(
-                            "[Scrubber] drag update  inputX=%.0f  → frame %d",
-                            input.Position.X, f))
-                    end
                     self._current = f
                     updateVisual(f)
                     eChanged:Fire(f)

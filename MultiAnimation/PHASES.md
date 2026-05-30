@@ -52,8 +52,10 @@ Scrub and play back poses live in the viewport (edit mode, no play mode needed).
 - `Interpolator` — linear lerp between keyframes for joints (CFrame) and
   scale (Vector3); `getAllFrames` for cross-rig KF navigation
 - `Scrubber` — horizontal drag slider; fires `onDragBegan`/`onDragEnded`
-  so `ChangeHistoryService` is paused during drag; `IsMouseButtonPressed` guard
-  prevents stuck-drag when mouse released outside the plugin
+  so `ChangeHistoryService` is paused during drag; drag uses a transparent
+  overlay Frame parented to the DockWidgetPluginGui (not the UIListLayout root)
+  so `InputChanged` fires across the full panel without disrupting layout;
+  source-element `InputEnded` owns the mouse-button release signal
 - `|◄` / `►|` — rewind to frame 1 / fast-forward to last frame
 - `◄` / `►` — step one frame back / forward
 - `▶ Preview` — `RunService.Heartbeat` loop; `ChangeHistoryService:SetEnabled(false)`
