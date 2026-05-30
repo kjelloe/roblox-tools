@@ -8,7 +8,7 @@
 | 2 | Capture | ✅ Complete |
 | 3 | Preview | ✅ Complete |
 | 4 | Export | ✅ Complete |
-| 5 | In-game Playback | ⬜ Next |
+| 5 | In-game Playback | ✅ Complete |
 | 6 | Polish | ⬜ Pending |
 | 7 | Future | ⬜ Backlog |
 
@@ -103,25 +103,32 @@ Write animation data to `ServerStorage` as usable Roblox assets.
 
 ---
 
-## Phase 5 — In-game Playback ⬜
+## Phase 5 — In-game Playback ✅
 
 Simultaneous playback of both rigs in a live game.
 
 ### Tasks
 
-- [ ] `MultiAnimPlayer.lua` ModuleScript:
-  - `play(sceneName, rigMap, options?)` — simultaneous `Animator:Play()` on both rigs
-  - Scale tween loop via `RunService.Heartbeat`
-  - `stop()` — cancels animations and tweens
-  - `onFinished(callback)` — fires on natural end or stop
-- [ ] Test script in `ServerScriptService`
+- [x] `MultiAnimPlayer.lua` ModuleScript (`game/`):
+  - `play(sceneName, rigMap, options?)` — loads KFS via `AnimationClipProvider:RegisterKeyframeSequence`, calls `Animator:Play()`; scale interpolated via `RunService.Heartbeat`
+  - `stop()` — stops all AnimationTracks and Heartbeat loop, fires `onFinished`
+  - `onFinished(callback)` — single registered callback, fires on completion or stop
+- [x] Auto-deployed to `ServerStorage.MultiAnimationData` by `Exporter.export()`
+- [x] Test script: `tests/test_player.lua` (place in ServerScriptService, run in Play mode)
 
 ### Acceptance Criteria
 
 - Both rigs animate simultaneously in play mode
 - Joint poses match the viewport preview
-- Scale changes tween smoothly between keyframes
+- Scale changes lerp smoothly between keyframes
 - `stop()` and `onFinished` work correctly
+
+### Notes
+
+- `AnimationClipProvider:RegisterKeyframeSequence` registers the in-memory KFS and returns a `rbxtemp://` content ID usable as `Animation.AnimationId`
+- Scale interpolation runs on `RunService.Heartbeat`; `CFrame:Lerp` / `Vector3:Lerp` for linear blending
+- `onFinished` is single-callback (last registered wins); call before `play()` to avoid race
+- Exporter clones `MultiAnimPlayer` from the plugin's `game` folder into `ServerStorage.MultiAnimationData` on every export so the game-side module is always up to date
 
 ---
 

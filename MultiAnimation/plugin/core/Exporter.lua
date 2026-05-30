@@ -171,6 +171,17 @@ function Exporter.export(session, sceneName)
     scaleModule.Source       = buildScaleTracksSource(session)
     scaleModule.Parent       = sceneFolder
 
+    -- Deploy MultiAnimPlayer alongside the scene data so game scripts can require it
+    local gameFolder = script.Parent.Parent:FindFirstChild("game")
+    if gameFolder then
+        local playerSrc = gameFolder:FindFirstChild("MultiAnimPlayer")
+        if playerSrc then
+            local prev = mad:FindFirstChild("MultiAnimPlayer")
+            if prev then prev:Destroy() end
+            playerSrc:Clone().Parent = mad
+        end
+    end
+
     print(string.format(
         "[Exporter] Scene '%s' exported — %d rig(s) — ServerStorage.MultiAnimationData",
         sceneName, kfsCount

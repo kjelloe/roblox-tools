@@ -113,7 +113,8 @@ def build(dry_run: bool = False) -> None:
 
     # game Folder — included so MultiAnimPlayer can be required in-game
     game_dir = os.path.join(here, "game")
-    game_lua_files = [f for f in os.listdir(game_dir) if f.endswith(".lua")]
+    game_lua_files = [f for f in os.listdir(game_dir) if f.endswith(".lua")] \
+        if os.path.isdir(game_dir) else []
     if game_lua_files:
         game_children = modules_from_dir(game_dir, indent=4)
         game_xml = folder_xml("game", game_children, indent=3)
