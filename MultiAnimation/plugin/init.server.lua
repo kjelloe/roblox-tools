@@ -291,10 +291,14 @@ panel.onAddKeyframeRequested:Connect(function()
         return
     end
     recorder:addKeyframe(frame, activeRigs)
+    local rigNames = {}
     for rigName in pairs(activeRigs) do
         panel:addKeyframeMarker(rigName, frame)
+        table.insert(rigNames, rigName)
     end
-    print(string.format("[MultiAnimation] Keyframe added at frame %d", frame))
+    table.sort(rigNames)
+    print(string.format("[MultiAnimation] Keyframe added at frame %d for: %s",
+        frame, table.concat(rigNames, ", ")))
 end)
 
 panel.onFrameChanged:Connect(function(newFrame)
