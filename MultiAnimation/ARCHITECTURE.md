@@ -48,19 +48,21 @@
 |--------|-------|---------|
 | `init.server.lua` | Entry | Toolbar, widget, event wiring, playback loop, Selection sync |
 | `core/RigScanner` | Core | Detects R6 rigs in Workspace.FIGURES |
-| `core/Recorder` | Core | Session data storage; addKeyframe, deleteRigKeyframe |
+| `core/Recorder` | Core | Session data storage; addKeyframe, deleteRigKeyframe, prop tracks |
 | `core/JointCapture` | Core | Reads/writes Motor6D.Transform |
 | `core/ScaleCapture` | Core | Reads/writes Part.Size |
+| `core/PropCapture` | Core | Reads/writes BasePart.CFrame (world space) — Phase 7 |
 | `core/Timeline` | Core | Frame counter, fps, prev/next KF helpers |
-| `core/Interpolator` | Core | Linear lerp between keyframes |
+| `core/Interpolator` | Core | Linear lerp between keyframes (joints, scale, props) |
 | `core/PoseApplier` | Core | Applies poses; manages ChangeHistoryService |
-| `core/Exporter` | Core | Builds KeyframeSequence + ScaleTracks (Phase 4) |
+| `core/Exporter` | Core | Builds KeyframeSequence + ScaleTracks + PropTracks |
 | `ui/Panel` | UI | Root layout; owns all sections and events |
 | `ui/RigSelector` | UI | Per-rig exclusive-select buttons (radio-button style) |
-| `ui/TrackLane` | UI | One horizontal keyframe lane per rig |
+| `ui/PropSelector` | UI | Per-prop multi-select toggle buttons + Track Part button — Phase 7 |
+| `ui/TrackLane` | UI | One horizontal keyframe lane per rig or prop (colour-coded) |
 | `ui/KeyframeMarker` | UI | Individual dot on a TrackLane; left-click jumps, right-click deletes |
 | `ui/Scrubber` | UI | Horizontal drag slider for frame position |
-| `game/MultiAnimPlayer` | Game | In-game simultaneous playback (Phase 5) |
+| `game/MultiAnimPlayer` | Game | In-game simultaneous playback (Phase 5); prop tracks Phase 7 |
 
 ---
 
@@ -307,6 +309,20 @@ Keyframe
 `UserInputService` mouse events (`InputChanged`, `GetMouseLocation`, `IsMouseButtonPressed`) do **not** fire inside a `DockWidgetPluginGui`. Only `GuiObject` events work.
 
 **Scrubber drag:** A transparent overlay `Frame` is parented to the `DockWidgetPluginGui` (not any `UIListLayout` container) so `InputChanged` fires across the full panel width without disrupting layout. The source element's `InputEnded` owns the mouse-button release signal.
+
+### Prop Track System (Phase 7)
+
+Props are `BasePart` instances tracked by the animator on demand. They are architecturally parallel to rigs but simpler — no Motor6D, no joint hierarchy, just world-space `CFrame`.
+
+**Discovery:** `Selection:Get()` when the animator clicks "Track Part". The selected instance must be a `BasePart` with a name unique across all tracked props and rigs. Sub-parts (MeshPart, ParticleEmitter) follow the parent automatically; their own properties are not captured.
+
+**Track data:** `session.props[propName].propTrack[frame] = CFrame` (world space). Stored parallel to `session.rigs` in `Recorder`.
+
+**UI:** "PROPS IN SCENE" section with multi-select toggle buttons (independent of the exclusive rig selector). Prop track lanes use teal `#00CFCF` keyframe dots to distinguish from rig lanes (yellow). × button removes the prop from the active list; data is retained in the session.
+
+**Interpolation:** `CFrame:Lerp(alpha)` — spherically interpolates rotation (slerp). Applied in `PoseApplier.applyPropPoses` during scrub and in `MultiAnimPlayer`'s Heartbeat loop during in-game playback.
+
+**Export:** `PropTracks` ModuleScript written alongside `ScaleTracks` in the scene folder. Absent if no props were tracked. `MultiAnimPlayer.play(scene, rigMap, propMap?)` — `propMap` is optional for backward compatibility.
 
 ### Viewport Selection Sync
 

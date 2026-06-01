@@ -39,8 +39,22 @@ session = {
         },
         ["Rig2"] = { ... },
     },
+    props = {                   -- Phase 7 — prop CFrame tracks
+        ["Block"] = {
+            propTrack = {
+                -- key = frame number; value = CFrame stored as table of 12 numbers
+                [1]  = CFrame,   -- world-space CFrame of the BasePart
+                [10] = CFrame,
+                [50] = CFrame,
+            },
+        },
+    },
 }
 ```
+
+`props` is absent in sessions saved before Phase 7; consumers treat absence as `{}`.
+
+**CFrame values** in `propTrack` are world-space `Part.CFrame` (absolute position + rotation), not relative to any parent or joint.
 
 **CFrame values** stored in `jointTrack` are `Motor6D.Transform` — the joint's
 current deviation from its rest position. This maps directly to `Pose.Transform`
@@ -73,6 +87,15 @@ CFrames and Vector3s are not JSON-native. They are serialised as arrays:
         }
       }
     }
+  },
+  "props": {
+    "Block": {
+      "propTrack": {
+        "1":  [1,0,0, 0,1,0, 0,0,1,  2, 5, 0],
+        "10": [1,0,0, 0,1,0, 0,0,1,  5, 7, -3],
+        "50": [1,0,0, 0,1,0, 0,0,1, -2, 5,  0]
+      }
+    }
   }
 }
 ```
@@ -80,8 +103,12 @@ CFrames and Vector3s are not JSON-native. They are serialised as arrays:
 CFrame array layout: `[r00,r01,r02, r10,r11,r12, r20,r21,r22, x,y,z]`  
 Vector3 array layout: `[x, y, z]`
 
-Deserialisation reconstructs via `CFrame.new(x,y,z, r00,r01,r02,r10,r11,r12,r20,r21,r22)`
-and `Vector3.new(x, y, z)`.
+Deserialisation:
+- CFrame: `CFrame.new(x,y,z, r00,r01,r02,r10,r11,r12,r20,r21,r22)`
+- Vector3: `Vector3.new(x, y, z)`
+- Prop CFrame: same layout as joint CFrame — `CFrame.new(x,y,z, r00,…,r22)`
+
+`props` key is omitted in sessions from before Phase 7; treat absence as `{}`.
 
 ---
 
@@ -139,6 +166,30 @@ return {
 
 ---
 
+## Exported: PropTracks ModuleScript (Phase 7)
+
+Written alongside `ScaleTracks` when any props are tracked.
+
+```lua
+-- PropTracks (ModuleScript source)
+return {
+    fps = 24,
+    props = {
+        Block = {
+            -- [frameNumber] = { r00,r01,r02, r10,r11,r12, r20,r21,r22, x,y,z }
+            [1]  = { 1,0,0, 0,1,0, 0,0,1,  2, 5,  0 },
+            [10] = { 1,0,0, 0,1,0, 0,0,1,  5, 7, -3 },
+            [50] = { 1,0,0, 0,1,0, 0,0,1, -2, 5,  0 },
+        },
+    },
+}
+```
+
+`MultiAnimPlayer` reconstructs `CFrame` values from the 12-number arrays at runtime using
+`CFrame.new(x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22)`.
+
+---
+
 ## ServerStorage Layout
 
 ```
@@ -147,7 +198,8 @@ ServerStorage
     ├── Scene_001
     │   ├── Rig1_Joints   (KeyframeSequence)
     │   ├── Rig2_Joints   (KeyframeSequence)
-    │   └── ScaleTracks   (ModuleScript)
+    │   ├── ScaleTracks   (ModuleScript)
+    │   └── PropTracks    (ModuleScript — absent if no props in scene)
     ├── Scene_002
     │   └── ...
     └── MultiAnimPlayer   (ModuleScript — game playback API)
@@ -163,14 +215,13 @@ can `require` it without a plugin dependency.
 ```lua
 local player = require(game.ServerStorage.MultiAnimationData.MultiAnimPlayer)
 
--- Play a named scene on a set of rigs
--- rigMap keys must match the rig names used when the scene was exported
-player.play("Scene_001", {
-    Rig1 = workspace.FIGURES.Rig1,
-    Rig2 = workspace.FIGURES.Rig2,
-})
+-- Play a named scene on a set of rigs (propMap is optional — Phase 7)
+player.play("Scene_001",
+    { Rig1 = workspace.FIGURES.Rig1, Rig2 = workspace.FIGURES.Rig2 },
+    { Block = workspace.Block }   -- omit to play rigs only (backward compatible)
+)
 
--- Stop all active playback immediately
+-- Stop all active playback immediately (rigs + props)
 player.stop()
 
 -- Register a callback fired when the scene finishes (or is stopped)
@@ -201,6 +252,23 @@ A new `Tween` with `TweenInfo.new(tB - tA, Enum.EasingStyle.Linear)` is created
 at keyframe A and targets keyframe B's sizes. When it completes the next tween
 for B→C is created, and so on.
 
+### Props (in-game, via Heartbeat loop)
+
+Same loop as scale interpolation. For each pair of adjacent prop keyframes A and B:
+
+```
+alpha(t) = (t - tA) / (tB - tA)
+cf(t)    = cfA:Lerp(cfB, alpha)
+part.CFrame = cf(t)
+```
+
+`CFrame:Lerp()` spherically interpolates rotation (slerp), giving smooth tumbling/spinning.
+
+### Props (in-editor preview, via PoseApplier)
+
+Discrete assignment per frame step — `part.CFrame = interpolatedCFrame`.
+Wrapped in `ChangeHistoryService` waypoints to keep the undo stack clean.
+
 ### Scale (in-editor preview, via PoseApplier)
 
 Applied discretely per frame step — no interpolation during scrub in v1.
@@ -217,5 +285,7 @@ Smooth scrub interpolation is a v2 enhancement.
 | Scale module | `ScaleTracks` (shared, one per scene) | `ScaleTracks` |
 | Motor6D keys | Exact Roblox name | `"Right Shoulder"` |
 | Part scale keys | Exact Roblox name | `"Left Arm"` |
+| Prop name keys | Exact `BasePart.Name` | `"Block"` |
+| Prop module | `PropTracks` (shared, one per scene) | `PropTracks` |
 | Frame numbers | 1-based integers | `1`, `12`, `24` |
 | Time (KFS) | Seconds, 4 decimal places | `0.4583` |

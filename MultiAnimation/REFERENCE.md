@@ -113,6 +113,8 @@ rojo build default.project.json -o MultiAnimation.rbxm   # build plugin file
 | 4 Export | ✅ |
 | 5 In-game Playback | ✅ |
 | 6 Polish | 🔄 In Progress |
+| 7 Prop Animation | ⬜ Designed |
+| 8 Future | ⬜ Backlog |
 
 See `PHASES.md` for full task lists.
 
@@ -122,7 +124,17 @@ See `PHASES.md` for full task lists.
 |---|---|
 | Click rig button in panel | Exclusive select — deactivates all others |
 | Click rig part in viewport | Exclusive select that rig in panel |
-| Double-click track lane | Jump to that frame + add keyframe for that rig |
+| Click prop button in panel | Multi-select toggle (independent of rig selection) |
+| Click "Track Part" button | Adds currently viewport-selected BasePart as a tracked prop |
+| Click × on prop button | Removes prop from panel; data kept in session |
+| Double-click rig/prop track lane | Jump to that frame + add keyframe for that object |
 | Left-click keyframe dot | Jump timeline to that frame |
-| Right-click keyframe dot | Delete that rig's keyframe at that frame |
+| Right-click keyframe dot | Delete that object's keyframe at that frame |
 | Drag scrubber | Scrub timeline (overlay pattern — see ARCHITECTURE.md) |
+
+## Track Lane Colours
+
+| Colour | Type |
+|---|---|
+| Yellow `#FFC83C` | Rig keyframe |
+| Teal `#00CFCF` | Prop keyframe |

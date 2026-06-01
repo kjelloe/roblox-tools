@@ -78,6 +78,22 @@ architectural changes.
 | E-03 | As an animator, the export creates one `KeyframeSequence` per rig (joint data) and one `ModuleScript` (scale data) inside the scene folder. |
 | E-04 | As an animator, exporting a scene that already exists prompts for overwrite confirmation. |
 
+### Prop tracking
+
+| ID | Story |
+|----|-------|
+| O-01 | As an animator, I can select any `BasePart` in the Studio viewport and click "Track Part" to add it to the animation session. |
+| O-02 | As an animator, the plugin rejects tracking a part whose name is not unique among already-tracked props and rigs, and tells me why. |
+| O-03 | As an animator, tracked props appear in a "PROPS IN SCENE" section with independent multi-select toggle buttons (not exclusive — I can have Rig1 active and Block active simultaneously). |
+| O-04 | As an animator, I can click × on a prop button to remove it from the active prop list; its recorded keyframe data is kept until the session is cleared. |
+| O-05 | As an animator, each tracked prop has its own track lane with teal keyframe dots so I can immediately distinguish prop lanes from rig lanes. |
+| O-06 | As an animator, "Add Keyframe" captures the current `CFrame` of all active props at the current frame, alongside active rig poses. |
+| O-07 | As an animator, I can double-click anywhere on a prop's track lane to jump to that frame and add a keyframe for that prop. |
+| O-08 | As an animator, I can right-click a teal keyframe dot to delete that prop's keyframe at that frame. |
+| O-09 | As an animator, scrubbing the timeline applies interpolated `CFrame` positions to all tracked props in the viewport. |
+| O-10 | As an animator, Preview playback moves props in the viewport at the configured FPS, interpolated between keyframes. |
+| O-11 | As an animator, prop tracks are included in Save As / Load so my prop keyframes persist across sessions. |
+
 ### In-game playback
 
 | ID | Story |
@@ -85,7 +101,9 @@ architectural changes.
 | G-01 | As a developer, I can require `MultiAnimPlayer` and call `player.play(sceneName, rigMap)` to start playback. |
 | G-02 | As a player, both rigs begin their animations in the same frame, with no perceptible offset. |
 | G-03 | As a developer, scale changes are tweened between keyframes using `TweenService`, matching the session FPS. |
-| G-04 | As a developer, I can call `player.stop()` to halt playback on all rigs at any time. |
+| G-04 | As a developer, I can call `player.stop()` to halt playback on all rigs and props at any time. |
+| G-05 | As a developer, I can pass an optional `propMap` to `player.play()` mapping prop names to their in-game Part instances; omitting it plays rigs only (backward compatible). |
+| G-06 | As a developer, prop `CFrame` is interpolated between keyframes in the same Heartbeat loop as scale tracks. |
 
 ---
 
@@ -128,6 +146,14 @@ A Model in `Workspace.FIGURES` is recognised as an R6 rig if it contains:
 | NF-05 | In-game playback (`MultiAnimPlayer`) must have no dependency on the plugin being installed. |
 
 ---
+
+## Prop Constraints (Phase 7)
+
+- Props must be `BasePart` instances (Part, MeshPart, etc.). Models with multiple parts are not supported; pick the root part.
+- Props must have a unique name across all tracked props and rigs in the session.
+- Props should be `Anchored = true`; the plugin warns but does not block if unanchored. Unanchored props will drift under physics during playback.
+- Sub-parts (`MeshPart`, `SpecialMesh`, `ParticleEmitter`) follow the parent part's CFrame automatically — their own properties are not animated.
+- Props are identified by `Name` for session persistence. If a prop is not found by name on session load, that prop's tracks are skipped with a warning.
 
 ## Out of Scope (v1)
 
