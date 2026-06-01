@@ -636,7 +636,7 @@ function Panel:showLoadList(saves)
             row.Parent           = self._loadScroll
 
             local nameLbl = Instance.new("TextLabel")
-            nameLbl.Size             = UDim2.new(1, -90, 1, 0)
+            nameLbl.Size             = UDim2.new(1, -158, 1, 0)
             nameLbl.Position         = UDim2.new(0, 10, 0, 0)
             nameLbl.BackgroundTransparency = 1
             nameLbl.TextColor3       = C.inputText
@@ -649,11 +649,11 @@ function Panel:showLoadList(saves)
             nameLbl.Parent           = row
 
             local timeLbl = Instance.new("TextLabel")
-            timeLbl.Size             = UDim2.new(0, 80, 1, 0)
-            timeLbl.Position         = UDim2.new(1, -85, 0, 0)
+            timeLbl.Size             = UDim2.new(0, 148, 1, 0)
+            timeLbl.Position         = UDim2.new(1, -153, 0, 0)
             timeLbl.BackgroundTransparency = 1
             timeLbl.TextColor3       = C.muted
-            timeLbl.Text             = _relTime(entry.savedAt)
+            timeLbl.Text             = os.date("%Y-%m-%d %H:%M:%S", entry.savedAt)
             timeLbl.TextSize         = 10
             timeLbl.Font             = Enum.Font.Gotham
             timeLbl.TextXAlignment   = Enum.TextXAlignment.Right
