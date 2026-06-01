@@ -1,14 +1,15 @@
--- RigSelector — renders one toggle button per rig.
+-- RigSelector — renders one exclusive-select button per rig.
 --
--- Active rigs (blue) will be included when "Add Keyframe" is pressed.
+-- Exactly one rig is active at a time (radio-button behaviour).
+-- The active rig (blue) is included when "Add Keyframe" is pressed.
 -- Inactive rigs (grey) keep their recorded data but are not updated.
--- The last active rig cannot be deselected.
 --
 -- Public API:
---   RigSelector.new(parent)        → selector
---   selector:setRigs(rigsTable)    — rebuilds buttons from { [name]=Model }
---   selector:getActiveRigs()       → { [name]=Model } of active rigs only
---   selector.onActiveRigsChanged   — BindableEvent.Event, fired on every toggle
+--   RigSelector.new(parent)            → selector
+--   selector:setRigs(rigsTable)        — rebuilds buttons from { [name]=Model }
+--   selector:setActiveRigs(rigNames)   — programmatically set active set
+--   selector:getActiveRigs()           → { [name]=Model } of active rigs only
+--   selector.onActiveRigsChanged       — BindableEvent.Event, fired on change
 
 local COLORS = {
     active   = Color3.fromRGB(0,  148, 214),
@@ -54,7 +55,7 @@ function RigSelector.new(parent)
 end
 
 -- Rebuilds toggle buttons from a fresh scan result.
--- All rigs default to active.
+-- The first rig alphabetically starts active; all others inactive.
 function RigSelector:setRigs(rigs)
     -- Destroy existing buttons
     for _, btn in pairs(self._buttons) do
@@ -64,9 +65,13 @@ function RigSelector:setRigs(rigs)
     self._active  = {}
     self._rigs    = rigs
 
+    local names = {}
+    for name in pairs(rigs) do table.insert(names, name) end
+    table.sort(names)
+
     local any = false
-    for name in pairs(rigs) do
-        self._active[name] = true
+    for i, name in ipairs(names) do
+        self._active[name] = (i == 1)
         self:_buildButton(name)
         any = true
     end
@@ -127,13 +132,11 @@ function RigSelector:_buildButton(name)
     corner.Parent = btn
 
     btn.MouseButton1Click:Connect(function()
-        local isActive = self._active[name]
-
-        -- Cannot deselect the last active rig
-        if isActive and self:_activeCount() <= 1 then return end
-
-        self._active[name] = not isActive
-        self:_refreshButton(name)
+        if self._active[name] then return end   -- already the active rig
+        for n in pairs(self._active) do
+            self._active[n] = (n == name)
+            self:_refreshButton(n)
+        end
         self._changed:Fire(self:getActiveRigs())
     end)
 

@@ -218,6 +218,12 @@ function Panel.new(widget)
     self.onMarkerDeleteRequested = eMarkerDel.Event
     self._eMarkerDel = eMarkerDel
     table.insert(evts, eMarkerDel)
+
+    local eTimeDbl = Instance.new("BindableEvent")
+    self.onTimelineDoubleClicked = eTimeDbl.Event
+    self._eTimeDbl = eTimeDbl
+    table.insert(evts, eTimeDbl)
+
     self._evts = evts
 
     self._trackLanes   = {}
@@ -380,6 +386,9 @@ function Panel:setRigs(rigs)
         end)
         lane.onMarkerDeleteRequested:Connect(function(frame)
             self._eMarkerDel:Fire(name, frame)
+        end)
+        lane.onDoubleClicked:Connect(function(frame)
+            self._eTimeDbl:Fire(name, frame)
         end)
         self._trackLanes[name] = lane
         order += 1

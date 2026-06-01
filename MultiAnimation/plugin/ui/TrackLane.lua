@@ -31,6 +31,10 @@ function TrackLane.new(parent, rigName, frameCount, layoutOrder)
     self.onMarkerDeleteRequested = markerDeleteRequested.Event
     self._markerDeleteRequested  = markerDeleteRequested
 
+    local doubleClicked = Instance.new("BindableEvent")
+    self.onDoubleClicked = doubleClicked.Event
+    self._doubleClicked  = doubleClicked
+
     -- Row container
     local row = Instance.new("Frame")
     row.Name            = "Lane_" .. rigName
@@ -79,6 +83,28 @@ function TrackLane.new(parent, rigName, frameCount, layoutOrder)
     line.BorderSizePixel    = 0
     line.ZIndex             = 1
     line.Parent             = track
+
+    -- Double-click on track background → add keyframe at that position
+    local lastClickTime = 0
+    local DBLCLICK = 0.35
+    track.InputBegan:Connect(function(input)
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+        local now = tick()
+        if now - lastClickTime < DBLCLICK then
+            local relX  = input.Position.X - track.AbsolutePosition.X
+            local w     = track.AbsoluteSize.X
+            local frame = 1
+            if w > 0 and self._frameCount > 1 then
+                frame = math.clamp(
+                    math.round((relX / w) * (self._frameCount - 1)) + 1,
+                    1, self._frameCount)
+            end
+            doubleClicked:Fire(frame)
+            lastClickTime = 0   -- prevent triple-click retriggering
+        else
+            lastClickTime = now
+        end
+    end)
 
     self._row   = row
     self._track = track
@@ -145,6 +171,7 @@ function TrackLane:destroy()
     self:clearMarkers()
     self._markerClicked:Destroy()
     self._markerDeleteRequested:Destroy()
+    self._doubleClicked:Destroy()
     if self._row and self._row.Parent then
         self._row:Destroy()
     end

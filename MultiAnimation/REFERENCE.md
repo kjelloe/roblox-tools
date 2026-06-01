@@ -120,7 +120,9 @@ See `PHASES.md` for full task lists.
 
 | Interaction | Action |
 |---|---|
-| Left-click rig in viewport | Selects only that rig in panel |
-| Right-click keyframe dot | Deletes that rig's keyframe at that frame |
-| Left-click keyframe dot | Jumps timeline to that frame |
-| Drag scrubber | Scrubs timeline (overlay pattern — see ARCHITECTURE.md) |
+| Click rig button in panel | Exclusive select — deactivates all others |
+| Click rig part in viewport | Exclusive select that rig in panel |
+| Double-click track lane | Jump to that frame + add keyframe for that rig |
+| Left-click keyframe dot | Jump timeline to that frame |
+| Right-click keyframe dot | Delete that rig's keyframe at that frame |
+| Drag scrubber | Scrub timeline (overlay pattern — see ARCHITECTURE.md) |

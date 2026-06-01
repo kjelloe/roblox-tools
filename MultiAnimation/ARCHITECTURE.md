@@ -56,7 +56,7 @@
 | `core/PoseApplier` | Core | Applies poses; manages ChangeHistoryService |
 | `core/Exporter` | Core | Builds KeyframeSequence + ScaleTracks (Phase 4) |
 | `ui/Panel` | UI | Root layout; owns all sections and events |
-| `ui/RigSelector` | UI | Per-rig toggle buttons |
+| `ui/RigSelector` | UI | Per-rig exclusive-select buttons (radio-button style) |
 | `ui/TrackLane` | UI | One horizontal keyframe lane per rig |
 | `ui/KeyframeMarker` | UI | Individual dot on a TrackLane; left-click jumps, right-click deletes |
 | `ui/Scrubber` | UI | Horizontal drag slider for frame position |
@@ -311,6 +311,22 @@ Keyframe
 ### Viewport Selection Sync
 
 `Selection.SelectionChanged` fires when the user clicks in the Studio viewport. The handler walks each selected instance's ancestor chain to find a matching rig in `allRigs`. If any rig is found, `panel:setActiveRigs(rigNames)` sets the selector buttons. Ignored during playback.
+
+### Exclusive Rig Selection
+
+Rig buttons behave as radio buttons: clicking a button sets only that rig active and clears all others in a single loop over `self._active`. If the clicked rig is already the active one, the handler returns early. On initial load, rig names are sorted alphabetically and the first is activated — giving a deterministic default regardless of table iteration order.
+
+`setActiveRigs(rigNames)` (used by viewport sync) also enforces this: it sets `_active[name] = rigNames[name] == true` for all rigs, so passing `{ Rig2 = true }` correctly deactivates Rig1 and activates Rig2.
+
+### Double-Click Track Lane → Add Keyframe
+
+`track.InputBegan` (GuiObject event, works in DockWidgets) tracks the time of the last `MouseButton1` press. If a second press arrives within 0.35 s, it fires `onDoubleClicked(frame)`. The frame is derived from the click's X position relative to the track area:
+
+```
+frame = clamp( round((relX / trackWidth) * (frameCount - 1)) + 1, 1, frameCount )
+```
+
+Propagation: `TrackLane.onDoubleClicked → Panel.onTimelineDoubleClicked(rigName, frame) → init.server.lua` which calls `timeline:setCurrent`, `applyPosesAt`, and `recorder:addKeyframe` for that rig only. Clicking on an existing marker (TextButton) sinks the input and does not trigger the track's double-click handler.
 
 ### Keyframe Deletion
 

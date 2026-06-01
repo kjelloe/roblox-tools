@@ -141,6 +141,8 @@ Session persistence, keyframe editing, rig workflow improvements.
 - [x] Delete keyframe: right-click marker → removes that rig's keyframe at that frame only (`MouseButton2Click` → `Recorder:deleteRigKeyframe`)
 - [x] Viewport selection sync: clicking any part of a rig in the Studio viewport selects only that rig in the plugin panel (`Selection.SelectionChanged` + ancestor walk)
 - [x] Session save/load: `Save` and `Load` buttons persist session via `plugin:SetSetting` (CFrames as 12-number arrays, Vector3 as 3-number arrays)
+- [x] Exclusive rig selection: rig buttons behave as radio buttons — clicking one deactivates all others; first rig alphabetically starts active on load
+- [x] Double-click track lane: double-click anywhere on a rig's track area jumps the timeline to that frame position and records a keyframe for that rig (`track.InputBegan` double-click timer → `onTimelineDoubleClicked(rigName, frame)`)
 - [ ] Session auto-save on every keyframe change (currently manual Save button only)
 - [ ] "New Session" button with confirmation dialog
 - [ ] Auto-detect rigs added/removed from FIGURES (`ChildAdded`/`ChildRemoved`)

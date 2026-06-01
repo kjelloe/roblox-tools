@@ -352,6 +352,17 @@ panel.onNextKeyframeRequested:Connect(function()
     end
 end)
 
+panel.onTimelineDoubleClicked:Connect(function(rigName, frame)
+    local model = allRigs[rigName]
+    if not model then return end
+    local f = timeline:setCurrent(frame)
+    panel:setFrameDisplay(f, timeline:getFrameCount())
+    applyPosesAt(f, false)
+    recorder:addKeyframe(f, { [rigName] = model })
+    panel:addKeyframeMarker(rigName, f)
+    print(string.format("[MultiAnimation] Keyframe added at frame %d for %s", f, rigName))
+end)
+
 panel.onMarkerDeleteRequested:Connect(function(rigName, frame)
     recorder:deleteRigKeyframe(rigName, frame)
     panel:removeKeyframeMarker(rigName, frame)
