@@ -105,7 +105,9 @@ end
 
 -- ── Session persistence ───────────────────────────────────────────────────────
 
-local SAVE_KEY = "MultiAnim_Session_v1"
+local INDEX_KEY   = "MultiAnim_Index_v2"
+local DATA_PREFIX = "MultiAnim_Data_v2_"
+local MAX_SAVES   = 30
 
 local function serializeSession()
     local session = recorder:getSession()
@@ -132,35 +134,40 @@ local function serializeSession()
     return out
 end
 
-local function saveSession()
-    local ok, err = pcall(function()
-        plugin:SetSetting(SAVE_KEY, serializeSession())
-    end)
-    if ok then
-        print("[MultiAnimation] Session saved")
-    else
-        warn("[MultiAnimation] Save failed: " .. tostring(err))
-    end
+local function getIndex()
+    local ok, idx = pcall(function() return plugin:GetSetting(INDEX_KEY) end)
+    return (ok and type(idx) == "table") and idx or {}
 end
 
-local function loadSession()
-    local ok, data = pcall(function()
-        return plugin:GetSetting(SAVE_KEY)
+local function saveNamed(name)
+    local ok, err = pcall(function()
+        plugin:SetSetting(DATA_PREFIX .. name, serializeSession())
     end)
-    if not ok or not data or not data.rigs then
-        warn("[MultiAnimation] No saved session found")
+    if not ok then
+        warn("[MultiAnimation] Save failed: " .. tostring(err))
         return
     end
+    local idx = getIndex()
+    for i = #idx, 1, -1 do
+        if idx[i].name == name then table.remove(idx, i) end
+    end
+    table.insert(idx, 1, { name = name, savedAt = os.time() })
+    while #idx > MAX_SAVES do
+        local dropped = table.remove(idx)
+        pcall(function() plugin:SetSetting(DATA_PREFIX .. dropped.name, nil) end)
+    end
+    pcall(function() plugin:SetSetting(INDEX_KEY, idx) end)
+    print("[MultiAnimation] Saved as '" .. name .. "'")
+end
 
+local function applySessionData(data)
     recorder:clearSession()
-
     local fps        = data.fps        or 24
     local frameCount = data.frameCount or 120
     recorder:setFps(fps)
     recorder:setFrameCount(frameCount)
     timeline:setFps(fps)
     timeline:setFrameCount(frameCount)
-
     for rigName, rigData in pairs(data.rigs) do
         for frameStr, jd in pairs(rigData.joints or {}) do
             local frame = tonumber(frameStr)
@@ -168,9 +175,9 @@ local function loadSession()
                 local jointData = {}
                 for jName, arr in pairs(jd) do
                     jointData[jName] = CFrame.new(
-                        arr[1], arr[2], arr[3],
-                        arr[4], arr[5], arr[6],
-                        arr[7], arr[8], arr[9],
+                        arr[1],  arr[2],  arr[3],
+                        arr[4],  arr[5],  arr[6],
+                        arr[7],  arr[8],  arr[9],
                         arr[10], arr[11], arr[12]
                     )
                 end
@@ -188,7 +195,6 @@ local function loadSession()
             end
         end
     end
-
     panel:setRigs(allRigs)
     for rigName in pairs(allRigs) do
         for _, frame in ipairs(recorder:getSortedFrames(rigName)) do
@@ -197,7 +203,16 @@ local function loadSession()
     end
     panel:setFrameCount(frameCount)
     panel:setFrameDisplay(timeline:getCurrent(), frameCount)
-    print("[MultiAnimation] Session loaded")
+end
+
+local function loadNamed(name)
+    local ok, data = pcall(function() return plugin:GetSetting(DATA_PREFIX .. name) end)
+    if not ok or not data or not data.rigs then
+        warn("[MultiAnimation] Save '" .. name .. "' not found")
+        return
+    end
+    applySessionData(data)
+    print("[MultiAnimation] Loaded '" .. name .. "'")
 end
 
 -- ── Playback ──────────────────────────────────────────────────────────────────
@@ -369,8 +384,16 @@ panel.onMarkerDeleteRequested:Connect(function(rigName, frame)
     print(string.format("[MultiAnimation] Deleted keyframe at frame %d for %s", frame, rigName))
 end)
 
-panel.onSaveRequested:Connect(saveSession)
-panel.onReloadRequested:Connect(loadSession)
+panel.onSaveConfirmed:Connect(function(name)
+    saveNamed(name)
+end)
+panel.onLoadRequested:Connect(function()
+    panel:showLoadList(getIndex())
+end)
+panel.onLoadNamedRequested:Connect(function(name)
+    loadNamed(name)
+    panel:hideLoadList()
+end)
 panel.onPreviewRequested:Connect(startPlayback)
 panel.onStopRequested:Connect(stopPlayback)
 

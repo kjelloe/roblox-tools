@@ -48,6 +48,16 @@ local C = {
     inputText = Color3.fromRGB(220, 220, 220),
 }
 
+local function _relTime(ts)
+    local d = os.time() - ts
+    if d < 60      then return "just now"
+    elseif d < 3600   then return math.floor(d / 60)   .. "m ago"
+    elseif d < 86400  then return math.floor(d / 3600) .. "h ago"
+    elseif d < 172800 then return "yesterday"
+    else return math.floor(d / 86400) .. "d ago"
+    end
+end
+
 local Panel = {}
 Panel.__index = Panel
 
@@ -212,8 +222,8 @@ function Panel.new(widget)
     local eNextKF   = mkEvent("onNextKeyframeRequested")
     local eRewind   = mkEvent("onRewindRequested")
     local eFF       = mkEvent("onFastForwardRequested")
-    local eSave     = mkEvent("onSaveRequested")
-    local eReload   = mkEvent("onReloadRequested")
+    local eSave     = mkEvent("onSaveConfirmed")
+    local eReload   = mkEvent("onLoadRequested")
     local eMarkerDel = Instance.new("BindableEvent")
     self.onMarkerDeleteRequested = eMarkerDel.Event
     self._eMarkerDel = eMarkerDel
@@ -224,7 +234,13 @@ function Panel.new(widget)
     self._eTimeDbl = eTimeDbl
     table.insert(evts, eTimeDbl)
 
+    local eLoadNamed = Instance.new("BindableEvent")
+    self.onLoadNamedRequested = eLoadNamed.Event
+    self._eLoadNamed = eLoadNamed
+    table.insert(evts, eLoadNamed)
+
     self._evts = evts
+    self._lastSaveName = nil
 
     self._trackLanes   = {}
     self._frameCount   = 120
@@ -246,11 +262,11 @@ function Panel.new(widget)
     divider(rigsSec, 5)
     local sessionRow = hrow(rigsSec, 6, 4)
     local refreshBtn = btn(sessionRow, "↺  Refresh", 1)
-    local saveBtn    = btn(sessionRow, "Save",       2)
-    local reloadBtn  = btn(sessionRow, "Load",       3)
+    local saveAsBtn  = btn(sessionRow, "Save As",    2)
+    local loadBtn    = btn(sessionRow, "Load",        3)
     refreshBtn.MouseButton1Click:Connect(function() eRefresh:Fire() end)
-    saveBtn.MouseButton1Click:Connect(function() eSave:Fire() end)
-    reloadBtn.MouseButton1Click:Connect(function() eReload:Fire() end)
+    saveAsBtn.MouseButton1Click:Connect(function() self:_showSaveOverlay() end)
+    loadBtn.MouseButton1Click:Connect(function() eReload:Fire() end)
 
     divider(root, 2)
 
@@ -366,6 +382,119 @@ function Panel.new(widget)
         end
     end)
 
+    -- ── Save As overlay ───────────────────────────────────────────────────────
+    local saveOv = Instance.new("Frame")
+    saveOv.Name            = "SaveOverlay"
+    saveOv.Size            = UDim2.new(0, 234, 0, 108)
+    saveOv.AnchorPoint     = Vector2.new(0.5, 0.5)
+    saveOv.Position        = UDim2.new(0.5, 0, 0.5, 0)
+    saveOv.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+    saveOv.BorderSizePixel = 0
+    saveOv.ZIndex          = 50
+    saveOv.Visible         = false
+    saveOv.Parent          = widget
+    Instance.new("UICorner", saveOv).CornerRadius = UDim.new(0, 6)
+    local _sStroke = Instance.new("UIStroke")
+    _sStroke.Color     = Color3.fromRGB(90, 90, 90)
+    _sStroke.Thickness = 1
+    _sStroke.Parent    = saveOv
+    listLayout(saveOv, Enum.FillDirection.Vertical, 8)
+    addPadding(saveOv, 10, 10)
+
+    local saveOvHdr = Instance.new("TextLabel")
+    saveOvHdr.Size               = UDim2.new(1, 0, 0, 13)
+    saveOvHdr.BackgroundTransparency = 1
+    saveOvHdr.TextColor3         = C.header
+    saveOvHdr.Text               = "SAVE AS"
+    saveOvHdr.TextSize           = 10
+    saveOvHdr.Font               = Enum.Font.GothamBold
+    saveOvHdr.TextXAlignment     = Enum.TextXAlignment.Left
+    saveOvHdr.LayoutOrder        = 1
+    saveOvHdr.Parent             = saveOv
+
+    local saveOvBox = textBox(saveOv, "Scene_001", 0, 2)
+    saveOvBox.Size          = UDim2.new(1, 0, 0, 26)
+    saveOvBox.AutomaticSize = Enum.AutomaticSize.None
+
+    local saveOvRow    = hrow(saveOv, 3, 6)
+    local saveOvOk     = btn(saveOvRow, "Save",   1, true)
+    local saveOvCancel = btn(saveOvRow, "Cancel", 2)
+
+    local function _doSave()
+        local name = saveOvBox.Text:match("^%s*(.-)%s*$")
+        if name ~= "" then
+            self._lastSaveName = name
+            saveOv.Visible = false
+            eSave:Fire(name)
+        end
+    end
+    saveOvBox.FocusLost:Connect(function(enter) if enter then _doSave() end end)
+    saveOvOk.MouseButton1Click:Connect(_doSave)
+    saveOvCancel.MouseButton1Click:Connect(function() saveOv.Visible = false end)
+
+    self._saveOverlay = saveOv
+    self._saveOvBox   = saveOvBox
+
+    -- ── Load list overlay ─────────────────────────────────────────────────────
+    local loadOv = Instance.new("Frame")
+    loadOv.Name             = "LoadOverlay"
+    loadOv.Size             = UDim2.new(1, 0, 1, 0)
+    loadOv.BackgroundColor3 = C.bg
+    loadOv.BorderSizePixel  = 0
+    loadOv.ZIndex           = 50
+    loadOv.Visible          = false
+    loadOv.Parent           = widget
+
+    local loadHdr = Instance.new("Frame")
+    loadHdr.Size             = UDim2.new(1, 0, 0, 34)
+    loadHdr.BackgroundColor3 = C.sectionBg
+    loadHdr.BorderSizePixel  = 0
+    loadHdr.ZIndex           = 51
+    loadHdr.Parent           = loadOv
+
+    local loadHdrTitle = Instance.new("TextLabel")
+    loadHdrTitle.Size               = UDim2.new(1, -34, 1, 0)
+    loadHdrTitle.Position           = UDim2.new(0, 10, 0, 0)
+    loadHdrTitle.BackgroundTransparency = 1
+    loadHdrTitle.TextColor3         = C.header
+    loadHdrTitle.Text               = "LOAD SESSION"
+    loadHdrTitle.TextSize           = 10
+    loadHdrTitle.Font               = Enum.Font.GothamBold
+    loadHdrTitle.TextXAlignment     = Enum.TextXAlignment.Left
+    loadHdrTitle.ZIndex             = 52
+    loadHdrTitle.Parent             = loadHdr
+
+    local loadHdrClose = Instance.new("TextButton")
+    loadHdrClose.Size               = UDim2.new(0, 34, 1, 0)
+    loadHdrClose.Position           = UDim2.new(1, -34, 0, 0)
+    loadHdrClose.BackgroundTransparency = 1
+    loadHdrClose.TextColor3         = C.muted
+    loadHdrClose.Text               = "✕"
+    loadHdrClose.TextSize           = 14
+    loadHdrClose.Font               = Enum.Font.Gotham
+    loadHdrClose.ZIndex             = 52
+    loadHdrClose.Parent             = loadHdr
+    loadHdrClose.MouseButton1Click:Connect(function() loadOv.Visible = false end)
+
+    local loadScroll = Instance.new("ScrollingFrame")
+    loadScroll.Size                 = UDim2.new(1, 0, 1, -34)
+    loadScroll.Position             = UDim2.new(0, 0, 0, 34)
+    loadScroll.CanvasSize           = UDim2.new(0, 0, 0, 0)
+    loadScroll.ScrollBarThickness   = 5
+    loadScroll.ScrollBarImageColor3 = C.btnBg
+    loadScroll.BackgroundTransparency = 1
+    loadScroll.BorderSizePixel      = 0
+    loadScroll.ZIndex               = 51
+    loadScroll.Parent               = loadOv
+
+    local _scrollLayout = Instance.new("UIListLayout")
+    _scrollLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    _scrollLayout.Padding   = UDim.new(0, 1)
+    _scrollLayout.Parent    = loadScroll
+
+    self._loadOverlay = loadOv
+    self._loadScroll  = loadScroll
+
     self._root = root
     return self
 end
@@ -463,6 +592,86 @@ function Panel:setPlaybackState(isPlaying)
         self._previewBtn.BackgroundColor3 = isPlaying and C.btnDim or C.btnBg
         self._previewBtn.TextColor3 = isPlaying and C.btnDimTxt or C.btnText
     end
+end
+
+function Panel:_showSaveOverlay()
+    self._saveOvBox.Text = self._lastSaveName or "Scene_001"
+    self._saveOverlay.Visible = true
+    task.defer(function()
+        if self._saveOvBox and self._saveOvBox.Parent then
+            self._saveOvBox:CaptureFocus()
+        end
+    end)
+end
+
+local _ROW_H = 36
+
+function Panel:showLoadList(saves)
+    for _, c in ipairs(self._loadScroll:GetChildren()) do
+        if not c:IsA("UIListLayout") then c:Destroy() end
+    end
+    if #saves == 0 then
+        local e = Instance.new("TextLabel")
+        e.Size               = UDim2.new(1, 0, 0, 40)
+        e.BackgroundTransparency = 1
+        e.TextColor3         = C.muted
+        e.Text               = "No saved sessions"
+        e.TextSize           = 11
+        e.Font               = Enum.Font.Gotham
+        e.TextXAlignment     = Enum.TextXAlignment.Center
+        e.LayoutOrder        = 1
+        e.Parent             = self._loadScroll
+        self._loadScroll.CanvasSize = UDim2.new(0, 0, 0, 40)
+    else
+        for i, entry in ipairs(saves) do
+            local rowBg = (i % 2 == 0) and Color3.fromRGB(40, 40, 40) or Color3.fromRGB(46, 46, 46)
+            local row = Instance.new("TextButton")
+            row.Size             = UDim2.new(1, 0, 0, _ROW_H)
+            row.BackgroundColor3 = rowBg
+            row.BorderSizePixel  = 0
+            row.Text             = ""
+            row.AutoButtonColor  = false
+            row.ZIndex           = 52
+            row.LayoutOrder      = i
+            row.Parent           = self._loadScroll
+
+            local nameLbl = Instance.new("TextLabel")
+            nameLbl.Size             = UDim2.new(1, -90, 1, 0)
+            nameLbl.Position         = UDim2.new(0, 10, 0, 0)
+            nameLbl.BackgroundTransparency = 1
+            nameLbl.TextColor3       = C.inputText
+            nameLbl.Text             = entry.name
+            nameLbl.TextSize         = 12
+            nameLbl.Font             = Enum.Font.Gotham
+            nameLbl.TextXAlignment   = Enum.TextXAlignment.Left
+            nameLbl.TextTruncate     = Enum.TextTruncate.AtEnd
+            nameLbl.ZIndex           = 53
+            nameLbl.Parent           = row
+
+            local timeLbl = Instance.new("TextLabel")
+            timeLbl.Size             = UDim2.new(0, 80, 1, 0)
+            timeLbl.Position         = UDim2.new(1, -85, 0, 0)
+            timeLbl.BackgroundTransparency = 1
+            timeLbl.TextColor3       = C.muted
+            timeLbl.Text             = _relTime(entry.savedAt)
+            timeLbl.TextSize         = 10
+            timeLbl.Font             = Enum.Font.Gotham
+            timeLbl.TextXAlignment   = Enum.TextXAlignment.Right
+            timeLbl.ZIndex           = 53
+            timeLbl.Parent           = row
+
+            row.MouseEnter:Connect(function() row.BackgroundColor3 = C.btnHover end)
+            row.MouseLeave:Connect(function() row.BackgroundColor3 = rowBg end)
+            local name = entry.name
+            row.MouseButton1Click:Connect(function() self._eLoadNamed:Fire(name) end)
+        end
+        self._loadScroll.CanvasSize = UDim2.new(0, 0, 0, #saves * (_ROW_H + 1))
+    end
+    self._loadOverlay.Visible = true
+end
+
+function Panel:hideLoadList()
+    self._loadOverlay.Visible = false
 end
 
 function Panel:destroy()
