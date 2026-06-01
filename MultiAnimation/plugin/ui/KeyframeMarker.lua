@@ -19,6 +19,10 @@ function KeyframeMarker.new(parent, frame)
     self.onClicked = clicked.Event
     self._clicked  = clicked
 
+    local deleteRequested = Instance.new("BindableEvent")
+    self.onDeleteRequested = deleteRequested.Event
+    self._deleteRequested  = deleteRequested
+
     local btn = Instance.new("TextButton")
     btn.Name            = "KF_" .. frame
     btn.Size            = UDim2.new(0, MARKER_SIZE, 0, MARKER_SIZE)
@@ -42,6 +46,10 @@ function KeyframeMarker.new(parent, frame)
     btn.MouseLeave:Connect(function()
         btn.BackgroundColor3 = COLOR_DEFAULT
     end)
+    btn.MouseButton2Click:Connect(function()
+        deleteRequested:Fire(frame)
+    end)
+
     btn.MouseButton1Click:Connect(function()
         btn.BackgroundColor3 = COLOR_ACTIVE
         task.delay(0.1, function()
@@ -66,6 +74,7 @@ end
 
 function KeyframeMarker:destroy()
     self._clicked:Destroy()
+    self._deleteRequested:Destroy()
     if self._btn and self._btn.Parent then
         self._btn:Destroy()
     end

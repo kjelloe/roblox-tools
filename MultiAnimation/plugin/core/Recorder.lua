@@ -103,6 +103,15 @@ function Recorder:deleteKeyframe(frame)
     end
 end
 
+-- Remove the keyframe at `frame` for a single rig only.
+function Recorder:deleteRigKeyframe(rigName, frame)
+    local rig = self._session.rigs[rigName]
+    if rig then
+        rig.jointTrack[frame] = nil
+        rig.scaleTrack[frame] = nil
+    end
+end
+
 function Recorder:clearSession()
     self._session.rigs = {}
     self._restPoses    = {}

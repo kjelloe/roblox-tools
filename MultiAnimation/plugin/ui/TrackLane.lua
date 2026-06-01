@@ -27,6 +27,10 @@ function TrackLane.new(parent, rigName, frameCount, layoutOrder)
     self.onMarkerClicked = markerClicked.Event
     self._markerClicked  = markerClicked
 
+    local markerDeleteRequested = Instance.new("BindableEvent")
+    self.onMarkerDeleteRequested = markerDeleteRequested.Event
+    self._markerDeleteRequested  = markerDeleteRequested
+
     -- Row container
     local row = Instance.new("Frame")
     row.Name            = "Lane_" .. rigName
@@ -101,6 +105,9 @@ function TrackLane:addMarker(frame)
     marker.onClicked:Connect(function(f)
         self._markerClicked:Fire(f)
     end)
+    marker.onDeleteRequested:Connect(function(f)
+        self._markerDeleteRequested:Fire(f)
+    end)
 
     self._markers[frame] = marker
 end
@@ -137,6 +144,7 @@ end
 function TrackLane:destroy()
     self:clearMarkers()
     self._markerClicked:Destroy()
+    self._markerDeleteRequested:Destroy()
     if self._row and self._row.Parent then
         self._row:Destroy()
     end

@@ -352,6 +352,12 @@ panel.onNextKeyframeRequested:Connect(function()
     end
 end)
 
+panel.onMarkerDeleteRequested:Connect(function(rigName, frame)
+    recorder:deleteRigKeyframe(rigName, frame)
+    panel:removeKeyframeMarker(rigName, frame)
+    print(string.format("[MultiAnimation] Deleted keyframe at frame %d for %s", frame, rigName))
+end)
+
 panel.onSaveRequested:Connect(saveSession)
 panel.onReloadRequested:Connect(loadSession)
 panel.onPreviewRequested:Connect(startPlayback)
@@ -361,6 +367,34 @@ panel.onExportRequested:Connect(function(sceneName)
     local ok, result = Exporter.export(recorder:getSession(), sceneName)
     if not ok then
         warn(string.format("[MultiAnimation] Export failed: %s", result))
+    end
+end)
+
+-- ── Viewport selection → rig selector sync ───────────────────────────────────
+
+local Selection = game:GetService("Selection")
+
+local function findRigForInstance(instance)
+    local current = instance
+    while current and current ~= game do
+        for name, model in pairs(allRigs) do
+            if current == model then return name end
+        end
+        current = current.Parent
+    end
+    return nil
+end
+
+Selection.SelectionChanged:Connect(function()
+    if isPlaying then return end
+    local selected = Selection:Get()
+    local foundRigs = {}
+    for _, inst in ipairs(selected) do
+        local rigName = findRigForInstance(inst)
+        if rigName then foundRigs[rigName] = true end
+    end
+    if next(foundRigs) then
+        panel:setActiveRigs(foundRigs)
     end
 end)
 

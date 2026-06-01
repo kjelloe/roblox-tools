@@ -46,9 +46,9 @@
 
 | Module | Layer | Purpose |
 |--------|-------|---------|
-| `init.server.lua` | Entry | Toolbar, widget, event wiring, playback loop |
+| `init.server.lua` | Entry | Toolbar, widget, event wiring, playback loop, Selection sync |
 | `core/RigScanner` | Core | Detects R6 rigs in Workspace.FIGURES |
-| `core/Recorder` | Core | Session data storage; addKeyframe |
+| `core/Recorder` | Core | Session data storage; addKeyframe, deleteRigKeyframe |
 | `core/JointCapture` | Core | Reads/writes Motor6D.Transform |
 | `core/ScaleCapture` | Core | Reads/writes Part.Size |
 | `core/Timeline` | Core | Frame counter, fps, prev/next KF helpers |
@@ -58,7 +58,7 @@
 | `ui/Panel` | UI | Root layout; owns all sections and events |
 | `ui/RigSelector` | UI | Per-rig toggle buttons |
 | `ui/TrackLane` | UI | One horizontal keyframe lane per rig |
-| `ui/KeyframeMarker` | UI | Individual clickable dot on a TrackLane |
+| `ui/KeyframeMarker` | UI | Individual dot on a TrackLane; left-click jumps, right-click deletes |
 | `ui/Scrubber` | UI | Horizontal drag slider for frame position |
 | `game/MultiAnimPlayer` | Game | In-game simultaneous playback (Phase 5) |
 
@@ -301,6 +301,20 @@ Keyframe
         ├── Pose "Left Leg"
         └── Pose "Right Leg"
 ```
+
+### DockWidget Input Model
+
+`UserInputService` mouse events (`InputChanged`, `GetMouseLocation`, `IsMouseButtonPressed`) do **not** fire inside a `DockWidgetPluginGui`. Only `GuiObject` events work.
+
+**Scrubber drag:** A transparent overlay `Frame` is parented to the `DockWidgetPluginGui` (not any `UIListLayout` container) so `InputChanged` fires across the full panel width without disrupting layout. The source element's `InputEnded` owns the mouse-button release signal.
+
+### Viewport Selection Sync
+
+`Selection.SelectionChanged` fires when the user clicks in the Studio viewport. The handler walks each selected instance's ancestor chain to find a matching rig in `allRigs`. If any rig is found, `panel:setActiveRigs(rigNames)` sets the selector buttons. Ignored during playback.
+
+### Keyframe Deletion
+
+Right-clicking a `KeyframeMarker` fires `onDeleteRequested(frame)` via `MouseButton2Click`. This propagates up through `TrackLane.onMarkerDeleteRequested → Panel.onMarkerDeleteRequested(rigName, frame)` and is handled in `init.server.lua` by calling `recorder:deleteRigKeyframe(rigName, frame)` followed by `panel:removeKeyframeMarker(rigName, frame)`. Only the clicked rig's data is removed; other rigs' keyframes at the same frame are unaffected.
 
 ### Plugin Persistence
 

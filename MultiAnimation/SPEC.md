@@ -36,6 +36,7 @@ architectural changes.
 | R-01 | As an animator, I can toggle each rig on or off for recording so I can animate one rig independently or both simultaneously. |
 | R-02 | As an animator, at least one rig must remain active; the UI prevents deselecting all rigs at once. |
 | R-03 | As an animator, toggling a rig off mid-session does not delete its already-recorded keyframes. |
+| R-04 | As an animator, clicking any part of a rig in the Studio viewport automatically selects only that rig in the plugin panel. |
 
 ### Keyframe capture
 
@@ -57,7 +58,7 @@ architectural changes.
 | T-03 | As an animator, I can click a keyframe marker dot to jump directly to that frame. |
 | T-04 | As an animator, I can navigate to the previous or next keyframe with dedicated buttons. |
 | T-05 | As an animator, I can set the session FPS (default 24) and total frame count before recording. |
-| T-06 | As an animator, I can delete a selected keyframe from the timeline. |
+| T-06 | As an animator, I can right-click a keyframe marker dot to delete that keyframe for that rig only. |
 
 ### Preview playback (in-editor)
 

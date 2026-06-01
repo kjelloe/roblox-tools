@@ -9,7 +9,7 @@
 | 3 | Preview | ✅ Complete |
 | 4 | Export | ✅ Complete |
 | 5 | In-game Playback | ✅ Complete |
-| 6 | Polish | ⬜ Pending |
+| 6 | Polish | 🔄 In Progress |
 | 7 | Future | ⬜ Backlog |
 
 ---
@@ -132,16 +132,17 @@ Simultaneous playback of both rigs in a live game.
 
 ---
 
-## Phase 6 — Polish ⬜
+## Phase 6 — Polish 🔄
 
-Session persistence, delete keyframe, auto-detect rigs.
+Session persistence, keyframe editing, rig workflow improvements.
 
 ### Tasks
 
-- [ ] Session serialisation → `plugin:SetSetting("session", json)` on every change
-- [ ] Session deserialisation on panel open (restore markers, frame count)
-- [ ] "New Session" button with confirmation
-- [ ] Delete keyframe: right-click marker → remove
+- [x] Delete keyframe: right-click marker → removes that rig's keyframe at that frame only (`MouseButton2Click` → `Recorder:deleteRigKeyframe`)
+- [x] Viewport selection sync: clicking any part of a rig in the Studio viewport selects only that rig in the plugin panel (`Selection.SelectionChanged` + ancestor walk)
+- [x] Session save/load: `Save` and `Load` buttons persist session via `plugin:SetSetting` (CFrames as 12-number arrays, Vector3 as 3-number arrays)
+- [ ] Session auto-save on every keyframe change (currently manual Save button only)
+- [ ] "New Session" button with confirmation dialog
 - [ ] Auto-detect rigs added/removed from FIGURES (`ChildAdded`/`ChildRemoved`)
 - [ ] Rest pose restore when preview stops
 - [ ] Validate Motor6Ds before capture; surface clear error if rig is broken

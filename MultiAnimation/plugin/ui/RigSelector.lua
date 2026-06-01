@@ -151,6 +151,16 @@ function RigSelector:_buildButton(name)
     self._buttons[name] = btn
 end
 
+function RigSelector:setActiveRigs(rigNames)
+    for name in pairs(self._active) do
+        self._active[name] = rigNames[name] == true
+    end
+    for name in pairs(self._buttons) do
+        self:_refreshButton(name)
+    end
+    self._changed:Fire(self:getActiveRigs())
+end
+
 function RigSelector:_refreshButton(name)
     local btn = self._buttons[name]
     if not btn then return end

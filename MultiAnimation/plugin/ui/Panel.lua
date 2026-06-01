@@ -214,6 +214,10 @@ function Panel.new(widget)
     local eFF       = mkEvent("onFastForwardRequested")
     local eSave     = mkEvent("onSaveRequested")
     local eReload   = mkEvent("onReloadRequested")
+    local eMarkerDel = Instance.new("BindableEvent")
+    self.onMarkerDeleteRequested = eMarkerDel.Event
+    self._eMarkerDel = eMarkerDel
+    table.insert(evts, eMarkerDel)
     self._evts = evts
 
     self._trackLanes   = {}
@@ -374,6 +378,9 @@ function Panel:setRigs(rigs)
         lane.onMarkerClicked:Connect(function(frame)
             self._evts[4]:Fire(name, frame)   -- eMarker
         end)
+        lane.onMarkerDeleteRequested:Connect(function(frame)
+            self._eMarkerDel:Fire(name, frame)
+        end)
         self._trackLanes[name] = lane
         order += 1
     end
@@ -400,6 +407,10 @@ end
 
 function Panel:getActiveRigs()
     return self.rigSelector:getActiveRigs()
+end
+
+function Panel:setActiveRigs(rigNames)
+    self.rigSelector:setActiveRigs(rigNames)
 end
 
 function Panel:addKeyframeMarker(rigName, frame)

@@ -53,32 +53,43 @@ p.stop()
 p.onFinished(function(name) end)
 ```
 
-## MCP Bash Template
+## MCP Helper (`mcp` alias)
+
+`/home/kjelloe/GIT/Roblox/mcp.py` — aliased as `mcp` in `~/.bashrc`.
 
 ```bash
-{
-  echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"claude","version":"0.1"}}}'
-  sleep 0.5
-  echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"TOOL_NAME","arguments":ARGS_JSON}}'
-  sleep 2
-} | cmd.exe /c "C:\Users\kjell\AppData\Local\Roblox\mcp.bat" 2>/dev/null | tail -1
+mcp luau "return workspace.Name"           # inline Lua
+mcp luau - <<'EOF'                         # multi-line stdin
+  local t={}
+  for _,c in ipairs(workspace:GetChildren()) do
+    table.insert(t,c.Name)
+  end
+  return table.concat(t,'|')
+EOF
+mcp luau -f tests/test_scrubber.lua        # run a file
+mcp console MultiAnimation                 # filtered console output
+mcp tree workspace.FIGURES                 # search_game_tree
+mcp inspect workspace.FIGURES.Rig1        # inspect_instance
+mcp capture                                # screen_capture
+mcp studios                                # list open Studio instances
 ```
 
 ## Common MCP Calls
 
 **Inspect a Motor6D:**
 ```bash
-# tool: inspect_instance, path: "Workspace.FIGURES.Rig1.Torso.Neck"
+mcp inspect workspace.FIGURES.Rig1.Torso.Neck
 ```
 
 **Run Lua and read output:**
 ```bash
-# tool: execute_luau, then tool: get_console_output
+mcp luau "return workspace.FIGURES.Rig1.Torso.Neck.Transform"
+mcp console MultiAnimation
 ```
 
 **Check ServerStorage after export:**
 ```bash
-# tool: search_game_tree, path: "ServerStorage.MultiAnimationData"
+mcp tree ServerStorage.MultiAnimationData
 ```
 
 ## Rojo Commands
@@ -99,8 +110,17 @@ rojo build default.project.json -o MultiAnimation.rbxm   # build plugin file
 | 1 Scaffold | ✅ |
 | 2 Capture | ✅ |
 | 3 Preview | ✅ |
-| 4 Export | ⬜ Next |
-| 5 In-game Playback | ⬜ |
-| 6 Polish | ⬜ |
+| 4 Export | ✅ |
+| 5 In-game Playback | ✅ |
+| 6 Polish | 🔄 In Progress |
 
 See `PHASES.md` for full task lists.
+
+## UX Interactions
+
+| Interaction | Action |
+|---|---|
+| Left-click rig in viewport | Selects only that rig in panel |
+| Right-click keyframe dot | Deletes that rig's keyframe at that frame |
+| Left-click keyframe dot | Jumps timeline to that frame |
+| Drag scrubber | Scrubs timeline (overlay pattern — see ARCHITECTURE.md) |
