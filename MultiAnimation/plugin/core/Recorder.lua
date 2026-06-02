@@ -9,6 +9,7 @@
 
 local JointCapture = require(script.Parent.JointCapture)
 local ScaleCapture = require(script.Parent.ScaleCapture)
+local PropCapture  = require(script.Parent.PropCapture)
 
 local Recorder = {}
 Recorder.__index = Recorder
@@ -24,6 +25,7 @@ function Recorder.new()
         fps        = 24,
         frameCount = 120,
         rigs       = {},
+        props      = {},
     }
 
     self._restPoses = {}   -- { [rigName] = jointData } captured at session start
@@ -40,9 +42,9 @@ function Recorder:getRestPose(rigName)
     return self._restPoses[rigName]
 end
 
--- Record current pose of all activeRigs at the given frame.
--- Overwrites existing data for that frame (idempotent per rig).
-function Recorder:addKeyframe(frame, activeRigs)
+-- Record current pose of all activeRigs (and activeProps) at the given frame.
+-- Overwrites existing data for that frame (idempotent per rig/prop).
+function Recorder:addKeyframe(frame, activeRigs, activeProps)
     for rigName, model in pairs(activeRigs) do
         if not self._session.rigs[rigName] then
             self._session.rigs[rigName] = { jointTrack = {}, scaleTrack = {} }
@@ -53,6 +55,13 @@ function Recorder:addKeyframe(frame, activeRigs)
         rig.scaleTrack[frame] = ScaleCapture.capture(model)
 
         self._added:Fire(rigName, frame)
+    end
+
+    for propName, part in pairs(activeProps or {}) do
+        if not self._session.props[propName] then
+            self._session.props[propName] = { propTrack = {} }
+        end
+        self._session.props[propName].propTrack[frame] = PropCapture.capture(part)
     end
 end
 
@@ -112,9 +121,38 @@ function Recorder:deleteRigKeyframe(rigName, frame)
     end
 end
 
+-- Prop track accessors.
+function Recorder:getSortedPropFrames(propName)
+    local prop = self._session.props and self._session.props[propName]
+    if not prop then return {} end
+    local frames = {}
+    for f in pairs(prop.propTrack) do table.insert(frames, f) end
+    table.sort(frames)
+    return frames
+end
+
+function Recorder:getPropData(propName, frame)
+    local prop = self._session.props and self._session.props[propName]
+    return prop and prop.propTrack[frame]
+end
+
+function Recorder:setPropData(propName, frame, cf)
+    if not self._session.props then self._session.props = {} end
+    if not self._session.props[propName] then
+        self._session.props[propName] = { propTrack = {} }
+    end
+    self._session.props[propName].propTrack[frame] = cf
+end
+
+function Recorder:deletePropKeyframe(propName, frame)
+    local prop = self._session.props and self._session.props[propName]
+    if prop then prop.propTrack[frame] = nil end
+end
+
 function Recorder:clearSession()
-    self._session.rigs = {}
-    self._restPoses    = {}
+    self._session.rigs  = {}
+    self._session.props = {}
+    self._restPoses     = {}
 end
 
 function Recorder:setJointData(rigName, frame, jointData)

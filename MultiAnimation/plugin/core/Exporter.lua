@@ -125,6 +125,42 @@ local function buildScaleTracksSource(session)
     return table.concat(lines, "\n")
 end
 
+-- ── PropTracks source builder ─────────────────────────────────────────────────
+
+local function buildPropTracksSource(session)
+    local lines = {}
+    local function add(s) table.insert(lines, s) end
+
+    add("return {")
+    add(string.format("    fps = %d,", session.fps or 24))
+    add("    props = {")
+
+    for propName, propData in pairs(session.props or {}) do
+        if not next(propData.propTrack) then continue end
+
+        add(string.format("        [%q] = {", propName))
+
+        local sortedFrames = {}
+        for f in pairs(propData.propTrack) do table.insert(sortedFrames, f) end
+        table.sort(sortedFrames)
+
+        for _, frame in ipairs(sortedFrames) do
+            local cf = propData.propTrack[frame]
+            local x,y,z,r00,r01,r02,r10,r11,r12,r20,r21,r22 = cf:GetComponents()
+            add(string.format(
+                "            [%d] = {%g,%g,%g, %g,%g,%g, %g,%g,%g, %g,%g,%g},",
+                frame, x,y,z, r00,r01,r02, r10,r11,r12, r20,r21,r22
+            ))
+        end
+
+        add("        },")
+    end
+
+    add("    },")
+    add("}")
+    return table.concat(lines, "\n")
+end
+
 -- ── Public API ────────────────────────────────────────────────────────────────
 
 -- Exports session data to ServerStorage.MultiAnimationData/<sceneName>/.
@@ -170,6 +206,18 @@ function Exporter.export(session, sceneName)
     scaleModule.Name         = "ScaleTracks"
     scaleModule.Source       = buildScaleTracksSource(session)
     scaleModule.Parent       = sceneFolder
+
+    -- PropTracks — only written when props were tracked
+    local hasPropData = false
+    for _, pd in pairs(session.props or {}) do
+        if next(pd.propTrack) then hasPropData = true; break end
+    end
+    if hasPropData then
+        local propModule        = Instance.new("ModuleScript")
+        propModule.Name         = "PropTracks"
+        propModule.Source       = buildPropTracksSource(session)
+        propModule.Parent       = sceneFolder
+    end
 
     -- Deploy MultiAnimPlayer alongside the scene data so game scripts can require it
     local gameFolder = script.Parent.Parent:FindFirstChild("game")

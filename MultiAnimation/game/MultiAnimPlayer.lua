@@ -4,10 +4,10 @@
 -- Place (or require from) ServerStorage.MultiAnimationData.MultiAnimPlayer.
 --
 -- API:
---   player.play(sceneName, rigMap, options?)
---       sceneName  string      — matches the scene name used at export time
+--   player.play(sceneName, rigMap, propMap?)
+--       sceneName  string         — matches the scene name used at export time
 --       rigMap     {[name]=Model} — keys match rig names from the plugin session
---       options    (reserved, pass nil)
+--       propMap    {[name]=BasePart}? — optional; keys match tracked prop names
 --
 --   player.stop()
 --       Stops all active playback immediately and fires onFinished.
@@ -19,10 +19,10 @@
 -- Example:
 --   local player = require(game.ServerStorage.MultiAnimationData.MultiAnimPlayer)
 --   player.onFinished(function(s) print(s .. " finished") end)
---   player.play("Scene_001", {
---       Rig1 = workspace.FIGURES.Rig1,
---       Rig2 = workspace.FIGURES.Rig2,
---   })
+--   player.play("Scene_001",
+--       { Rig1 = workspace.FIGURES.Rig1, Rig2 = workspace.FIGURES.Rig2 },
+--       { Block = workspace.Block }   -- omit if no props
+--   )
 
 local RunService            = game:GetService("RunService")
 local AnimationClipProvider = game:GetService("AnimationClipProvider")
@@ -35,6 +35,7 @@ local _finishedCb  = nil   -- single registered callback
 local _heartbeat   = nil   -- RBXScriptConnection
 local _tracks      = {}    -- AnimationTrack list for current play
 local _sceneName   = nil   -- scene currently playing
+local _propState   = {}    -- { [propName] = {part=BasePart, kfs={...}} } for current play
 
 -- ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -85,6 +86,23 @@ local function findJoints(rigModel)
     return joints
 end
 
+-- Build a sorted { {time, cf=CFrame} } list from a prop's keyframe data.
+-- Array layout matches Exporter: {x,y,z, r00,r01,r02, r10,r11,r12, r20,r21,r22}
+local function propToKeyframes(propKFData, fps)
+    local out = {}
+    for frame, arr in pairs(propKFData) do
+        local cf = CFrame.new(
+            arr[1], arr[2], arr[3],
+            arr[4], arr[5], arr[6],
+            arr[7], arr[8], arr[9],
+            arr[10], arr[11], arr[12]
+        )
+        table.insert(out, { time = (frame - 1) / fps, cf = cf })
+    end
+    table.sort(out, function(a, b) return a.time < b.time end)
+    return out
+end
+
 -- Build a sorted { {time, parts={[partName]=Vector3}} } list from the scale table.
 local function scaleToKeyframes(rigScaleData, fps)
     local out = {}
@@ -130,6 +148,7 @@ local function clearActive()
     end
     _tracks    = {}
     _sceneName = nil
+    _propState = {}
 end
 
 local function fireFinished(sn)
@@ -149,7 +168,7 @@ function MultiAnimPlayer.stop()
     fireFinished(sn)
 end
 
-function MultiAnimPlayer.play(sceneName, rigMap, _options)
+function MultiAnimPlayer.play(sceneName, rigMap, propMap)
     if _sceneName then clearActive() end
 
     local ServerStorage = game:GetService("ServerStorage")
@@ -160,7 +179,9 @@ function MultiAnimPlayer.play(sceneName, rigMap, _options)
 
     local scaleModule = sceneFolder:FindFirstChild("ScaleTracks")
     local scaleTracks = scaleModule and require(scaleModule) or nil
-    local fps = scaleTracks and scaleTracks.fps or 24
+    local propModule  = sceneFolder:FindFirstChild("PropTracks")
+    local propTracks  = propModule  and require(propModule)  or nil
+    local fps = scaleTracks and scaleTracks.fps or (propTracks and propTracks.fps) or 24
 
     -- ── Joint animation via Animator ──────────────────────────────────────────
 
@@ -228,6 +249,25 @@ function MultiAnimPlayer.play(sceneName, rigMap, _options)
         end
     end
 
+    -- ── Prop data ─────────────────────────────────────────────────────────────
+
+    _propState = {}
+    if propTracks and propTracks.props and propMap then
+        for propName, propKFData in pairs(propTracks.props) do
+            local part = propMap[propName]
+            if not part then continue end
+            local kfs = propToKeyframes(propKFData, fps)
+            for _, kf in ipairs(kfs) do
+                totalLength = math.max(totalLength, kf.time)
+            end
+            _propState[propName] = { part = part, kfs = kfs }
+            -- Snap to first keyframe immediately
+            if #kfs > 0 then
+                part.CFrame = kfs[1].cf
+            end
+        end
+    end
+
     if totalLength <= 0 then
         warn("[MultiAnimPlayer] Scene '" .. sceneName .. "' has no keyframes")
         return
@@ -254,6 +294,24 @@ function MultiAnimPlayer.play(sceneName, rigMap, _options)
             for pName, size in pairs(parts) do
                 local part = data.model:FindFirstChild(pName)
                 if part then part.Size = size end
+            end
+        end
+
+        -- Prop CFrame interpolation
+        for _, state in pairs(_propState) do
+            local kfs = state.kfs
+            if #kfs == 0 then continue end
+            local before, after = surroundingKFs(kfs, elapsed)
+            local cf
+            if before == after or after.time <= before.time then
+                cf = before.cf
+            else
+                local alpha = math.clamp(
+                    (elapsed - before.time) / (after.time - before.time), 0, 1)
+                cf = before.cf:Lerp(after.cf, alpha)
+            end
+            if state.part and state.part.Parent then
+                state.part.CFrame = cf
             end
         end
 

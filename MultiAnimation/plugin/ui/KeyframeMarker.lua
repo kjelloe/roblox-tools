@@ -4,16 +4,20 @@
 -- Fires onClicked(frame) when the user clicks it.
 
 local MARKER_SIZE   = 10
-local COLOR_DEFAULT = Color3.fromRGB(255, 200,  60)
-local COLOR_HOVER   = Color3.fromRGB(255, 230, 120)
+local COLOR_DEFAULT = Color3.fromRGB(255, 200,  60)   -- yellow (rig)
 local COLOR_ACTIVE  = Color3.fromRGB(255, 255, 255)
 
 local KeyframeMarker = {}
 KeyframeMarker.__index = KeyframeMarker
 
-function KeyframeMarker.new(parent, frame)
+-- colour is optional; defaults to yellow. Pass teal for prop markers.
+function KeyframeMarker.new(parent, frame, colour)
     local self = setmetatable({}, KeyframeMarker)
     self.frame = frame
+
+    local baseColor  = colour or COLOR_DEFAULT
+    local hoverColor = baseColor:Lerp(Color3.new(1, 1, 1), 0.35)
+    self._baseColor  = baseColor
 
     local clicked = Instance.new("BindableEvent")
     self.onClicked = clicked.Event
@@ -29,7 +33,7 @@ function KeyframeMarker.new(parent, frame)
     btn.AnchorPoint     = Vector2.new(0.5, 0.5)
     -- X position is set by TrackLane; Y centred in lane
     btn.Position        = UDim2.new(0, 0, 0.5, 0)
-    btn.BackgroundColor3 = COLOR_DEFAULT
+    btn.BackgroundColor3 = baseColor
     btn.BorderSizePixel = 0
     btn.Text            = ""
     btn.AutoButtonColor = false
@@ -41,10 +45,10 @@ function KeyframeMarker.new(parent, frame)
     corner.Parent       = btn
 
     btn.MouseEnter:Connect(function()
-        btn.BackgroundColor3 = COLOR_HOVER
+        btn.BackgroundColor3 = hoverColor
     end)
     btn.MouseLeave:Connect(function()
-        btn.BackgroundColor3 = COLOR_DEFAULT
+        btn.BackgroundColor3 = self._baseColor
     end)
     btn.MouseButton2Click:Connect(function()
         deleteRequested:Fire(frame)
@@ -54,7 +58,7 @@ function KeyframeMarker.new(parent, frame)
         btn.BackgroundColor3 = COLOR_ACTIVE
         task.delay(0.1, function()
             if btn and btn.Parent then
-                btn.BackgroundColor3 = COLOR_DEFAULT
+                btn.BackgroundColor3 = self._baseColor
             end
         end)
         clicked:Fire(frame)
@@ -69,7 +73,7 @@ function KeyframeMarker:setXOffset(xPixels)
 end
 
 function KeyframeMarker:setActive(isActive)
-    self._btn.BackgroundColor3 = isActive and COLOR_ACTIVE or COLOR_DEFAULT
+    self._btn.BackgroundColor3 = isActive and COLOR_ACTIVE or self._baseColor
 end
 
 function KeyframeMarker:destroy()

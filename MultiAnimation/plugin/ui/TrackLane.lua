@@ -17,11 +17,14 @@ local LINE_COL   = Color3.fromRGB(70, 70, 70)
 local TrackLane = {}
 TrackLane.__index = TrackLane
 
-function TrackLane.new(parent, rigName, frameCount, layoutOrder)
+-- colour is optional; nil uses the default yellow for rigs.
+-- Pass teal Color3 for prop track lanes.
+function TrackLane.new(parent, rigName, frameCount, layoutOrder, colour)
     local self = setmetatable({}, TrackLane)
     self._rigName    = rigName
     self._frameCount = frameCount
     self._markers    = {}   -- { [frame] = KeyframeMarker }
+    self._colour     = colour  -- passed to KeyframeMarker.new
 
     local markerClicked = Instance.new("BindableEvent")
     self.onMarkerClicked = markerClicked.Event
@@ -125,7 +128,7 @@ function TrackLane:addMarker(frame)
         self._markers[frame]:destroy()
     end
 
-    local marker = KeyframeMarker.new(self._track, frame)
+    local marker = KeyframeMarker.new(self._track, frame, self._colour)
     marker:setXOffset(self:_markerXOffset(frame))
 
     marker.onClicked:Connect(function(f)

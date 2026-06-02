@@ -37,4 +37,27 @@ function PoseApplier.restoreRestPose(rig, restJointData, restScaleData)
     ChangeHistoryService:SetWaypoint("MultiAnim_RestoreAfter")
 end
 
+-- Apply world-space CFrames to prop BaseParts.
+-- propInstances: { [propName] = BasePart }
+-- propCFrames:   { [propName] = CFrame }
+
+local function applyPropData(propInstances, propCFrames)
+    for propName, cf in pairs(propCFrames) do
+        local part = propInstances[propName]
+        if part and part.Parent then
+            part.CFrame = cf
+        end
+    end
+end
+
+function PoseApplier.applyPropRecorded(propInstances, propCFrames)
+    ChangeHistoryService:SetWaypoint("MultiAnim_Before")
+    applyPropData(propInstances, propCFrames)
+    ChangeHistoryService:SetWaypoint("MultiAnim_After")
+end
+
+function PoseApplier.applyPropImmediate(propInstances, propCFrames)
+    applyPropData(propInstances, propCFrames)
+end
+
 return PoseApplier

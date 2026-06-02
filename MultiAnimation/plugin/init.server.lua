@@ -20,6 +20,7 @@ local Interpolator = require(script.core.Interpolator)
 local PoseApplier  = require(script.core.PoseApplier)
 local Exporter     = require(script.core.Exporter)
 local Panel        = require(script.ui.Panel)
+-- PropCapture required for its apply path (called via PoseApplier); Recorder requires it directly.
 
 -- ── Toolbar & widget ──────────────────────────────────────────────────────────
 
@@ -52,6 +53,7 @@ local recorder = Recorder.new()
 local panel    = Panel.new(widget)
 
 local allRigs      = {}   -- { [rigName] = Model }
+local allProps     = {}   -- { [propName] = BasePart }
 local motorStates  = {}   -- { [rigName] = disconnectAll() state } for cleanup
 local isPlaying    = false
 local playConn     = nil
@@ -95,12 +97,34 @@ local function applyPosesAt(queryFrame, immediate)
             end
         end
     end
+    -- Apply prop poses
+    local propCFrames = {}
+    for propName in pairs(allProps) do
+        local cf = Interpolator.getPropData(recorder, propName, queryFrame)
+        if cf then propCFrames[propName] = cf end
+    end
+    if next(propCFrames) then
+        if immediate then
+            PoseApplier.applyPropImmediate(allProps, propCFrames)
+        else
+            PoseApplier.applyPropRecorded(allProps, propCFrames)
+        end
+    end
 end
 
 local function allKeyframesSorted()
-    local names = {}
-    for n in pairs(allRigs) do table.insert(names, n) end
-    return Interpolator.getAllFrames(recorder, names)
+    local rigNames = {}
+    for n in pairs(allRigs) do table.insert(rigNames, n) end
+    local propNames = {}
+    for n in pairs(allProps) do table.insert(propNames, n) end
+
+    local seen = {}
+    for _, f in ipairs(Interpolator.getAllFrames(recorder, rigNames)) do seen[f] = true end
+    for _, f in ipairs(Interpolator.getAllPropFrames(recorder, propNames)) do seen[f] = true end
+    local result = {}
+    for f in pairs(seen) do table.insert(result, f) end
+    table.sort(result)
+    return result
 end
 
 -- ── Session persistence ───────────────────────────────────────────────────────
@@ -111,7 +135,7 @@ local MAX_SAVES   = 30
 
 local function serializeSession()
     local session = recorder:getSession()
-    local out = { fps = session.fps, frameCount = session.frameCount, rigs = {} }
+    local out = { fps = session.fps, frameCount = session.frameCount, rigs = {}, props = {} }
     for rigName, rigData in pairs(session.rigs) do
         local jOut, sOut = {}, {}
         for frame, jointData in pairs(rigData.jointTrack) do
@@ -130,6 +154,13 @@ local function serializeSession()
             sOut[tostring(frame)] = sd
         end
         out.rigs[rigName] = { joints = jOut, scales = sOut }
+    end
+    for propName, propData in pairs(session.props or {}) do
+        local pOut = {}
+        for frame, cf in pairs(propData.propTrack) do
+            pOut[tostring(frame)] = { cf:GetComponents() }
+        end
+        out.props[propName] = pOut
     end
     return out
 end
@@ -161,6 +192,12 @@ local function saveNamed(name)
 end
 
 local function applySessionData(data)
+    -- Clear existing prop UI before clearing recorder
+    for propName in pairs(allProps) do
+        panel:removeProp(propName)
+    end
+    allProps = {}
+
     recorder:clearSession()
     local fps        = data.fps        or 24
     local frameCount = data.frameCount or 120
@@ -193,6 +230,30 @@ local function applySessionData(data)
                 end
                 recorder:setScaleData(rigName, frame, scaleData)
             end
+        end
+    end
+    -- Restore prop data; attempt to re-link parts by name from Workspace
+    for propName, propFrames in pairs(data.props or {}) do
+        for frameStr, arr in pairs(propFrames) do
+            local frame = tonumber(frameStr)
+            if frame then
+                recorder:setPropData(propName, frame, CFrame.new(
+                    arr[1], arr[2], arr[3], arr[4], arr[5], arr[6],
+                    arr[7], arr[8], arr[9], arr[10], arr[11], arr[12]
+                ))
+            end
+        end
+        -- Try to find the part in Workspace so it can be re-linked
+        local part = workspace:FindFirstChild(propName, true)
+        if part and part:IsA("BasePart") and not allRigs[propName] then
+            allProps[propName] = part
+            panel:addProp(propName, part)
+        else
+            -- Data is preserved in recorder for export but no live link
+            panel:addProp(propName, nil)
+        end
+        for _, frame in ipairs(recorder:getSortedPropFrames(propName)) do
+            panel:addPropKeyframeMarker(propName, frame)
         end
     end
     panel:setRigs(allRigs)
@@ -299,21 +360,26 @@ panel.onRefreshRequested:Connect(function()
 end)
 
 panel.onAddKeyframeRequested:Connect(function()
-    local frame      = timeline:getCurrent()
-    local activeRigs = panel:getActiveRigs()
-    if next(activeRigs) == nil then
-        warn("[MultiAnimation] No active rigs selected")
+    local frame       = timeline:getCurrent()
+    local activeRigs  = panel:getActiveRigs()
+    local activeProps = panel:getActiveProps()
+    if next(activeRigs) == nil and next(activeProps) == nil then
+        warn("[MultiAnimation] No active rigs or props selected")
         return
     end
-    recorder:addKeyframe(frame, activeRigs)
-    local rigNames = {}
+    recorder:addKeyframe(frame, activeRigs, activeProps)
+    local names = {}
     for rigName in pairs(activeRigs) do
         panel:addKeyframeMarker(rigName, frame)
-        table.insert(rigNames, rigName)
+        table.insert(names, rigName)
     end
-    table.sort(rigNames)
+    for propName in pairs(activeProps) do
+        panel:addPropKeyframeMarker(propName, frame)
+        table.insert(names, propName)
+    end
+    table.sort(names)
     print(string.format("[MultiAnimation] Keyframe added at frame %d for: %s",
-        frame, table.concat(rigNames, ", ")))
+        frame, table.concat(names, ", ")))
 end)
 
 panel.onFrameChanged:Connect(function(newFrame)
@@ -373,7 +439,7 @@ panel.onTimelineDoubleClicked:Connect(function(rigName, frame)
     local f = timeline:setCurrent(frame)
     panel:setFrameDisplay(f, timeline:getFrameCount())
     applyPosesAt(f, false)
-    recorder:addKeyframe(f, { [rigName] = model })
+    recorder:addKeyframe(f, { [rigName] = model }, {})
     panel:addKeyframeMarker(rigName, f)
     print(string.format("[MultiAnimation] Keyframe added at frame %d for %s", f, rigName))
 end)
@@ -382,6 +448,58 @@ panel.onMarkerDeleteRequested:Connect(function(rigName, frame)
     recorder:deleteRigKeyframe(rigName, frame)
     panel:removeKeyframeMarker(rigName, frame)
     print(string.format("[MultiAnimation] Deleted keyframe at frame %d for %s", frame, rigName))
+end)
+
+-- ── Prop event handlers ───────────────────────────────────────────────────────
+
+panel.onTrackPartRequested:Connect(function()
+    if isPlaying then return end
+    local sel = Selection:Get()
+    local part = nil
+    for _, inst in ipairs(sel) do
+        if inst:IsA("BasePart") then part = inst; break end
+    end
+    if not part then
+        warn("[MultiAnimation] Track Part: select a BasePart in the viewport first")
+        return
+    end
+    local propName = part.Name
+    if allRigs[propName] or allProps[propName] then
+        warn(string.format(
+            "[MultiAnimation] Track Part: name '%s' already in use — rename the part first",
+            propName))
+        return
+    end
+    allProps[propName] = part
+    panel:addProp(propName, part)
+    -- Restore any markers from recorder (e.g. from a loaded session)
+    for _, frame in ipairs(recorder:getSortedPropFrames(propName)) do
+        panel:addPropKeyframeMarker(propName, frame)
+    end
+    print("[MultiAnimation] Tracking prop: " .. propName)
+end)
+
+panel.onPropRemoved:Connect(function(propName)
+    allProps[propName] = nil
+    -- Recorder data is intentionally kept so export still works
+    print("[MultiAnimation] Stopped tracking prop: " .. propName)
+end)
+
+panel.onPropDoubleClicked:Connect(function(propName, frame)
+    local part = allProps[propName]
+    if not part then return end
+    local f = timeline:setCurrent(frame)
+    panel:setFrameDisplay(f, timeline:getFrameCount())
+    applyPosesAt(f, false)
+    recorder:addKeyframe(f, {}, { [propName] = part })
+    panel:addPropKeyframeMarker(propName, f)
+    print(string.format("[MultiAnimation] Prop keyframe added at frame %d for %s", f, propName))
+end)
+
+panel.onPropMarkerDeleteRequested:Connect(function(propName, frame)
+    recorder:deletePropKeyframe(propName, frame)
+    panel:removePropKeyframeMarker(propName, frame)
+    print(string.format("[MultiAnimation] Deleted prop keyframe at frame %d for %s", frame, propName))
 end)
 
 panel.onSaveConfirmed:Connect(function(name)

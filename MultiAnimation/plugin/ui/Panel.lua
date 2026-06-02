@@ -27,9 +27,12 @@
 --   panel:setFrameCount(n)
 --   panel:setPlaybackState(isPlaying)   ← dims/enables buttons
 
-local RigSelector = require(script.Parent.RigSelector)
-local TrackLane   = require(script.Parent.TrackLane)
-local Scrubber    = require(script.Parent.Scrubber)
+local RigSelector  = require(script.Parent.RigSelector)
+local PropSelector = require(script.Parent.PropSelector)
+local TrackLane    = require(script.Parent.TrackLane)
+local Scrubber     = require(script.Parent.Scrubber)
+
+local PROP_COLOUR = Color3.fromRGB(0, 207, 207)  -- teal for prop keyframe dots
 
 local C = {
     bg        = Color3.fromRGB(46,  46,  46),
@@ -239,10 +242,31 @@ function Panel.new(widget)
     self._eLoadNamed = eLoadNamed
     table.insert(evts, eLoadNamed)
 
+    local eTrackPart = Instance.new("BindableEvent")
+    self.onTrackPartRequested = eTrackPart.Event
+    self._eTrackPart = eTrackPart
+    table.insert(evts, eTrackPart)
+
+    local ePropRemoved = Instance.new("BindableEvent")
+    self.onPropRemoved = ePropRemoved.Event
+    self._ePropRemoved = ePropRemoved
+    table.insert(evts, ePropRemoved)
+
+    local ePropDbl = Instance.new("BindableEvent")
+    self.onPropDoubleClicked = ePropDbl.Event
+    self._ePropDbl = ePropDbl
+    table.insert(evts, ePropDbl)
+
+    local ePropMarkerDel = Instance.new("BindableEvent")
+    self.onPropMarkerDeleteRequested = ePropMarkerDel.Event
+    self._ePropMarkerDel = ePropMarkerDel
+    table.insert(evts, ePropMarkerDel)
+
     self._evts = evts
     self._lastSaveName = nil
 
-    self._trackLanes   = {}
+    self._trackLanes     = {}
+    self._propTrackLanes = {}
     self._frameCount   = 120
     self._currentFrame = 1
     self._isPlaying    = false
@@ -270,14 +294,27 @@ function Panel.new(widget)
 
     divider(root, 2)
 
-    -- ── TIMELINE ─────────────────────────────────────────────────────────────
-    local tlSec = section(root, "TIMELINE", 3)
-    self._tlSec = tlSec
+    -- ── PROPS ─────────────────────────────────────────────────────────────────
+    local propsSec = section(root, "PROPS IN SCENE", 3)
+    self.propSelector = PropSelector.new(propsSec)
+    self.propSelector.onTrackPartRequested:Connect(function()
+        self._eTrackPart:Fire()
+    end)
+    self.propSelector.onPropRemoved:Connect(function(propName)
+        self:removeProp(propName)
+        self._ePropRemoved:Fire(propName)
+    end)
 
     divider(root, 4)
 
+    -- ── TIMELINE ─────────────────────────────────────────────────────────────
+    local tlSec = section(root, "TIMELINE", 5)
+    self._tlSec = tlSec
+
+    divider(root, 6)
+
     -- ── CONTROLS ─────────────────────────────────────────────────────────────
-    local ctrlSec = section(root, "CONTROLS", 5)
+    local ctrlSec = section(root, "CONTROLS", 7)
 
     -- Row 1: frame navigation
     local navRow = hrow(ctrlSec, 1, 4)
@@ -551,6 +588,54 @@ function Panel:setActiveRigs(rigNames)
     self.rigSelector:setActiveRigs(rigNames)
 end
 
+function Panel:getActiveProps()
+    return self.propSelector:getActiveProps()
+end
+
+-- Add a prop to the PropSelector and create a teal track lane for it.
+function Panel:addProp(propName, part)
+    self.propSelector:addProp(propName, part)
+
+    if not self._propTrackLanes[propName] then
+        local order = 100 + (function()
+            local n = 0
+            for _ in pairs(self._propTrackLanes) do n += 1 end
+            return n
+        end)()
+        local lane = TrackLane.new(self._tlSec, propName, self._frameCount, order, PROP_COLOUR)
+        lane.onMarkerClicked:Connect(function(frame)
+            self._evts[4]:Fire(propName, frame)   -- eMarker (shared with rigs)
+        end)
+        lane.onMarkerDeleteRequested:Connect(function(frame)
+            self._ePropMarkerDel:Fire(propName, frame)
+        end)
+        lane.onDoubleClicked:Connect(function(frame)
+            self._ePropDbl:Fire(propName, frame)
+        end)
+        self._propTrackLanes[propName] = lane
+    end
+end
+
+-- Remove a prop from the PropSelector and destroy its track lane.
+function Panel:removeProp(propName)
+    self.propSelector:removeProp(propName)
+    local lane = self._propTrackLanes[propName]
+    if lane then
+        lane:destroy()
+        self._propTrackLanes[propName] = nil
+    end
+end
+
+function Panel:addPropKeyframeMarker(propName, frame)
+    local lane = self._propTrackLanes[propName]
+    if lane then lane:addMarker(frame) end
+end
+
+function Panel:removePropKeyframeMarker(propName, frame)
+    local lane = self._propTrackLanes[propName]
+    if lane then lane:removeMarker(frame) end
+end
+
 function Panel:addKeyframeMarker(rigName, frame)
     local lane = self._trackLanes[rigName]
     if lane then lane:addMarker(frame) end
@@ -570,6 +655,9 @@ function Panel:setFrameDisplay(current, total)
     for _, lane in pairs(self._trackLanes) do
         lane:setActiveFrame(current)
     end
+    for _, lane in pairs(self._propTrackLanes) do
+        lane:setActiveFrame(current)
+    end
 end
 
 function Panel:setFrameCount(n)
@@ -577,6 +665,9 @@ function Panel:setFrameCount(n)
     if self._totalBox then self._totalBox.Text = tostring(n) end
     if self._scrubber then self._scrubber:setFrameCount(n) end
     for _, lane in pairs(self._trackLanes) do
+        lane:setFrameCount(n)
+    end
+    for _, lane in pairs(self._propTrackLanes) do
         lane:setFrameCount(n)
     end
 end
@@ -678,7 +769,9 @@ function Panel:destroy()
     if self._scrubber then self._scrubber:destroy() end
     for _, e in ipairs(self._evts) do e:Destroy() end
     for _, lane in pairs(self._trackLanes) do lane:destroy() end
+    for _, lane in pairs(self._propTrackLanes) do lane:destroy() end
     self.rigSelector:destroy()
+    self.propSelector:destroy()
 end
 
 return Panel

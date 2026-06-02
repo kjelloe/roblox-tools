@@ -91,4 +91,35 @@ function Interpolator.getAllFrames(recorder, rigNames)
     return result
 end
 
+-- Returns interpolated CFrame for propName at queryFrame, or nil if no data.
+function Interpolator.getPropData(recorder, propName, queryFrame)
+    local sorted = recorder:getSortedPropFrames(propName)
+    if #sorted == 0 then return nil end
+
+    local fA, fB, alpha = surrounding(sorted, queryFrame)
+    if not fA then return nil end
+
+    local cfA = recorder:getPropData(propName, fA)
+    if fA == fB or alpha == 0 then return cfA end
+
+    local cfB = recorder:getPropData(propName, fB)
+    if not cfB then return cfA end
+
+    return cfA:Lerp(cfB, alpha)
+end
+
+-- Merge all props' sorted frame lists into one deduped sorted list.
+function Interpolator.getAllPropFrames(recorder, propNames)
+    local seen = {}
+    for _, name in ipairs(propNames) do
+        for _, f in ipairs(recorder:getSortedPropFrames(name)) do
+            seen[f] = true
+        end
+    end
+    local result = {}
+    for f in pairs(seen) do table.insert(result, f) end
+    table.sort(result)
+    return result
+end
+
 return Interpolator
