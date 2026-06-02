@@ -11,6 +11,7 @@
 local RunService           = game:GetService("RunService")
 local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local HttpService          = game:GetService("HttpService")
+local Selection            = game:GetService("Selection")
 
 local RigScanner   = require(script.core.RigScanner)
 local JointCapture = require(script.core.JointCapture)
@@ -523,8 +524,6 @@ panel.onExportRequested:Connect(function(sceneName)
 end)
 
 -- ── Viewport selection → rig selector sync ───────────────────────────────────
-
-local Selection = game:GetService("Selection")
 
 local function findRigForInstance(instance)
     local current = instance
