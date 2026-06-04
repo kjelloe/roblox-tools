@@ -191,6 +191,18 @@ Animate arbitrary `BasePart` objects (blocks, projectiles, props) on the same ti
 - ✅ In-game: `player.play("Scene_001", rigMap, { Block = workspace.Block })` animates the prop simultaneously with rigs
 - ✅ `propMap` argument is optional; omitting it plays rigs only (backward compatible)
 
+### Tests (`tests/`)
+
+All 57 cases pass against live Studio via `mcp__Roblox_Studio__execute_luau`:
+
+| File | Cases | Covers |
+|------|-------|--------|
+| `test_track_part.lua` | 8 | `Selection:Get()` accessible; BasePart check; name collision guards |
+| `test_prop_core.lua` | 13 | PropCapture capture/apply/round-trip; Recorder prop CRUD; cross-prop isolation |
+| `test_prop_interpolator.lua` | 13 | `getPropData` clamp low/high, exact, midpoint lerp, slerp rotation; `getAllPropFrames` merge |
+| `test_prop_exporter.lua` | 14 | `buildPropTracksSource` → valid Lua → `require()` → fps/props/arrays correct; empty props omitted |
+| `test_prop_serialization.lua` | 17 | `GetComponents()` round-trip; position/rotation/combined; `Lerp` α=0/0.5/1; slerp; serialize→lerp matches direct |
+
 ### Notes
 
 - `CFrame:GetComponents()` returns `(x,y,z, r00,r01,r02, r10,r11,r12, r20,r21,r22)` — stored as-is in both JSON persistence and PropTracks ModuleScript; reconstructed with `CFrame.new(arr[1]…arr[12])`

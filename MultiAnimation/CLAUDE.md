@@ -148,8 +148,33 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 | 3 | Scrub timeline, verify Motor6D values change in viewport |
 | 4 | Export, inspect `ServerStorage` via MCP `search_game_tree` + `inspect_instance` |
 | 5 | Enter play mode, run test script, observe simultaneous animation |
+| 6 | Manual: right-click dot, viewport click sync, Save As / Load overlay |
+| 7 | Automated test suite in `tests/` — run via `mcp__Roblox_Studio__execute_luau` |
 
-Prefer MCP `execute_luau` + `get_console_output` for unit-style checks on captured data.
+### Test files (`tests/`)
+
+| File | What it covers |
+|------|---------------|
+| `test_joint_capture.lua` | Motor6D disconnect/capture/apply round-trip on Rig1 |
+| `test_interpolator.lua` | Timeline nav, `surrounding()` math, CFrame lerp |
+| `test_scrubber.lua` | Scrubber drag math |
+| `test_player.lua` | MultiAnimPlayer in-game playback (run in play mode) |
+| `test_track_part.lua` | "Track Part" guard logic: BasePart check, name uniqueness, `Selection:Get()` |
+| `test_prop_core.lua` | PropCapture round-trip; Recorder prop CRUD (13 cases) |
+| `test_prop_interpolator.lua` | `getPropData` clamp/lerp/slerp; `getAllPropFrames` merge (13 cases) |
+| `test_prop_exporter.lua` | `buildPropTracksSource` → valid Lua → `require()` structural check (14 cases) |
+| `test_prop_serialization.lua` | CFrame `GetComponents()` round-trip; `Lerp` boundary + slerp (17 cases) |
+
+All tests inline their module logic (no `require()` to plugin modules) and return a PASS/FAIL string for `execute_luau`. Run with:
+
+```lua
+-- Paste file contents into execute_luau, or use the MCP tool directly.
+-- Each file returns a multiline string — check for "ALL TESTS PASSED".
+```
+
+**MCP access:** The `Roblox_Studio` MCP server is registered via `claude mcp add`. Use the `mcp__Roblox_Studio__execute_luau` tool directly in Claude Code sessions. The `mcp.py` alias is a secondary fallback for terminal use.
+
+Prefer `execute_luau` + `return` (not `print()`) for unit-style checks.
 
 ---
 
