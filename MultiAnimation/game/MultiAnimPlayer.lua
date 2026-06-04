@@ -57,10 +57,10 @@ local function kfsToKeyframes(kfs)
         local torsoPose = hrpPose:FindFirstChild("Torso")
         if not torsoPose then continue end
 
-        local poses = { RootJoint = torsoPose.Transform }
+        local poses = { RootJoint = torsoPose.CFrame }
         for _, child in ipairs(torsoPose:GetChildren()) do
             local jName = PART_TO_JOINT[child.Name]
-            if jName then poses[jName] = child.Transform end
+            if jName then poses[jName] = child.CFrame end
         end
         table.insert(out, { time = kf.Time, poses = poses })
     end

@@ -40,7 +40,7 @@ local function makePose(name, transform)
     local p           = Instance.new("Pose")
     p.Name            = name
     p.Weight          = 1
-    p.Transform       = transform or CFrame.identity
+    p.CFrame          = transform or CFrame.identity   -- Roblox renamed Pose.Transform → Pose.CFrame
     p.EasingStyle     = Enum.PoseEasingStyle.Linear
     p.EasingDirection = Enum.PoseEasingDirection.Out
     return p
