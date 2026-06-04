@@ -343,7 +343,8 @@ function Panel.new(widget)
     scrubRow.LayoutOrder   = 2
     scrubRow.Parent        = ctrlSec
 
-    self._scrubber = Scrubber.new(scrubRow, 120, 1, widget)
+    -- 56 = TrackLane LABEL_W (52) + UIListLayout gap (4) — aligns thumb with KF dots
+    self._scrubber = Scrubber.new(scrubRow, 120, 1, widget, 56)
     self._scrubber.onFrameChanged:Connect(function(f)
         self._currentFrame = f
         if frameBox then frameBox.Text = tostring(f) end

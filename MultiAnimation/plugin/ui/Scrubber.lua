@@ -29,14 +29,18 @@ local FILL_COL  = Color3.fromRGB(0,  100, 170)
 local THUMB_COL = Color3.fromRGB(210, 210, 210)
 local THUMB_HOV = Color3.fromRGB(255, 255, 255)
 
--- dragRoot: the root Frame of the panel (passed from Panel.new).
--- A full-size transparent overlay is parented here during drag so that
--- InputChanged fires for mouse movement anywhere inside the panel.
-function Scrubber.new(parent, frameCount, layoutOrder, dragRoot)
+-- dragRoot:   the root Frame of the panel (passed from Panel.new).
+--             A full-size transparent overlay is parented here during drag so
+--             that InputChanged fires anywhere inside the panel.
+-- leftOffset: pixels to inset the track from the left edge of the container.
+--             Set this to (TrackLane.LABEL_W + lane gap) so the scrubber thumb
+--             aligns with keyframe dots.  Default 0 (full-width, no offset).
+function Scrubber.new(parent, frameCount, layoutOrder, dragRoot, leftOffset)
     local self = setmetatable({}, Scrubber)
     self._frameCount = math.max(2, frameCount or 120)
     self._current    = 1
     self._dragging   = false
+    local OFFSET = leftOffset or 0
 
     local eChanged  = Instance.new("BindableEvent")
     local eBegan    = Instance.new("BindableEvent")
@@ -55,12 +59,12 @@ function Scrubber.new(parent, frameCount, layoutOrder, dragRoot)
     container.LayoutOrder      = layoutOrder or 1
     container.Parent           = parent
 
-    -- Track rail
+    -- Track rail — inset by OFFSET so it aligns with TrackLane dot areas.
     local track = Instance.new("Frame")
     track.Name             = "Track"
-    track.Size             = UDim2.new(1, 0, 0, TRACK_H)
+    track.Size             = UDim2.new(1, -OFFSET, 0, TRACK_H)
     track.AnchorPoint      = Vector2.new(0, 0.5)
-    track.Position         = UDim2.new(0, 0, 0.5, 0)
+    track.Position         = UDim2.new(0, OFFSET, 0.5, 0)
     track.BackgroundColor3 = TRACK_BG
     track.BorderSizePixel  = 0
     track.ClipsDescendants = false
