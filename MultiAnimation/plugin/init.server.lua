@@ -404,6 +404,34 @@ panel.onFrameChanged:Connect(function(newFrame)
 end)
 
 panel.onScrubBegan:Connect(function()
+    -- Auto-update existing keyframe at the departure frame.
+    -- If the user was parked at a keyframe and manually adjusted the rig/prop pose,
+    -- re-capture it now so the change is saved without an explicit "Add Keyframe" click.
+    -- Idempotent if nothing changed (captures the same values).
+    if not isPlaying then
+        local frame       = timeline:getCurrent()
+        local activeRigs  = panel:getActiveRigs()
+        local activeProps = panel:getActiveProps()
+
+        local shouldUpdate = false
+        for rigName in pairs(activeRigs) do
+            if recorder:hasKeyframe(rigName, frame) then
+                shouldUpdate = true; break
+            end
+        end
+        if not shouldUpdate then
+            for propName in pairs(activeProps) do
+                if recorder:getPropData(propName, frame) ~= nil then
+                    shouldUpdate = true; break
+                end
+            end
+        end
+
+        if shouldUpdate then
+            recorder:addKeyframe(frame, activeRigs, activeProps)
+        end
+    end
+
     ChangeHistoryService:SetEnabled(false)
 end)
 panel.onScrubEnded:Connect(function()
