@@ -12,28 +12,34 @@ local ScaleCapture = require(script.Parent.ScaleCapture)
 
 local PoseApplier = {}
 
-local function applyData(rig, jointData, scaleData)
+-- rootCFrame (optional): world-space HumanoidRootPart CFrame.
+-- Applied BEFORE joint transforms so limbs position correctly relative to the new root.
+local function applyData(rig, jointData, scaleData, rootCFrame)
+    if rootCFrame then
+        local hrp = rig:FindFirstChild("HumanoidRootPart")
+        if hrp then hrp.CFrame = rootCFrame end
+    end
     if jointData then JointCapture.apply(rig, jointData) end
     if scaleData then ScaleCapture.apply(rig, scaleData) end
 end
 
 -- Apply and record one undo waypoint.
-function PoseApplier.applyRecorded(rig, jointData, scaleData)
+function PoseApplier.applyRecorded(rig, jointData, scaleData, rootCFrame)
     ChangeHistoryService:SetWaypoint("MultiAnim_Before")
-    applyData(rig, jointData, scaleData)
+    applyData(rig, jointData, scaleData, rootCFrame)
     ChangeHistoryService:SetWaypoint("MultiAnim_After")
 end
 
 -- Apply with no ChangeHistoryService interaction.
 -- Caller is responsible for pausing/resuming history around a batch.
-function PoseApplier.applyImmediate(rig, jointData, scaleData)
-    applyData(rig, jointData, scaleData)
+function PoseApplier.applyImmediate(rig, jointData, scaleData, rootCFrame)
+    applyData(rig, jointData, scaleData, rootCFrame)
 end
 
 -- Restore a rig to a stored rest pose.
 function PoseApplier.restoreRestPose(rig, restJointData, restScaleData)
     ChangeHistoryService:SetWaypoint("MultiAnim_RestoreBefore")
-    applyData(rig, restJointData, restScaleData)
+    applyData(rig, restJointData, restScaleData, nil)
     ChangeHistoryService:SetWaypoint("MultiAnim_RestoreAfter")
 end
 

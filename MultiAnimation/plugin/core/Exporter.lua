@@ -125,6 +125,44 @@ local function buildScaleTracksSource(session)
     return table.concat(lines, "\n")
 end
 
+-- ── RootTracks source builder ─────────────────────────────────────────────────
+-- World-space HumanoidRootPart CFrames per rig per frame.
+-- Absent if no rig had root movement recorded.
+
+local function buildRootTracksSource(session)
+    local lines = {}
+    local function add(s) table.insert(lines, s) end
+
+    add("return {")
+    add(string.format("    fps = %d,", session.fps or 24))
+    add("    rigs = {")
+
+    for rigName, rigData in pairs(session.rigs) do
+        if not rigData.rootTrack or not next(rigData.rootTrack) then continue end
+
+        add(string.format("        [%q] = {", rigName))
+
+        local sortedFrames = {}
+        for f in pairs(rigData.rootTrack) do table.insert(sortedFrames, f) end
+        table.sort(sortedFrames)
+
+        for _, frame in ipairs(sortedFrames) do
+            local cf = rigData.rootTrack[frame]
+            local x,y,z,r00,r01,r02,r10,r11,r12,r20,r21,r22 = cf:GetComponents()
+            add(string.format(
+                "            [%d] = {%g,%g,%g, %g,%g,%g, %g,%g,%g, %g,%g,%g},",
+                frame, x,y,z, r00,r01,r02, r10,r11,r12, r20,r21,r22
+            ))
+        end
+
+        add("        },")
+    end
+
+    add("    },")
+    add("}")
+    return table.concat(lines, "\n")
+end
+
 -- ── PropTracks source builder ─────────────────────────────────────────────────
 
 local function buildPropTracksSource(session)
@@ -206,6 +244,18 @@ function Exporter.export(session, sceneName)
     scaleModule.Name         = "ScaleTracks"
     scaleModule.Source       = buildScaleTracksSource(session)
     scaleModule.Parent       = sceneFolder
+
+    -- RootTracks — only written when any rig had whole-model movement recorded
+    local hasRootData = false
+    for _, rd in pairs(session.rigs) do
+        if rd.rootTrack and next(rd.rootTrack) then hasRootData = true; break end
+    end
+    if hasRootData then
+        local rootModule        = Instance.new("ModuleScript")
+        rootModule.Name         = "RootTracks"
+        rootModule.Source       = buildRootTracksSource(session)
+        rootModule.Parent       = sceneFolder
+    end
 
     -- PropTracks — only written when props were tracked
     local hasPropData = false

@@ -90,11 +90,12 @@ local function applyPosesAt(queryFrame, immediate)
     for rigName, model in pairs(allRigs) do
         local jd = Interpolator.getJointData(recorder, rigName, queryFrame)
         local sd = Interpolator.getScaleData(recorder, rigName, queryFrame)
+        local rd = Interpolator.getRootData(recorder, rigName, queryFrame)
         if jd then
             if immediate then
-                PoseApplier.applyImmediate(model, jd, sd)
+                PoseApplier.applyImmediate(model, jd, sd, rd)
             else
-                PoseApplier.applyRecorded(model, jd, sd)
+                PoseApplier.applyRecorded(model, jd, sd, rd)
             end
         end
     end
@@ -154,7 +155,11 @@ local function serializeSession()
             end
             sOut[tostring(frame)] = sd
         end
-        out.rigs[rigName] = { joints = jOut, scales = sOut }
+        local rOut = {}
+        for frame, cf in pairs(rigData.rootTrack or {}) do
+            rOut[tostring(frame)] = { cf:GetComponents() }
+        end
+        out.rigs[rigName] = { joints = jOut, scales = sOut, roots = rOut }
     end
     for propName, propData in pairs(session.props or {}) do
         local pOut = {}
@@ -230,6 +235,15 @@ local function applySessionData(data)
                     scaleData[pName] = Vector3.new(arr[1], arr[2], arr[3])
                 end
                 recorder:setScaleData(rigName, frame, scaleData)
+            end
+        end
+        for frameStr, arr in pairs(rigData.roots or {}) do
+            local frame = tonumber(frameStr)
+            if frame then
+                recorder:setRootData(rigName, frame, CFrame.new(
+                    arr[1], arr[2], arr[3], arr[4], arr[5], arr[6],
+                    arr[7], arr[8], arr[9], arr[10], arr[11], arr[12]
+                ))
             end
         end
     end

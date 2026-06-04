@@ -47,12 +47,19 @@ end
 function Recorder:addKeyframe(frame, activeRigs, activeProps)
     for rigName, model in pairs(activeRigs) do
         if not self._session.rigs[rigName] then
-            self._session.rigs[rigName] = { jointTrack = {}, scaleTrack = {} }
+            self._session.rigs[rigName] = { jointTrack = {}, scaleTrack = {}, rootTrack = {} }
         end
 
         local rig = self._session.rigs[rigName]
         rig.jointTrack[frame] = JointCapture.capture(model)
         rig.scaleTrack[frame] = ScaleCapture.capture(model)
+
+        -- Capture world-space HumanoidRootPart CFrame so whole-model movement is recorded.
+        local hrp = model:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            rig.rootTrack = rig.rootTrack or {}
+            rig.rootTrack[frame] = hrp.CFrame
+        end
 
         self._added:Fire(rigName, frame)
     end
@@ -118,7 +125,32 @@ function Recorder:deleteRigKeyframe(rigName, frame)
     if rig then
         rig.jointTrack[frame] = nil
         rig.scaleTrack[frame] = nil
+        if rig.rootTrack then rig.rootTrack[frame] = nil end
     end
+end
+
+-- Root track accessors (world-space HumanoidRootPart CFrame per frame).
+function Recorder:getSortedRootFrames(rigName)
+    local rig = self._session.rigs[rigName]
+    if not rig or not rig.rootTrack then return {} end
+    local frames = {}
+    for f in pairs(rig.rootTrack) do table.insert(frames, f) end
+    table.sort(frames)
+    return frames
+end
+
+function Recorder:getRootData(rigName, frame)
+    local rig = self._session.rigs[rigName]
+    return rig and rig.rootTrack and rig.rootTrack[frame]
+end
+
+function Recorder:setRootData(rigName, frame, cf)
+    if not self._session.rigs[rigName] then
+        self._session.rigs[rigName] = { jointTrack = {}, scaleTrack = {}, rootTrack = {} }
+    end
+    local rig = self._session.rigs[rigName]
+    rig.rootTrack = rig.rootTrack or {}
+    rig.rootTrack[frame] = cf
 end
 
 -- Prop track accessors.
@@ -157,14 +189,14 @@ end
 
 function Recorder:setJointData(rigName, frame, jointData)
     if not self._session.rigs[rigName] then
-        self._session.rigs[rigName] = { jointTrack = {}, scaleTrack = {} }
+        self._session.rigs[rigName] = { jointTrack = {}, scaleTrack = {}, rootTrack = {} }
     end
     self._session.rigs[rigName].jointTrack[frame] = jointData
 end
 
 function Recorder:setScaleData(rigName, frame, scaleData)
     if not self._session.rigs[rigName] then
-        self._session.rigs[rigName] = { jointTrack = {}, scaleTrack = {} }
+        self._session.rigs[rigName] = { jointTrack = {}, scaleTrack = {}, rootTrack = {} }
     end
     self._session.rigs[rigName].scaleTrack[frame] = scaleData
 end

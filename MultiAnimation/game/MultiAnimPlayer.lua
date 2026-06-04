@@ -181,7 +181,12 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap)
     local scaleTracks = scaleModule and require(scaleModule) or nil
     local propModule  = sceneFolder:FindFirstChild("PropTracks")
     local propTracks  = propModule  and require(propModule)  or nil
-    local fps = scaleTracks and scaleTracks.fps or (propTracks and propTracks.fps) or 24
+    local rootModule  = sceneFolder:FindFirstChild("RootTracks")
+    local rootTracks  = rootModule  and require(rootModule)  or nil
+    local fps = (scaleTracks and scaleTracks.fps)
+             or (propTracks  and propTracks.fps)
+             or (rootTracks  and rootTracks.fps)
+             or 24
 
     -- ── Joint animation via Animator ──────────────────────────────────────────
 
@@ -249,6 +254,38 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap)
         end
     end
 
+    -- ── Root position data ────────────────────────────────────────────────────
+    -- World-space HumanoidRootPart CFrames, interpolated in the Heartbeat loop.
+
+    local rootRigs = {}   -- { [rigName] = { model, keyframes={time,cf} } }
+
+    if rootTracks and rootTracks.rigs then
+        for rigName, rigRootData in pairs(rootTracks.rigs) do
+            local rigModel = rigMap[rigName]
+            if not rigModel then continue end
+            local kfs = {}
+            for frame, arr in pairs(rigRootData) do
+                local cf = CFrame.new(
+                    arr[1], arr[2], arr[3],
+                    arr[4], arr[5], arr[6],
+                    arr[7], arr[8], arr[9],
+                    arr[10], arr[11], arr[12]
+                )
+                table.insert(kfs, { time = (frame - 1) / fps, cf = cf })
+            end
+            table.sort(kfs, function(a, b) return a.time < b.time end)
+            for _, kf in ipairs(kfs) do
+                totalLength = math.max(totalLength, kf.time)
+            end
+            rootRigs[rigName] = { model = rigModel, keyframes = kfs }
+            -- Snap to first keyframe immediately
+            if #kfs > 0 then
+                local hrp = rigModel:FindFirstChild("HumanoidRootPart")
+                if hrp then hrp.CFrame = kfs[1].cf end
+            end
+        end
+    end
+
     -- ── Prop data ─────────────────────────────────────────────────────────────
 
     _propState = {}
@@ -295,6 +332,23 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap)
                 local part = data.model:FindFirstChild(pName)
                 if part then part.Size = size end
             end
+        end
+
+        -- Root position interpolation (whole-model world CFrame)
+        for _, data in pairs(rootRigs) do
+            local kfs = data.keyframes
+            if #kfs == 0 then continue end
+            local before, after = surroundingKFs(kfs, elapsed)
+            local cf
+            if before == after or after.time <= before.time then
+                cf = before.cf
+            else
+                local alpha = math.clamp(
+                    (elapsed - before.time) / (after.time - before.time), 0, 1)
+                cf = before.cf:Lerp(after.cf, alpha)
+            end
+            local hrp = data.model:FindFirstChild("HumanoidRootPart")
+            if hrp then hrp.CFrame = cf end
         end
 
         -- Prop CFrame interpolation

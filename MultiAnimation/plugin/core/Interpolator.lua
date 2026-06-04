@@ -91,6 +91,24 @@ function Interpolator.getAllFrames(recorder, rigNames)
     return result
 end
 
+-- Returns interpolated world-space CFrame for the rig's HumanoidRootPart at queryFrame,
+-- or nil if no root keyframes exist (whole-model movement not recorded).
+function Interpolator.getRootData(recorder, rigName, queryFrame)
+    local sorted = recorder:getSortedRootFrames(rigName)
+    if #sorted == 0 then return nil end
+
+    local fA, fB, alpha = surrounding(sorted, queryFrame)
+    if not fA then return nil end
+
+    local cfA = recorder:getRootData(rigName, fA)
+    if fA == fB or alpha == 0 then return cfA end
+
+    local cfB = recorder:getRootData(rigName, fB)
+    if not cfB then return cfA end
+
+    return cfA:Lerp(cfB, alpha)
+end
+
 -- Returns interpolated CFrame for propName at queryFrame, or nil if no data.
 function Interpolator.getPropData(recorder, propName, queryFrame)
     local sorted = recorder:getSortedPropFrames(propName)

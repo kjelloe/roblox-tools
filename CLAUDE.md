@@ -1,24 +1,26 @@
 # Roblox Studio — Claude Code Project
 
 This directory is the workspace for Roblox game development assisted by Claude Code.
-Claude connects to a live Roblox Studio session through the `roblox-studio` MCP server.
+Claude connects to a live Roblox Studio session through the `Roblox_Studio` MCP server.
 
 ## MCP Setup
 
-The MCP server is pre-configured in `~/.claude/.mcp.json`:
+The `Roblox_Studio` server is stored **project-scoped** in `~/.claude.json` (added by Studio's `claude mcp add` prompt):
 
-```json
-{
-  "mcpServers": {
-    "roblox-studio": {
-      "command": "cmd.exe",
-      "args": ["/c", "C:\\Users\\kjell\\AppData\\Local\\Roblox\\mcp.bat"]
-    }
-  }
-}
+```
+Command: cmd.exe /c %LOCALAPPDATA%\Roblox\mcp.bat
 ```
 
-**Roblox Studio must be open** for any MCP tool to work. The proxy (`StudioMCP.exe`) connects automatically — no manual server start required. Claude Code loads the server at startup.
+`%LOCALAPPDATA%` expands correctly in `cmd.exe` — this survives Roblox version updates without requiring any manual changes. `~/.claude/.mcp.json` is intentionally empty (a previous `roblox-studio` entry there caused two competing `StudioMCP.exe` processes that prevented Studio from connecting).
+
+**Session start ritual — do this every session before using Studio tools:**
+1. Open Roblox Studio and load the place (MCP plugin must be active in Studio's Plugins tab)
+2. `list_roblox_studios` → `set_active_studio` with the returned ID
+3. Quick verify: `execute_luau("return workspace.Name")` → should return `"Workspace"`
+
+The studio ID changes every Studio restart, so steps 2–3 are required each session.
+
+**About `mcp.bat`:** Roblox auto-generates `%LOCALAPPDATA%\Roblox\mcp.bat`. It checks a versioned path first, then falls back to a registry query for `StudioMCP.exe`. Both are handled automatically — never run it manually. Claude Code starts it as a subprocess when the MCP server is activated.
 
 ## Quick Reference — MCP Tools
 
