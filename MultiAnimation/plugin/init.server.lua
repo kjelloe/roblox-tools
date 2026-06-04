@@ -374,7 +374,9 @@ panel.onRefreshRequested:Connect(function()
     scanAndSetup()
 end)
 
-panel.onAddKeyframeRequested:Connect(function()
+-- Shared add-keyframe logic used by both the button and the K shortcut.
+local function doAddKeyframe()
+    if isPlaying then return end
     local frame       = timeline:getCurrent()
     local activeRigs  = panel:getActiveRigs()
     local activeProps = panel:getActiveProps()
@@ -393,8 +395,20 @@ panel.onAddKeyframeRequested:Connect(function()
         table.insert(names, propName)
     end
     table.sort(names)
-    print(string.format("[MultiAnimation] Keyframe added at frame %d for: %s",
+    print(string.format("[MultiAnimation] Keyframe at frame %d for: %s",
         frame, table.concat(names, ", ")))
+end
+
+panel.onAddKeyframeRequested:Connect(doAddKeyframe)
+
+-- K shortcut — fires doAddKeyframe when the viewport is focused.
+-- gameProcessed=true when a TextBox (frame box, scene name, etc.) has focus,
+-- which prevents K from firing inside text inputs.
+game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.K then
+        doAddKeyframe()
+    end
 end)
 
 panel.onFrameChanged:Connect(function(newFrame)
