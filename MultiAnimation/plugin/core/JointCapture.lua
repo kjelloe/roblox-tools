@@ -134,4 +134,22 @@ function JointCapture.apply(rig, jointData)
     end
 end
 
+-- Returns a list of missing motor/part names; empty list means rig is healthy.
+function JointCapture.validate(rig)
+    local missing = {}
+    for jointName, parentPartName in pairs(JOINT_PARENT) do
+        local container = rig:FindFirstChild(parentPartName)
+        if not container then
+            table.insert(missing, parentPartName .. " (missing)")
+        else
+            local motor = container:FindFirstChild(jointName)
+            if not motor or not motor:IsA("Motor6D") then
+                table.insert(missing, jointName .. " (Motor6D missing)")
+            end
+        end
+    end
+    table.sort(missing)
+    return missing
+end
+
 return JointCapture

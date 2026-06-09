@@ -242,6 +242,8 @@ function Panel.new(widget)
     self._eLoadNamed = eLoadNamed
     table.insert(evts, eLoadNamed)
 
+    local eNewSession = mkEvent("onNewSessionConfirmed")
+
     local eTrackPart = Instance.new("BindableEvent")
     self.onTrackPartRequested = eTrackPart.Event
     self._eTrackPart = eTrackPart
@@ -288,9 +290,11 @@ function Panel.new(widget)
     local refreshBtn = btn(sessionRow, "↺  Refresh", 1)
     local saveAsBtn  = btn(sessionRow, "Save As",    2)
     local loadBtn    = btn(sessionRow, "Load",        3)
+    local newBtn     = btn(sessionRow, "New",         4)
     refreshBtn.MouseButton1Click:Connect(function() eRefresh:Fire() end)
     saveAsBtn.MouseButton1Click:Connect(function() self:_showSaveOverlay() end)
     loadBtn.MouseButton1Click:Connect(function() eReload:Fire() end)
+    newBtn.MouseButton1Click:Connect(function() self:_showNewOverlay() end)
 
     divider(root, 2)
 
@@ -334,13 +338,30 @@ function Panel.new(widget)
     self._totalBox = totalBox
     self._fpsBox   = fpsBox
 
-    -- Row 2: scrubber
+    -- Row 2: step size (frame step for , / . shortcuts)
+    local stepRow = hrow(ctrlSec, 2, 4)
+    lbl(stepRow, "Step:", 34, 1)
+    local stepBox = textBox(stepRow, "2", 32, 2)
+    local stepHint = Instance.new("TextLabel")
+    stepHint.Size               = UDim2.new(0, 0, 0, 22)
+    stepHint.AutomaticSize      = Enum.AutomaticSize.X
+    stepHint.BackgroundTransparency = 1
+    stepHint.TextColor3         = C.muted
+    stepHint.Text               = "frames  ( J←  L→ )"
+    stepHint.TextSize           = 10
+    stepHint.Font               = Enum.Font.Gotham
+    stepHint.TextXAlignment     = Enum.TextXAlignment.Left
+    stepHint.LayoutOrder        = 3
+    stepHint.Parent             = stepRow
+    self._stepBox = stepBox
+
+    -- Row 3: scrubber
     local scrubRow = Instance.new("Frame")
     scrubRow.Name          = "ScrubRow"
     scrubRow.Size          = UDim2.new(1, 0, 0, 0)
     scrubRow.AutomaticSize = Enum.AutomaticSize.Y
     scrubRow.BackgroundTransparency = 1
-    scrubRow.LayoutOrder   = 2
+    scrubRow.LayoutOrder   = 3
     scrubRow.Parent        = ctrlSec
 
     -- 56 = TrackLane LABEL_W (52) + UIListLayout gap (4) — aligns thumb with KF dots
@@ -353,14 +374,14 @@ function Panel.new(widget)
     self._scrubber.onDragBegan:Connect(function() eScrubBgn:Fire() end)
     self._scrubber.onDragEnded:Connect(function() eScrubEnd:Fire() end)
 
-    -- Row 3: scene name input
-    local sceneRow     = hrow(ctrlSec, 3, 4)
+    -- Row 4: scene name input
+    local sceneRow     = hrow(ctrlSec, 4, 4)
     lbl(sceneRow, "Scene:", 42, 1)
     local sceneNameBox = textBox(sceneRow, "Scene_001", 120, 2)
     self._sceneNameBox = sceneNameBox
 
-    -- Row 4: action buttons
-    local actRow = hrow(ctrlSec, 4, 4)
+    -- Row 5: action buttons
+    local actRow = hrow(ctrlSec, 5, 4)
 
     local addKFBtn  = btn(actRow, "+ Add Keyframe", 1, true)
     local previewBtn = btn(actRow, "▶  Preview",     2)
@@ -473,6 +494,57 @@ function Panel.new(widget)
     self._saveOverlay = saveOv
     self._saveOvBox   = saveOvBox
 
+    -- ── New Session confirmation overlay ──────────────────────────────────────
+    local newOv = Instance.new("Frame")
+    newOv.Name            = "NewOverlay"
+    newOv.Size            = UDim2.new(0, 220, 0, 90)
+    newOv.AnchorPoint     = Vector2.new(0.5, 0.5)
+    newOv.Position        = UDim2.new(0.5, 0, 0.5, 0)
+    newOv.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+    newOv.BorderSizePixel = 0
+    newOv.ZIndex          = 50
+    newOv.Visible         = false
+    newOv.Parent          = widget
+    Instance.new("UICorner", newOv).CornerRadius = UDim.new(0, 6)
+    local _nStroke = Instance.new("UIStroke")
+    _nStroke.Color     = Color3.fromRGB(90, 90, 90)
+    _nStroke.Thickness = 1
+    _nStroke.Parent    = newOv
+    listLayout(newOv, Enum.FillDirection.Vertical, 8)
+    addPadding(newOv, 10, 10)
+
+    local newOvHdr = Instance.new("TextLabel")
+    newOvHdr.Size               = UDim2.new(1, 0, 0, 13)
+    newOvHdr.BackgroundTransparency = 1
+    newOvHdr.TextColor3         = C.header
+    newOvHdr.Text               = "NEW SESSION"
+    newOvHdr.TextSize           = 10
+    newOvHdr.Font               = Enum.Font.GothamBold
+    newOvHdr.TextXAlignment     = Enum.TextXAlignment.Left
+    newOvHdr.LayoutOrder        = 1
+    newOvHdr.Parent             = newOv
+
+    local newOvMsg = Instance.new("TextLabel")
+    newOvMsg.Size               = UDim2.new(1, 0, 0, 16)
+    newOvMsg.BackgroundTransparency = 1
+    newOvMsg.TextColor3         = C.muted
+    newOvMsg.Text               = "Clear all keyframes and start fresh?"
+    newOvMsg.TextSize           = 11
+    newOvMsg.Font               = Enum.Font.Gotham
+    newOvMsg.TextXAlignment     = Enum.TextXAlignment.Left
+    newOvMsg.LayoutOrder        = 2
+    newOvMsg.Parent             = newOv
+
+    local newOvRow    = hrow(newOv, 3, 6)
+    local newOvOk     = btn(newOvRow, "Clear All", 1)
+    local newOvCancel = btn(newOvRow, "Cancel",    2)
+    newOvOk.MouseButton1Click:Connect(function()
+        newOv.Visible = false
+        eNewSession:Fire()
+    end)
+    newOvCancel.MouseButton1Click:Connect(function() newOv.Visible = false end)
+    self._newOverlay = newOv
+
     -- ── Load list overlay ─────────────────────────────────────────────────────
     local loadOv = Instance.new("Frame")
     loadOv.Name             = "LoadOverlay"
@@ -533,6 +605,24 @@ function Panel.new(widget)
     self._loadOverlay = loadOv
     self._loadScroll  = loadScroll
 
+    -- ── Shortcut legend ───────────────────────────────────────────────────────
+    -- Pinned to the bottom of the panel so new users can discover the hotkeys.
+    local shortcutHint = Instance.new("TextLabel")
+    shortcutHint.Name               = "ShortcutHint"
+    shortcutHint.Size               = UDim2.new(1, 0, 0, 0)
+    shortcutHint.AutomaticSize      = Enum.AutomaticSize.Y
+    shortcutHint.BackgroundColor3   = Color3.fromRGB(30, 30, 30)
+    shortcutHint.BorderSizePixel    = 0
+    shortcutHint.TextColor3         = C.muted
+    shortcutHint.Text               = "K  add/update KF     J  step ←     L  step →"
+    shortcutHint.TextSize           = 10
+    shortcutHint.Font               = Enum.Font.Gotham
+    shortcutHint.TextXAlignment     = Enum.TextXAlignment.Center
+    shortcutHint.TextWrapped        = true
+    shortcutHint.LayoutOrder        = 9
+    shortcutHint.Parent             = root
+    addPadding(shortcutHint, 6, 4)
+
     self._root = root
     return self
 end
@@ -591,6 +681,11 @@ end
 
 function Panel:getActiveProps()
     return self.propSelector:getActiveProps()
+end
+
+function Panel:getStepSize()
+    local n = tonumber(self._stepBox and self._stepBox.Text or "2")
+    return math.max(1, math.floor(n or 2))
 end
 
 -- Add a prop to the PropSelector and create a teal track lane for it.
@@ -684,6 +779,10 @@ function Panel:setPlaybackState(isPlaying)
         self._previewBtn.BackgroundColor3 = isPlaying and C.btnDim or C.btnBg
         self._previewBtn.TextColor3 = isPlaying and C.btnDimTxt or C.btnText
     end
+end
+
+function Panel:_showNewOverlay()
+    self._newOverlay.Visible = true
 end
 
 function Panel:_showSaveOverlay()

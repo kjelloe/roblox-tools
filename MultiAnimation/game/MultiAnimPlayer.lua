@@ -1,7 +1,7 @@
 -- MultiAnimPlayer — in-game playback of exported MultiAnimation scenes.
 --
--- No plugin dependency; uses only standard Roblox game APIs.
--- Place (or require from) ServerStorage.MultiAnimationData.MultiAnimPlayer.
+-- Drives animation by setting Motor6D.Transform directly in a Heartbeat loop.
+-- No AnimationClipProvider dependency — works server-side and client-side.
 --
 -- API:
 --   player.play(sceneName, rigMap, propMap?)
@@ -15,31 +15,30 @@
 --   player.onFinished(callback)
 --       callback(sceneName: string) — fired on natural completion or stop().
 --       Replaces any previously registered callback.
---
--- Example:
---   local player = require(game.ServerStorage.MultiAnimationData.MultiAnimPlayer)
---   player.onFinished(function(s) print(s .. " finished") end)
---   player.play("Scene_001",
---       { Rig1 = workspace.FIGURES.Rig1, Rig2 = workspace.FIGURES.Rig2 },
---       { Block = workspace.Block }   -- omit if no props
---   )
 
-local RunService            = game:GetService("RunService")
-local AnimationClipProvider = game:GetService("AnimationClipProvider")
+local RunService = game:GetService("RunService")
 
 local MultiAnimPlayer = {}
 
--- ── module-level playback state ───────────────────────────────────────────────
+-- ── module-level state ────────────────────────────────────────────────────────
 
-local _finishedCb  = nil   -- single registered callback
-local _heartbeat   = nil   -- RBXScriptConnection
-local _tracks      = {}    -- AnimationTrack list for current play
-local _sceneName   = nil   -- scene currently playing
-local _propState   = {}    -- { [propName] = {part=BasePart, kfs={...}} } for current play
+local _finishedCb = nil
+local _heartbeat  = nil
+local _sceneName  = nil
 
--- ── helpers ───────────────────────────────────────────────────────────────────
+-- ── constants ─────────────────────────────────────────────────────────────────
 
-local PART_TO_JOINT = {
+local JOINT_PARENT = {
+    RootJoint          = "HumanoidRootPart",
+    Neck               = "Torso",
+    ["Right Shoulder"] = "Torso",
+    ["Left Shoulder"]  = "Torso",
+    ["Right Hip"]      = "Torso",
+    ["Left Hip"]       = "Torso",
+}
+
+-- KFS Pose child name → Motor6D name
+local POSE_TO_JOINT = {
     Torso         = "RootJoint",
     Head          = "Neck",
     ["Right Arm"] = "Right Shoulder",
@@ -48,18 +47,33 @@ local PART_TO_JOINT = {
     ["Left Leg"]  = "Left Hip",
 }
 
--- Build a sorted { {time, poses={[jointName]=CFrame}} } list from a KFS.
-local function kfsToKeyframes(kfs)
+-- ── helpers ───────────────────────────────────────────────────────────────────
+
+local function findJoints(rig)
+    local joints = {}
+    for jointName, parentPartName in pairs(JOINT_PARENT) do
+        local container = rig:FindFirstChild(parentPartName)
+        if container then
+            local motor = container:FindFirstChild(jointName)
+            if motor and motor:IsA("Motor6D") then
+                joints[jointName] = motor
+            end
+        end
+    end
+    return joints
+end
+
+-- Parse a KeyframeSequence into sorted { {time, poses={[jointName]=CFrame}} }.
+local function parseKFS(kfs)
     local out = {}
     for _, kf in ipairs(kfs:GetKeyframes()) do
         local hrpPose = kf:FindFirstChild("HumanoidRootPart")
         if not hrpPose then continue end
         local torsoPose = hrpPose:FindFirstChild("Torso")
         if not torsoPose then continue end
-
         local poses = { RootJoint = torsoPose.CFrame }
         for _, child in ipairs(torsoPose:GetChildren()) do
-            local jName = PART_TO_JOINT[child.Name]
+            local jName = POSE_TO_JOINT[child.Name]
             if jName then poses[jName] = child.CFrame end
         end
         table.insert(out, { time = kf.Time, poses = poses })
@@ -68,87 +82,37 @@ local function kfsToKeyframes(kfs)
     return out
 end
 
--- Gather all Motor6D joints for an R6 rig model.
-local function findJoints(rigModel)
-    local joints = {}
-    local hrp   = rigModel:FindFirstChild("HumanoidRootPart")
-    local torso = rigModel:FindFirstChild("Torso")
-    if hrp then
-        local j = hrp:FindFirstChild("RootJoint")
-        if j then joints["RootJoint"] = j end
-    end
-    if torso then
-        for _, name in ipairs({"Neck","Right Shoulder","Left Shoulder","Right Hip","Left Hip"}) do
-            local j = torso:FindFirstChild(name)
-            if j then joints[name] = j end
-        end
-    end
-    return joints
-end
-
--- Build a sorted { {time, cf=CFrame} } list from a prop's keyframe data.
--- Array layout matches Exporter: {x,y,z, r00,r01,r02, r10,r11,r12, r20,r21,r22}
-local function propToKeyframes(propKFData, fps)
+-- Convert a {[frame]=data} table to sorted { {time, data} } using fps.
+local function toSortedKFs(frameTable, fps, buildFn)
     local out = {}
-    for frame, arr in pairs(propKFData) do
-        local cf = CFrame.new(
-            arr[1], arr[2], arr[3],
-            arr[4], arr[5], arr[6],
-            arr[7], arr[8], arr[9],
-            arr[10], arr[11], arr[12]
-        )
-        table.insert(out, { time = (frame - 1) / fps, cf = cf })
+    for frame, raw in pairs(frameTable) do
+        table.insert(out, { time = (frame - 1) / fps, data = buildFn(raw) })
     end
     table.sort(out, function(a, b) return a.time < b.time end)
     return out
 end
 
--- Build a sorted { {time, parts={[partName]=Vector3}} } list from the scale table.
-local function scaleToKeyframes(rigScaleData, fps)
-    local out = {}
-    for frame, partData in pairs(rigScaleData) do
-        local parts = {}
-        for pName, arr in pairs(partData) do
-            parts[pName] = Vector3.new(arr[1], arr[2], arr[3])
-        end
-        table.insert(out, { time = (frame - 1) / fps, parts = parts })
-    end
-    table.sort(out, function(a, b) return a.time < b.time end)
-    return out
-end
-
--- Find the two surrounding entries in a sorted keyframe list for a given time.
-local function surroundingKFs(kfs, elapsed)
-    local before = kfs[1]
-    local after  = kfs[#kfs]
-    for i = 1, #kfs do
-        if kfs[i].time <= elapsed then before = kfs[i] end
-        if kfs[i].time >= elapsed then after = kfs[i]; break end
+-- Find the pair of entries that straddle elapsed time.
+local function surrounding(list, elapsed)
+    local before = list[1]
+    local after  = list[#list]
+    for i = 1, #list do
+        if list[i].time <= elapsed then before = list[i] end
+        if list[i].time >= elapsed then after = list[i]; break end
     end
     return before, after
 end
 
--- Linear interpolation between two keyframe entries (poses or parts).
-local function lerpKFs(before, after, elapsed, lerpFn, key)
-    if before == after or after.time <= before.time then
-        return before[key]
-    end
-    local alpha = math.clamp((elapsed - before.time) / (after.time - before.time), 0, 1)
-    local result = {}
-    for k, a in pairs(before[key]) do
-        result[k] = lerpFn(a, after[key][k] or a, alpha)
-    end
-    return result
+local function lerpCF(a, b, t) return a:Lerp(b, t) end
+local function lerpV3(a, b, t) return a:Lerp(b, t) end
+
+local function alpha(before, after, elapsed)
+    return math.clamp((elapsed - before.time) / (after.time - before.time), 0, 1)
 end
 
 local function clearActive()
     if _heartbeat then _heartbeat:Disconnect(); _heartbeat = nil end
-    for _, t in ipairs(_tracks) do
-        if t.IsPlaying then t:Stop(0) end
-    end
-    _tracks    = {}
     _sceneName = nil
-    _propState = {}
 end
 
 local function fireFinished(sn)
@@ -188,120 +152,94 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap)
              or (rootTracks  and rootTracks.fps)
              or 24
 
-    -- ── Joint animation via Animator ──────────────────────────────────────────
+    -- ── Per-rig data ──────────────────────────────────────────────────────────
 
-    local tracks = {}
+    local rigStates  = {}
     local totalLength = 0
 
     for rigName, rigModel in pairs(rigMap) do
+        local state = {
+            model     = rigModel,
+            joints    = findJoints(rigModel),
+            jointKFs  = {},
+            scaleKFs  = {},
+            rootKFs   = {},
+        }
+
         local kfs = sceneFolder:FindFirstChild(rigName .. "_Joints")
-        if not kfs then
+        if kfs then
+            state.jointKFs = parseKFS(kfs)
+            for _, kf in ipairs(state.jointKFs) do
+                totalLength = math.max(totalLength, kf.time)
+            end
+        else
             warn("[MultiAnimPlayer] No KeyframeSequence for '" .. rigName .. "'")
-            continue
         end
 
-        -- Compute duration from the KFS itself (don't rely on AnimationTrack.Length)
-        for _, kf in ipairs(kfs:GetKeyframes()) do
-            totalLength = math.max(totalLength, kf.Time)
-        end
-
-        local humanoid = rigModel:FindFirstChildOfClass("Humanoid")
-        if not humanoid then
-            warn("[MultiAnimPlayer] Rig '" .. rigName .. "' has no Humanoid")
-            continue
-        end
-
-        local animator = humanoid:FindFirstChildOfClass("Animator")
-            or Instance.new("Animator")
-        animator.Parent = humanoid
-
-        local ok, animId = pcall(AnimationClipProvider.RegisterKeyframeSequence,
-                                  AnimationClipProvider, kfs)
-        if not ok then
-            warn("[MultiAnimPlayer] RegisterKeyframeSequence failed for '"
-                 .. rigName .. "': " .. tostring(animId))
-            continue
-        end
-
-        local anim = Instance.new("Animation")
-        anim.AnimationId = animId
-        local track = animator:LoadAnimation(anim)
-        track:Play(0)
-        table.insert(tracks, track)
-    end
-
-    -- ── Scale data ────────────────────────────────────────────────────────────
-
-    local scaleRigs = {}   -- { {model, keyframes, joints(unused)} }
-
-    if scaleTracks and scaleTracks.rigs then
-        for rigName, rigScaleData in pairs(scaleTracks.rigs) do
-            local rigModel = rigMap[rigName]
-            if not rigModel then continue end
-            local keyframes = scaleToKeyframes(rigScaleData, fps)
-            for _, kf in ipairs(keyframes) do
-                totalLength = math.max(totalLength, kf.time)
-            end
-            scaleRigs[rigName] = { model = rigModel, keyframes = keyframes }
-
-            -- Snap to first keyframe immediately
-            if #keyframes > 0 then
-                for pName, size in pairs(keyframes[1].parts) do
-                    local part = rigModel:FindFirstChild(pName)
-                    if part then part.Size = size end
+        if scaleTracks and scaleTracks.rigs and scaleTracks.rigs[rigName] then
+            state.scaleKFs = toSortedKFs(scaleTracks.rigs[rigName], fps, function(raw)
+                local parts = {}
+                for pName, arr in pairs(raw) do
+                    parts[pName] = Vector3.new(arr[1], arr[2], arr[3])
                 end
-            end
-        end
-    end
-
-    -- ── Root position data ────────────────────────────────────────────────────
-    -- World-space HumanoidRootPart CFrames, interpolated in the Heartbeat loop.
-
-    local rootRigs = {}   -- { [rigName] = { model, keyframes={time,cf} } }
-
-    if rootTracks and rootTracks.rigs then
-        for rigName, rigRootData in pairs(rootTracks.rigs) do
-            local rigModel = rigMap[rigName]
-            if not rigModel then continue end
-            local kfs = {}
-            for frame, arr in pairs(rigRootData) do
-                local cf = CFrame.new(
-                    arr[1], arr[2], arr[3],
-                    arr[4], arr[5], arr[6],
-                    arr[7], arr[8], arr[9],
-                    arr[10], arr[11], arr[12]
-                )
-                table.insert(kfs, { time = (frame - 1) / fps, cf = cf })
-            end
-            table.sort(kfs, function(a, b) return a.time < b.time end)
-            for _, kf in ipairs(kfs) do
+                return parts
+            end)
+            for _, kf in ipairs(state.scaleKFs) do
                 totalLength = math.max(totalLength, kf.time)
             end
-            rootRigs[rigName] = { model = rigModel, keyframes = kfs }
-            -- Snap to first keyframe immediately
-            if #kfs > 0 then
-                local hrp = rigModel:FindFirstChild("HumanoidRootPart")
-                if hrp then hrp.CFrame = kfs[1].cf end
+        end
+
+        if rootTracks and rootTracks.rigs and rootTracks.rigs[rigName] then
+            state.rootKFs = toSortedKFs(rootTracks.rigs[rigName], fps, function(arr)
+                return CFrame.new(arr[1],arr[2],arr[3],
+                                  arr[4],arr[5],arr[6],
+                                  arr[7],arr[8],arr[9],
+                                  arr[10],arr[11],arr[12])
+            end)
+            for _, kf in ipairs(state.rootKFs) do
+                totalLength = math.max(totalLength, kf.time)
             end
         end
+
+        -- Snap all tracks to frame 1
+        if #state.jointKFs > 0 then
+            for jName, motor in pairs(state.joints) do
+                local p = state.jointKFs[1].poses[jName]
+                if p then motor.Transform = p end
+            end
+        end
+        if #state.scaleKFs > 0 then
+            for pName, size in pairs(state.scaleKFs[1].data) do
+                local part = rigModel:FindFirstChild(pName)
+                if part then part.Size = size end
+            end
+        end
+        if #state.rootKFs > 0 then
+            local hrp = rigModel:FindFirstChild("HumanoidRootPart")
+            if hrp then hrp.CFrame = state.rootKFs[1].data end
+        end
+
+        rigStates[rigName] = state
     end
 
     -- ── Prop data ─────────────────────────────────────────────────────────────
 
-    _propState = {}
+    local propStates = {}
     if propTracks and propTracks.props and propMap then
         for propName, propKFData in pairs(propTracks.props) do
             local part = propMap[propName]
             if not part then continue end
-            local kfs = propToKeyframes(propKFData, fps)
+            local kfs = toSortedKFs(propKFData, fps, function(arr)
+                return CFrame.new(arr[1],arr[2],arr[3],
+                                  arr[4],arr[5],arr[6],
+                                  arr[7],arr[8],arr[9],
+                                  arr[10],arr[11],arr[12])
+            end)
             for _, kf in ipairs(kfs) do
                 totalLength = math.max(totalLength, kf.time)
             end
-            _propState[propName] = { part = part, kfs = kfs }
-            -- Snap to first keyframe immediately
-            if #kfs > 0 then
-                part.CFrame = kfs[1].cf
-            end
+            propStates[propName] = { part = part, kfs = kfs }
+            if #kfs > 0 then part.CFrame = kfs[1].data end
         end
     end
 
@@ -310,62 +248,68 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap)
         return
     end
 
-    -- ── Heartbeat loop (scale + end-of-scene detection) ───────────────────────
+    -- ── Heartbeat loop ────────────────────────────────────────────────────────
 
     _sceneName = sceneName
-    _tracks    = tracks
     local startTime = tick()
-    local done      = false
+    local done = false
 
     _heartbeat = RunService.Heartbeat:Connect(function()
         if done then return end
         local elapsed = tick() - startTime
 
-        for _, data in pairs(scaleRigs) do
-            local kfs = data.keyframes
-            if #kfs == 0 then continue end
-            local before, after = surroundingKFs(kfs, elapsed)
-            local parts = lerpKFs(before, after, elapsed, function(a, b, t)
-                return a:Lerp(b, t)
-            end, "parts")
-            for pName, size in pairs(parts) do
-                local part = data.model:FindFirstChild(pName)
-                if part then part.Size = size end
+        for _, state in pairs(rigStates) do
+            -- Joint poses via Motor6D.Transform
+            if #state.jointKFs > 1 then
+                local b, a = surrounding(state.jointKFs, elapsed)
+                local t = (b == a or a.time <= b.time) and 1 or alpha(b, a, elapsed)
+                for jName, motor in pairs(state.joints) do
+                    local cfB = b.poses[jName]
+                    if cfB then
+                        motor.Transform = (b == a) and cfB
+                            or lerpCF(cfB, a.poses[jName] or cfB, t)
+                    end
+                end
+            elseif #state.jointKFs == 1 then
+                for jName, motor in pairs(state.joints) do
+                    local p = state.jointKFs[1].poses[jName]
+                    if p then motor.Transform = p end
+                end
+            end
+
+            -- Scale
+            if #state.scaleKFs > 0 then
+                local b, a = surrounding(state.scaleKFs, elapsed)
+                for pName, sizeB in pairs(b.data) do
+                    local part = state.model:FindFirstChild(pName)
+                    if not part then continue end
+                    if b == a or a.time <= b.time then
+                        part.Size = sizeB
+                    else
+                        part.Size = lerpV3(sizeB, a.data[pName] or sizeB, alpha(b, a, elapsed))
+                    end
+                end
+            end
+
+            -- Root position
+            if #state.rootKFs > 0 then
+                local b, a = surrounding(state.rootKFs, elapsed)
+                local cf = (b == a or a.time <= b.time) and b.data
+                    or lerpCF(b.data, a.data, alpha(b, a, elapsed))
+                local hrp = state.model:FindFirstChild("HumanoidRootPart")
+                if hrp then hrp.CFrame = cf end
             end
         end
 
-        -- Root position interpolation (whole-model world CFrame)
-        for _, data in pairs(rootRigs) do
-            local kfs = data.keyframes
-            if #kfs == 0 then continue end
-            local before, after = surroundingKFs(kfs, elapsed)
-            local cf
-            if before == after or after.time <= before.time then
-                cf = before.cf
-            else
-                local alpha = math.clamp(
-                    (elapsed - before.time) / (after.time - before.time), 0, 1)
-                cf = before.cf:Lerp(after.cf, alpha)
-            end
-            local hrp = data.model:FindFirstChild("HumanoidRootPart")
-            if hrp then hrp.CFrame = cf end
-        end
-
-        -- Prop CFrame interpolation
-        for _, state in pairs(_propState) do
-            local kfs = state.kfs
-            if #kfs == 0 then continue end
-            local before, after = surroundingKFs(kfs, elapsed)
-            local cf
-            if before == after or after.time <= before.time then
-                cf = before.cf
-            else
-                local alpha = math.clamp(
-                    (elapsed - before.time) / (after.time - before.time), 0, 1)
-                cf = before.cf:Lerp(after.cf, alpha)
-            end
-            if state.part and state.part.Parent then
-                state.part.CFrame = cf
+        -- Props
+        for _, state in pairs(propStates) do
+            if #state.kfs > 0 then
+                local b, a = surrounding(state.kfs, elapsed)
+                local cf = (b == a or a.time <= b.time) and b.data
+                    or lerpCF(b.data, a.data, alpha(b, a, elapsed))
+                if state.part and state.part.Parent then
+                    state.part.CFrame = cf
+                end
             end
         end
 

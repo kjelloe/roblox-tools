@@ -9,7 +9,7 @@
 | 3 | Preview | ✅ Complete |
 | 4 | Export | ✅ Complete |
 | 5 | In-game Playback | ✅ Complete |
-| 6 | Polish | 🔄 In Progress |
+| 6 | Polish | ✅ Complete |
 | 7 | Prop Animation | ✅ Complete |
 | 8 | Future | ⬜ Backlog |
 
@@ -144,11 +144,21 @@ Session persistence, keyframe editing, rig workflow improvements.
 - [x] Session save/load: `Save` and `Load` buttons persist session via `plugin:SetSetting` (CFrames as 12-number arrays, Vector3 as 3-number arrays)
 - [x] Exclusive rig selection: rig buttons behave as radio buttons — clicking one deactivates all others; first rig alphabetically starts active on load
 - [x] Double-click track lane: double-click anywhere on a rig's track area jumps the timeline to that frame position and records a keyframe for that rig (`track.InputBegan` double-click timer → `onTimelineDoubleClicked(rigName, frame)`)
-- [ ] Session auto-save on every keyframe change (currently manual Save button only)
-- [ ] "New Session" button with confirmation dialog
-- [ ] Auto-detect rigs added/removed from FIGURES (`ChildAdded`/`ChildRemoved`)
-- [ ] Rest pose restore when preview stops
-- [ ] Validate Motor6Ds before capture; surface clear error if rig is broken
+- [x] Scrubber alignment: scrubber track inset by 56px (TrackLane label 52px + gap 4px) so thumb aligns vertically with keyframe dots
+- [x] Auto-update keyframe on scrub departure: when drag starts at a frame that has keyframes, re-captures current pose for active rigs/props automatically (idempotent if nothing changed)
+- [x] Whole-model movement (rootTrack): `HumanoidRootPart.CFrame` captured per frame in `rootTrack`; applied before joint transforms during scrub/preview so the whole rig moves; exported to `RootTracks` ModuleScript; interpolated in MultiAnimPlayer Heartbeat loop
+- [x] Keyboard shortcuts (viewport-focused, ignored when TextBox active):
+  - `K` — add/update keyframe for active rigs & props at current frame
+  - `L` — step timeline forward by Step frames
+  - `J` — step timeline back by Step frames
+- [x] Step size textbox in CONTROLS (default 2): controls how many frames `J`/`L` advance the timeline
+- [x] Shortcut legend label pinned to bottom of panel (`K  add/update KF   J  step ←   L  step →`)
+- [x] `Pose.CFrame` API fix: Roblox renamed `Pose.Transform` → `Pose.CFrame`; fix applied in Exporter and MultiAnimPlayer
+- [x] Session auto-save on every keyframe change — debounced 1s, saves to `_autosave` slot
+- [x] "New Session" button with confirmation dialog (clears all keyframes, re-scans rigs)
+- [x] Auto-detect rigs added/removed from FIGURES (`ChildAdded`/`ChildRemoved`)
+- [x] Rest pose restore when preview stops — viewport syncs to current timeline frame on stop
+- [x] Validate Motor6Ds before capture; surface clear error if rig is broken (`JointCapture.validate`)
 
 ---
 
@@ -202,6 +212,8 @@ All 57 cases pass against live Studio via `mcp__Roblox_Studio__execute_luau`:
 | `test_prop_interpolator.lua` | 13 | `getPropData` clamp low/high, exact, midpoint lerp, slerp rotation; `getAllPropFrames` merge |
 | `test_prop_exporter.lua` | 14 | `buildPropTracksSource` → valid Lua → `require()` → fps/props/arrays correct; empty props omitted |
 | `test_prop_serialization.lua` | 17 | `GetComponents()` round-trip; position/rotation/combined; `Lerp` α=0/0.5/1; slerp; serialize→lerp matches direct |
+| `test_rig_root_motion.lua` | 15 | rootTrack capture/apply/interpolate; whole-model lift verified; Torso follows HRP; boundary clamp |
+| `test_exporter.lua` | 23 | `Pose.CFrame` API (Roblox renamed from Transform); KFS structure & CFrames; RootTracks whole-model positions; empty rootTrack omitted |
 
 ### Notes
 

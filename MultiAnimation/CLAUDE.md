@@ -164,6 +164,8 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 | `test_prop_interpolator.lua` | `getPropData` clamp/lerp/slerp; `getAllPropFrames` merge (13 cases) |
 | `test_prop_exporter.lua` | `buildPropTracksSource` → valid Lua → `require()` structural check (14 cases) |
 | `test_prop_serialization.lua` | CFrame `GetComponents()` round-trip; `Lerp` boundary + slerp (17 cases) |
+| `test_rig_root_motion.lua` | rootTrack capture/apply/interpolate; whole-model lift on real Rig1 (15 cases) |
+| `test_exporter.lua` | `Pose.CFrame` API; KFS structure; RootTracks whole-model positions (23 cases) |
 
 All tests inline their module logic (no `require()` to plugin modules) and return a PASS/FAIL string for `execute_luau`. Run with:
 

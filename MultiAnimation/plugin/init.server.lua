@@ -8,6 +8,11 @@
 --   the user pose individual limbs freely and lets apply() work correctly.
 --   Motors are reconnected only when the plugin unloads (leaving a clean rig).
 
+-- Bail out immediately when running as a game server script during play mode.
+-- RunService:IsRunning() is true in any game context; false in the Studio
+-- editor / plugin context where this code actually belongs.
+if game:GetService("RunService"):IsRunning() then return end
+
 local RunService           = game:GetService("RunService")
 local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local HttpService          = game:GetService("HttpService")
@@ -291,6 +296,19 @@ local function loadNamed(name)
     print("[MultiAnimation] Loaded '" .. name .. "'")
 end
 
+-- ── Auto-save ─────────────────────────────────────────────────────────────────
+-- Debounced: batches rapid keyframe additions into one save per second.
+
+local _autoSavePending = false
+local function scheduleAutoSave()
+    if _autoSavePending then return end
+    _autoSavePending = true
+    task.delay(1, function()
+        _autoSavePending = false
+        saveNamed("_autosave")
+    end)
+end
+
 -- ── Playback ──────────────────────────────────────────────────────────────────
 
 local function stopPlayback()
@@ -302,6 +320,8 @@ local function stopPlayback()
     ChangeHistoryService:SetEnabled(true)
     ChangeHistoryService:SetWaypoint("MultiAnim_PreviewEnd")
     panel:setPlaybackState(false)
+    -- Sync viewport to current timeline position after playback ends.
+    applyPosesAt(timeline:getCurrent(), false)
 end
 
 local function startPlayback()
@@ -384,6 +404,15 @@ local function doAddKeyframe()
         warn("[MultiAnimation] No active rigs or props selected")
         return
     end
+    -- Validate Motor6Ds for each active rig before capturing.
+    for rigName, model in pairs(activeRigs) do
+        local missing = JointCapture.validate(model)
+        if #missing > 0 then
+            warn(string.format("[MultiAnimation] Rig '%s' has broken joints — cannot capture: %s",
+                rigName, table.concat(missing, ", ")))
+            return
+        end
+    end
     recorder:addKeyframe(frame, activeRigs, activeProps)
     local names = {}
     for rigName in pairs(activeRigs) do
@@ -397,17 +426,48 @@ local function doAddKeyframe()
     table.sort(names)
     print(string.format("[MultiAnimation] Keyframe at frame %d for: %s",
         frame, table.concat(names, ", ")))
+    scheduleAutoSave()
 end
 
 panel.onAddKeyframeRequested:Connect(doAddKeyframe)
 
--- K shortcut — fires doAddKeyframe when the viewport is focused.
--- gameProcessed=true when a TextBox (frame box, scene name, etc.) has focus,
--- which prevents K from firing inside text inputs.
+-- Step-frame: mirrors the onScrubBegan auto-update so moving the timeline via
+-- shortcut also saves any pose changes made while parked at a keyframe.
+local function doStepFrame(direction)
+    if isPlaying then return end
+
+    -- Auto-update existing keyframe at the departure frame (same logic as onScrubBegan)
+    local departureFrame = timeline:getCurrent()
+    local activeRigs  = panel:getActiveRigs()
+    local activeProps = panel:getActiveProps()
+    local shouldUpdate = false
+    for rigName in pairs(activeRigs) do
+        if recorder:hasKeyframe(rigName, departureFrame) then shouldUpdate = true; break end
+    end
+    if not shouldUpdate then
+        for propName in pairs(activeProps) do
+            if recorder:getPropData(propName, departureFrame) ~= nil then shouldUpdate = true; break end
+        end
+    end
+    if shouldUpdate then
+        recorder:addKeyframe(departureFrame, activeRigs, activeProps)
+        scheduleAutoSave()
+    end
+
+    -- Step to new frame
+    local step     = panel:getStepSize()
+    local newFrame = math.clamp(departureFrame + direction * step, 1, timeline:getFrameCount())
+    local f = timeline:setCurrent(newFrame)
+    panel:setFrameDisplay(f, timeline:getFrameCount())
+    applyPosesAt(f, false)
+end
+
+-- Keyboard shortcuts (fire when viewport is focused; ignored when a TextBox has focus).
 game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    if input.KeyCode == Enum.KeyCode.K then
-        doAddKeyframe()
+    if      input.KeyCode == Enum.KeyCode.K  then doAddKeyframe()
+    elseif  input.KeyCode == Enum.KeyCode.L  then doStepFrame( 1)   -- L = step forward
+    elseif  input.KeyCode == Enum.KeyCode.J  then doStepFrame(-1)   -- J = step back
     end
 end)
 
@@ -443,6 +503,7 @@ panel.onScrubBegan:Connect(function()
 
         if shouldUpdate then
             recorder:addKeyframe(frame, activeRigs, activeProps)
+            scheduleAutoSave()
         end
     end
 
@@ -493,11 +554,18 @@ end)
 panel.onTimelineDoubleClicked:Connect(function(rigName, frame)
     local model = allRigs[rigName]
     if not model then return end
+    local missing = JointCapture.validate(model)
+    if #missing > 0 then
+        warn(string.format("[MultiAnimation] Rig '%s' broken — cannot capture: %s",
+            rigName, table.concat(missing, ", ")))
+        return
+    end
     local f = timeline:setCurrent(frame)
     panel:setFrameDisplay(f, timeline:getFrameCount())
     applyPosesAt(f, false)
     recorder:addKeyframe(f, { [rigName] = model }, {})
     panel:addKeyframeMarker(rigName, f)
+    scheduleAutoSave()
     print(string.format("[MultiAnimation] Keyframe added at frame %d for %s", f, rigName))
 end)
 
@@ -550,6 +618,7 @@ panel.onPropDoubleClicked:Connect(function(propName, frame)
     applyPosesAt(f, false)
     recorder:addKeyframe(f, {}, { [propName] = part })
     panel:addPropKeyframeMarker(propName, f)
+    scheduleAutoSave()
     print(string.format("[MultiAnimation] Prop keyframe added at frame %d for %s", f, propName))
 end)
 
@@ -557,6 +626,21 @@ panel.onPropMarkerDeleteRequested:Connect(function(propName, frame)
     recorder:deletePropKeyframe(propName, frame)
     panel:removePropKeyframeMarker(propName, frame)
     print(string.format("[MultiAnimation] Deleted prop keyframe at frame %d for %s", frame, propName))
+end)
+
+panel.onNewSessionConfirmed:Connect(function()
+    -- Reconnect before re-scan so rest poses are captured from a clean rig.
+    reconnectAllRigs()
+    -- Clear prop UI
+    for propName in pairs(allProps) do
+        panel:removeProp(propName)
+    end
+    allProps = {}
+    recorder:clearSession()
+    timeline:setCurrent(1)
+    scanAndSetup()
+    panel:setFrameDisplay(1, timeline:getFrameCount())
+    print("[MultiAnimation] New session started")
 end)
 
 panel.onSaveConfirmed:Connect(function(name)
@@ -613,6 +697,47 @@ plugin.Unloading:Connect(function()
     stopPlayback()
     reconnectAllRigs()
 end)
+
+-- ── FIGURES auto-detect (ChildAdded / ChildRemoved) ──────────────────────────
+
+local function rebuildRigUI()
+    panel:setRigs(allRigs)
+    for rigName in pairs(allRigs) do
+        for _, f in ipairs(recorder:getSortedFrames(rigName)) do
+            panel:addKeyframeMarker(rigName, f)
+        end
+    end
+    panel:setFrameDisplay(timeline:getCurrent(), timeline:getFrameCount())
+end
+
+local figuresFolder = workspace:FindFirstChild("FIGURES")
+if figuresFolder then
+    figuresFolder.ChildAdded:Connect(function(child)
+        -- Defer one frame so the model is fully parented/loaded.
+        task.defer(function()
+            if not child or not child.Parent then return end
+            if allRigs[child.Name] then return end   -- already tracked
+            -- Let RigScanner decide if it's a valid R6 rig.
+            local fresh = RigScanner.scan()
+            if fresh[child.Name] then
+                allRigs[child.Name] = child
+                recorder:captureRestPose(child.Name, child)
+                disconnectRig(child.Name, child)
+                rebuildRigUI()
+                print("[MultiAnimation] Auto-detected rig: " .. child.Name)
+            end
+        end)
+    end)
+
+    figuresFolder.ChildRemoved:Connect(function(child)
+        if allRigs[child.Name] then
+            allRigs[child.Name] = nil
+            motorStates[child.Name] = nil   -- can't reconnect a removed model
+            rebuildRigUI()
+            print("[MultiAnimation] Rig removed from scene: " .. child.Name)
+        end
+    end)
+end
 
 -- ── Initial load ──────────────────────────────────────────────────────────────
 

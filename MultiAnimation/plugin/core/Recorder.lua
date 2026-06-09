@@ -34,12 +34,16 @@ function Recorder.new()
 end
 
 -- Call once per rig when recording begins to store the rest pose.
+-- Returns {joints={[jointName]=CFrame}, scales={[partName]=Vector3}}.
 function Recorder:captureRestPose(rigName, model)
-    self._restPoses[rigName] = JointCapture.captureRestPose(model)
+    self._restPoses[rigName] = {
+        joints = JointCapture.captureRestPose(model),
+        scales = ScaleCapture.capture(model),
+    }
 end
 
 function Recorder:getRestPose(rigName)
-    return self._restPoses[rigName]
+    return self._restPoses[rigName]   -- {joints=..., scales=...}
 end
 
 -- Record current pose of all activeRigs (and activeProps) at the given frame.

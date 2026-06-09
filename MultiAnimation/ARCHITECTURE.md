@@ -48,14 +48,14 @@
 |--------|-------|---------|
 | `init.server.lua` | Entry | Toolbar, widget, event wiring, playback loop, Selection sync |
 | `core/RigScanner` | Core | Detects R6 rigs in Workspace.FIGURES |
-| `core/Recorder` | Core | Session data storage; addKeyframe, deleteRigKeyframe, prop tracks |
+| `core/Recorder` | Core | Session data storage; addKeyframe captures joints+scale+rootCFrame+props; deleteRigKeyframe/deletePropKeyframe |
 | `core/JointCapture` | Core | Reads/writes Motor6D.Transform |
 | `core/ScaleCapture` | Core | Reads/writes Part.Size |
 | `core/PropCapture` | Core | Reads/writes BasePart.CFrame (world space) — Phase 7 |
 | `core/Timeline` | Core | Frame counter, fps, prev/next KF helpers |
 | `core/Interpolator` | Core | Linear lerp between keyframes (joints, scale, props) |
 | `core/PoseApplier` | Core | Applies poses; manages ChangeHistoryService |
-| `core/Exporter` | Core | Builds KeyframeSequence + ScaleTracks + PropTracks |
+| `core/Exporter` | Core | Builds KeyframeSequence (uses `Pose.CFrame`) + ScaleTracks + RootTracks + PropTracks |
 | `ui/Panel` | UI | Root layout; owns all sections and events |
 | `ui/RigSelector` | UI | Per-rig exclusive-select buttons (radio-button style) |
 | `ui/PropSelector` | UI | Per-prop multi-select toggle buttons + Track Part button — Phase 7 |
@@ -353,6 +353,52 @@ Right-clicking a `KeyframeMarker` fires `onDeleteRequested(frame)` via `MouseBut
 Session data is stored in `plugin:GetSetting("session")` as a JSON string so it
 survives panel close/reopen within the same Studio session. It is cleared on explicit
 "New Session" or when the place file is closed.
+
+### Whole-Model Movement (Root Track)
+
+`session.rigs[rigName].rootTrack[frame] = HumanoidRootPart.CFrame` — world-space CFrame captured alongside joint/scale data in every `addKeyframe` call.
+
+**In-editor:** `PoseApplier.applyRecorded/applyImmediate` accepts an optional `rootCFrame`. When present, it sets `HumanoidRootPart.CFrame` **before** applying joint transforms, so all limbs reposition correctly relative to the new root (forward kinematics from HRP down).
+
+**Export:** `RootTracks` ModuleScript written alongside `ScaleTracks` (omitted if no rig had whole-model movement). Same 12-number array format as PropTracks.
+
+**In-game:** `MultiAnimPlayer` loads `RootTracks`, interpolates HRP world CFrames in the Heartbeat loop (`CFrame:Lerp()`) in the same pass as scale and prop tracks.
+
+### Scrubber Alignment
+
+The scrubber track is inset by 56 px (`TrackLane.LABEL_W 52 + UIListLayout gap 4`) so the thumb and fill bar align vertically with the keyframe dots in the track lanes. The `leftOffset` parameter to `Scrubber.new` controls this. `frameFromInputX` uses `track.AbsolutePosition.X` so the maths are unaffected.
+
+### Auto-Update Keyframe on Scrub Departure
+
+`onScrubBegan` fires when the user clicks the scrubber thumb or track. At that moment the current frame is the "departure frame". If that frame has keyframes for any active rig or prop, `recorder:addKeyframe` re-captures the current pose. This lets the user pose a rig while parked at a keyframe and move the scrubber away — the change is saved without an explicit "Add Keyframe" click. Idempotent if nothing was changed.
+
+### Keyboard Shortcuts
+
+Wired via `UserInputService.InputBegan` with `gameProcessed` guard (TextBox focus suppresses all shortcuts):
+
+| Key | Action |
+|-----|--------|
+| `K` | `doAddKeyframe()` — same as "+ Add Keyframe" button |
+| `L` | `doStepFrame(+1)` — advance by Step frames, auto-update if at a KF |
+| `J` | `doStepFrame(-1)` — step back by Step frames, auto-update if at a KF |
+
+`doStepFrame` reuses the same departure-frame auto-update logic as `onScrubBegan`.
+
+### Pose.CFrame API (Roblox rename)
+
+Roblox renamed `Pose.Transform` → `Pose.CFrame` in a Studio update. The Exporter uses `p.CFrame = cf` (not `p.Transform`). A regression-guard test in `test_exporter.lua` confirms `Pose.Transform` is gone and `Pose.CFrame` works.
+
+### In-game Playback — Direct Motor6D.Transform (no AnimationClipProvider)
+
+`AnimationClipProvider:RegisterKeyframeSequence` was removed from Roblox's server-side API. `MultiAnimPlayer` now drives animation by setting `Motor6D.Transform` directly in a `RunService.Heartbeat` loop — which is exactly what the Animator service does internally. This approach:
+- Works on both server and client without any deprecated API
+- Reads pose data from the exported `KeyframeSequence` instances (parsing the Pose hierarchy)
+- Interpolates joint transforms with `CFrame:Lerp()` between keyframes
+- Applies scale (via `Part.Size`) and root motion (via `HumanoidRootPart.CFrame`) in the same loop
+
+### Plugin Play-Mode Guard
+
+`init.server.lua` begins with `if game:GetService("RunService"):IsRunning() then return end`. The root element of the plugin `.rbxmx` is a `Script` class, which Roblox also executes as a server script when play mode starts. This guard prevents the plugin from disconnecting Motor6D joints or interfering with runtime animation.
 
 ---
 

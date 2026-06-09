@@ -130,11 +130,22 @@ See `PHASES.md` for full task lists.
 | Double-click rig/prop track lane | Jump to that frame + add keyframe for that object |
 | Left-click keyframe dot | Jump timeline to that frame |
 | Right-click keyframe dot | Delete that object's keyframe at that frame |
-| Drag scrubber | Scrub timeline (overlay pattern — see ARCHITECTURE.md) |
+| Drag scrubber | Scrub timeline; auto-updates existing KF at departure frame |
+
+## Keyboard Shortcuts
+
+| Key | Action |
+|---|---|
+| `K` | Add / update keyframe for all active rigs & props at current frame |
+| `L` | Step timeline forward by Step frames (default 2) |
+| `J` | Step timeline back by Step frames (default 2) |
+
+All shortcuts are ignored when a TextBox has keyboard focus.  
+Shortcut legend is shown at the bottom of the plugin panel.
 
 ## Track Lane Colours
 
 | Colour | Type |
 |---|---|
-| Yellow `#FFC83C` | Rig keyframe |
-| Teal `#00CFCF` | Prop keyframe |
+| Yellow `Color3.fromRGB(255, 200, 60)` | Rig keyframe |
+| Teal `Color3.fromRGB(0, 207, 207)` | Prop keyframe |
