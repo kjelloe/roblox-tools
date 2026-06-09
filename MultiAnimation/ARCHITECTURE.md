@@ -16,10 +16,13 @@
 │                                                    ▼        │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │  ServerStorage.MultiAnimationData                   │   │
+│  │  ├── MultiAnimPlayer (ModuleScript)                 │   │
 │  │  └── Scene_001                                      │   │
 │  │      ├── Rig1_Joints   (KeyframeSequence)           │   │
 │  │      ├── Rig2_Joints   (KeyframeSequence)           │   │
-│  │      └── ScaleTracks   (ModuleScript)               │   │
+│  │      ├── ScaleTracks   (ModuleScript)               │   │
+│  │      ├── RootTracks    (ModuleScript, optional)     │   │
+│  │      └── PropTracks    (ModuleScript, optional)     │   │
 │  └─────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
 
@@ -29,14 +32,16 @@
 │  Script                                                     │
 │    └── require(MultiAnimPlayer).play("Scene_001", rigMap)   │
 │                    │                                        │
-│          ┌─────────┴──────────┐                            │
-│          ▼                    ▼                            │
-│    Animator:Play()      TweenService                        │
-│    (joint poses)        (scale changes)                     │
-│          │                    │                            │
-│    ┌─────┴─────┐        ┌─────┴─────┐                     │
-│    │   Rig1    │        │   Rig2    │  ← simultaneous      │
-│    └───────────┘        └───────────┘                      │
+│                    ▼                                        │
+│          RunService.Heartbeat loop                          │
+│            Motor6D.Transform  (joints)                      │
+│            Part.Size          (scale)                       │
+│            HRP.CFrame         (root motion)                 │
+│            Part.CFrame        (props)                       │
+│                    │                                        │
+│    ┌───────────────┴───────────────┐                        │
+│    │   Rig1    │   Rig2    │ Props │  ← all simultaneous   │
+│    └───────────┴───────────┴───────┘                        │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -46,23 +51,23 @@
 
 | Module | Layer | Purpose |
 |--------|-------|---------|
-| `init.server.lua` | Entry | Toolbar, widget, event wiring, playback loop, Selection sync |
+| `init.server.lua` | Entry | Toolbar, widget, event wiring, playback loop, Selection sync, play-mode guard |
 | `core/RigScanner` | Core | Detects R6 rigs in Workspace.FIGURES |
 | `core/Recorder` | Core | Session data storage; addKeyframe captures joints+scale+rootCFrame+props; deleteRigKeyframe/deletePropKeyframe |
-| `core/JointCapture` | Core | Reads/writes Motor6D.Transform |
+| `core/JointCapture` | Core | Reads/writes Motor6D.Transform; validate() checks joint health |
 | `core/ScaleCapture` | Core | Reads/writes Part.Size |
-| `core/PropCapture` | Core | Reads/writes BasePart.CFrame (world space) — Phase 7 |
+| `core/PropCapture` | Core | Reads/writes BasePart.CFrame (world space) |
 | `core/Timeline` | Core | Frame counter, fps, prev/next KF helpers |
 | `core/Interpolator` | Core | Linear lerp between keyframes (joints, scale, props) |
 | `core/PoseApplier` | Core | Applies poses; manages ChangeHistoryService |
 | `core/Exporter` | Core | Builds KeyframeSequence (uses `Pose.CFrame`) + ScaleTracks + RootTracks + PropTracks |
 | `ui/Panel` | UI | Root layout; owns all sections and events |
 | `ui/RigSelector` | UI | Per-rig exclusive-select buttons (radio-button style) |
-| `ui/PropSelector` | UI | Per-prop multi-select toggle buttons + Track Part button — Phase 7 |
+| `ui/PropSelector` | UI | Per-prop multi-select toggle buttons + Track Part button |
 | `ui/TrackLane` | UI | One horizontal keyframe lane per rig or prop (colour-coded) |
 | `ui/KeyframeMarker` | UI | Individual dot on a TrackLane; left-click jumps, right-click deletes |
 | `ui/Scrubber` | UI | Horizontal drag slider for frame position |
-| `game/MultiAnimPlayer` | Game | In-game simultaneous playback (Phase 5); prop tracks Phase 7 |
+| `game/MultiAnimPlayer` | Game | In-game simultaneous playback — direct Motor6D.Transform Heartbeat loop |
 
 ---
 
@@ -78,38 +83,45 @@ init.server.lua
 │  Owns plugin lifetime
 │
 ├── ui/
-│   ├── Panel.lua           Root frame layout and section dividers
-│   ├── RigSelector.lua     Row of toggle buttons, one per discovered rig
+│   ├── Panel.lua           Root frame layout, all sections, and events
+│   ├── RigSelector.lua     Row of exclusive-select buttons, one per discovered rig
 │   │                       Fires: onRigToggled(rigName, isActive)
-│   ├── TrackLane.lua       Horizontal lane showing keyframe dots for one rig
-│   │                       Fires: onKeyframeClicked(frame)
-│   ├── KeyframeMarker.lua  Single dot on a TrackLane; clickable
-│   └── Controls.lua        Add Keyframe / Prev KF / Scrubber / Next KF /
-│                           Play / Stop / Export / FPS + FrameCount inputs
+│   ├── PropSelector.lua    "PROPS IN SCENE" section; Track Part + multi-select toggles
+│   │                       Fires: onPropToggled, onTrackPart, onRemoveProp
+│   ├── TrackLane.lua       Horizontal lane showing keyframe dots for one rig or prop
+│   │                       Fires: onKeyframeClicked(frame), onDoubleClicked(frame)
+│   ├── KeyframeMarker.lua  Single dot on a TrackLane; left-click jumps, right-click deletes
+│   └── Scrubber.lua        Horizontal drag slider; overlay Frame for cross-panel input
 │
 └── core/
     ├── RigScanner.lua      Scans Workspace.FIGURES for R6 models
     │                       Returns: { [name] = ModelInstance }
     │
-    ├── Recorder.lua        State machine (IDLE → RECORDING → IDLE)
-    │                       Owns session data table
-    │                       Calls JointCapture + ScaleCapture on AddKeyframe
+    ├── Recorder.lua        Owns session data; addKeyframe(frame, rigs, props)
+    │                       captureRestPose stores joints+scale baseline for restore
     │
     ├── JointCapture.lua    Reads Motor6D.Transform for all 6 R6 joints
+    │                       validate(rig) → list of broken/missing Motor6Ds
     │                       Returns: { [jointName] = CFrame }
     │
     ├── ScaleCapture.lua    Reads Part.Size for all 7 R6 body parts
     │                       Returns: { [partName] = Vector3 }
     │
+    ├── PropCapture.lua     Reads/writes BasePart.CFrame (world space)
+    │
     ├── Timeline.lua        Tracks currentFrame, frameCount, fps
     │                       Interpolation helpers (lerp between keyframes)
     │
+    ├── Interpolator.lua    Linear lerp between keyframes (joints, scale, props)
+    │                       getPropData, getAllPropFrames, getAllFrames
+    │
     ├── PoseApplier.lua     Writes joint CFrames back to Motor6Ds (viewport preview)
-    │                       Wrapped in ChangeHistoryService.SetWaypoint so it is
-    │                       undoable and does not pollute the undo stack permanently
+    │                       applyPropRecorded / applyPropImmediate for prop CFrames
+    │                       Wrapped in ChangeHistoryService waypoints
     │
     └── Exporter.lua        Builds KeyframeSequence instances from session data
-                            Builds ScaleTracks ModuleScript
+                            Builds ScaleTracks + RootTracks + PropTracks ModuleScripts
+                            Deploys MultiAnimPlayer into ServerStorage
                             Writes to ServerStorage.MultiAnimationData/<scene>/
 ```
 
@@ -159,22 +171,29 @@ MultiAnimPlayer.lua     ModuleScript — no plugin dependency
 ## Data Flow: Add Keyframe
 
 ```
-User presses "Add Keyframe"
+User presses "Add Keyframe" (or K shortcut, or double-click track lane)
         │
         ▼
-Controls.lua fires addKeyframe event
+init.server.lua: doAddKeyframe()
+        │
+        ├── JointCapture.validate(rig) — abort if Motor6Ds broken
         │
         ▼
-Recorder.addKeyframe(currentFrame)
+Recorder.addKeyframe(frame, activeRigs, activeProps)
         │
         ├── for each activeRig:
-        │       JointCapture.capture(rig)  → jointData
-        │       ScaleCapture.capture(rig)  → scaleData
+        │       JointCapture.capture(rig)    → jointData
+        │       ScaleCapture.capture(rig)    → scaleData
+        │       RootCapture (HRP.CFrame)     → rootCFrame
+        │       session.rigs[rigName].jointTrack[frame] = jointData
+        │       session.rigs[rigName].scaleTrack[frame] = scaleData
+        │       session.rigs[rigName].rootTrack[frame]  = rootCFrame
         │
-        ├── session.rigs[rigName].jointTrack[frame] = jointData
-        ├── session.rigs[rigName].scaleTrack[frame] = scaleData
+        ├── for each activeProp:
+        │       PropCapture.capture(part)    → propCFrame
+        │       session.props[propName].propTrack[frame] = propCFrame
         │
-        └── UI event → TrackLane.addMarker(rigName, frame)
+        └── UI event → TrackLane.addMarker(name, frame) for each rig + prop
 ```
 
 ## Data Flow: Export
@@ -186,17 +205,23 @@ User presses "Export"
 Exporter.export(session, sceneName)
         │
         ├── for each rig in session:
-        │       build KeyframeSequence
+        │       build KeyframeSequence  (Rig1_Joints, Rig2_Joints, …)
         │           for each frame in jointTrack:
         │               Keyframe at time = frame/fps
         │               Pose tree: HumanoidRootPart → Torso → limbs/head
-        │               each Pose.Transform = captured CFrame
+        │               each Pose.CFrame = captured Motor6D.Transform CFrame
         │       insert KeyframeSequence into scene folder
         │
-        ├── build ScaleTracks table
-        │       { Rig1 = { [frame] = { Head=V3, Torso=V3, ... } }, Rig2 = {...} }
-        │       serialise to ModuleScript source string
-        │       insert ModuleScript into scene folder
+        ├── build ScaleTracks — { fps, rigs = { Rig1={[f]={part={x,y,z}}} } }
+        │       serialise to ModuleScript source; insert into scene folder
+        │
+        ├── build RootTracks — { fps, rigs = { Rig1={[f]={12-number array}} } }
+        │       omitted if no rig has whole-model movement keyframes
+        │
+        ├── build PropTracks — { fps, props = { Block={[f]={12-number array}} } }
+        │       omitted if no props were tracked
+        │
+        ├── deploy MultiAnimPlayer ModuleScript into MultiAnimationData root
         │
         └── create/overwrite ServerStorage.MultiAnimationData[sceneName]
 ```
@@ -204,28 +229,26 @@ Exporter.export(session, sceneName)
 ## Data Flow: In-game Playback
 
 ```
-require(MultiAnimPlayer).play("Scene_001", {
-    Rig1 = workspace.FIGURES.Rig1,
-    Rig2 = workspace.FIGURES.Rig2,
-})
+require(MultiAnimPlayer).play("Scene_001", rigMap, propMap?)
         │
         ▼
 Load from ServerStorage.MultiAnimationData.Scene_001
         │
-        ├── for each rig:
-        │       anim = Animator:LoadAnimation(Rig_Joints KeyframeSequence)
-        │       store anim + scale track
+        ├── parseKFS(Rig_Joints KeyframeSequence)   → sorted { {time, poses} }
+        ├── toSortedKFs(ScaleTracks.rigs[name])     → sorted { {time, parts=V3s} }
+        ├── toSortedKFs(RootTracks.rigs[name])      → sorted { {time, data=CFrame} }
+        ├── toSortedKFs(PropTracks.props[name])     → sorted { {time, data=CFrame} }
         │
-        ├── sync point — wait one frame
-        │
-        ├── for each rig simultaneously:
-        │       anim:Play()
-        │
-        └── scale tween loop:
-                RunService.Heartbeat
-                for each rig, each part:
-                    find surrounding keyframes for current time
-                    TweenService:Create(part, tweenInfo, {Size = lerped Vector3}):Play()
+        └── RunService.Heartbeat loop (startTime = tick()):
+                elapsed = tick() - startTime
+                for each rig:
+                    surrounding(jointKFs, elapsed) → before, after
+                    motor.Transform = lerpCF(before.poses[j], after.poses[j], α)
+                    part.Size       = lerpV3(before.data[p],  after.data[p],  α)
+                    hrp.CFrame      = lerpCF(before.data,     after.data,     α)
+                for each prop:
+                    part.CFrame     = lerpCF(before.data,     after.data,     α)
+                if elapsed >= totalLength → fireFinished(sceneName)
 ```
 
 ---
@@ -288,8 +311,8 @@ Between keyframes A and B, part scale is linearly interpolated:
 alpha = (currentTime - timeA) / (timeB - timeA)
 size  = sizeA:Lerp(sizeB, alpha)
 ```
-Applied each `Heartbeat` tick in-game via direct `Part.Size` assignment inside a
-`TweenService` call (TweenInfo duration = 1/fps per frame step).
+Applied each `Heartbeat` tick in-game via direct `Part.Size` assignment in the same
+loop as joint, root, and prop interpolation.
 
 ### Pose Tree (KeyframeSequence hierarchy)
 
@@ -406,10 +429,11 @@ Roblox renamed `Pose.Transform` → `Pose.CFrame` in a Studio update. The Export
 
 | Tool | Role |
 |------|------|
-| Rojo | Syncs `/plugin/` source files → Studio as installed plugin |
-| MCP (`execute_luau`) | Quick iteration: run snippets against live Studio without full sync |
-| MCP (`inspect_instance`, `search_game_tree`) | Inspect rig state during development |
-| Claude Code | All source authoring |
+| `build.py` | Assembles `.rbxmx` from source files and copies to Plugins folder |
+| `mcp.py` (`mcp` alias) | CLI wrapper for MCP tools — `mcp luau`, `mcp console`, `mcp tree`, `mcp inspect`, `mcp capture` |
+| MCP (`execute_luau`) | Quick iteration: run snippets / test files against live Studio |
+| MCP (`inspect_instance`, `search_game_tree`) | Inspect rig and ServerStorage state during development |
+| Claude Code | All source authoring, MCP tool calls |
 
-Plugin output path (Rojo target):
-`%LOCALAPPDATA%\Roblox\Plugins\MultiAnimation.rbxm`
+Plugin output path:
+`%LOCALAPPDATA%\Roblox\Plugins\MultiAnimation.rbxmx`

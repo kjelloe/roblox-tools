@@ -100,7 +100,7 @@ architectural changes.
 |----|-------|
 | G-01 | As a developer, I can require `MultiAnimPlayer` and call `player.play(sceneName, rigMap)` to start playback. |
 | G-02 | As a player, both rigs begin their animations in the same frame, with no perceptible offset. |
-| G-03 | As a developer, scale changes are tweened between keyframes using `TweenService`, matching the session FPS. |
+| G-03 | As a developer, scale changes are interpolated between keyframes in a `RunService.Heartbeat` loop, matching the session FPS. |
 | G-04 | As a developer, I can call `player.stop()` to halt playback on all rigs and props at any time. |
 | G-05 | As a developer, I can pass an optional `propMap` to `player.play()` mapping prop names to their in-game Part instances; omitting it plays rigs only (backward compatible). |
 | G-06 | As a developer, prop `CFrame` is interpolated between keyframes in the same Heartbeat loop as scale tracks. |

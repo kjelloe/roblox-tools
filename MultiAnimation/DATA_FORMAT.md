@@ -100,13 +100,14 @@ CFrames and Vector3s are not JSON-native. They are serialised as arrays:
 }
 ```
 
-CFrame array layout: `[r00,r01,r02, r10,r11,r12, r20,r21,r22, x,y,z]`  
+CFrame array layout: `[x,y,z, r00,r01,r02, r10,r11,r12, r20,r21,r22]`  
+(position first — matches the order `CFrame:GetComponents()` returns)  
 Vector3 array layout: `[x, y, z]`
 
 Deserialisation:
-- CFrame: `CFrame.new(x,y,z, r00,r01,r02,r10,r11,r12,r20,r21,r22)`
+- CFrame: `CFrame.new(arr[1],arr[2],arr[3], arr[4]…arr[12])`
 - Vector3: `Vector3.new(x, y, z)`
-- Prop CFrame: same layout as joint CFrame — `CFrame.new(x,y,z, r00,…,r22)`
+- Prop CFrame: same layout — position first, then rotation matrix rows
 
 `props` key is omitted in sessions from before Phase 7; treat absence as `{}`.
 
@@ -134,7 +135,8 @@ KeyframeSequence  (Name = "Rig1_Joints", Loop = false, AuthoredHipHeight = 0)
     └── ...
 ```
 
-Each `Pose.Transform` = the captured `Motor6D.Transform` CFrame for that joint.
+Each `Pose.CFrame` = the captured `Motor6D.Transform` CFrame for that joint.
+(`Pose.Transform` was renamed to `Pose.CFrame` in a Roblox Studio update.)
 `Pose.EasingStyle` = `Enum.PoseEasingStyle.Linear` (v1).
 `Pose.EasingDirection` = `Enum.PoseEasingDirection.Out`.
 
@@ -234,23 +236,27 @@ end)
 
 ## Interpolation Rules
 
-### Joints (in-game, via Animator)
+### Joints (in-game, via Motor6D.Transform)
 
-Handled automatically by Roblox's animation system using the `EasingStyle` set on
-each `Pose`. v1 uses `Linear` throughout.
-
-### Scale (in-game, via TweenService)
+`MultiAnimPlayer` drives `Motor6D.Transform` directly in a `RunService.Heartbeat`
+loop — the same mechanism `Animator` uses internally. `AnimationClipProvider:RegisterKeyframeSequence` was removed from Roblox's server-side API and is no longer used.
 
 Between any two adjacent keyframes A (time `tA`) and B (time `tB`):
 
 ```
 alpha(t) = (t - tA) / (tB - tA)   where t is current playback time in seconds
-size(t)  = sizeA:Lerp(sizeB, alpha)
+motor.Transform = cfA:Lerp(cfB, alpha)
 ```
 
-A new `Tween` with `TweenInfo.new(tB - tA, Enum.EasingStyle.Linear)` is created
-at keyframe A and targets keyframe B's sizes. When it completes the next tween
-for B→C is created, and so on.
+### Scale (in-game, via Heartbeat loop)
+
+Same Heartbeat loop as joints. Between adjacent keyframes A and B:
+
+```
+alpha(t) = (t - tA) / (tB - tA)
+size(t)  = sizeA:Lerp(sizeB, alpha)
+part.Size = size(t)
+```
 
 ### Props (in-game, via Heartbeat loop)
 

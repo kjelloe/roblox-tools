@@ -28,15 +28,18 @@ MultiAnimation/
 │   ├── ui/
 │   │   ├── Panel.lua
 │   │   ├── RigSelector.lua
+│   │   ├── PropSelector.lua
 │   │   ├── TrackLane.lua
 │   │   ├── KeyframeMarker.lua
-│   │   └── Controls.lua
+│   │   └── Scrubber.lua
 │   └── core/
 │       ├── RigScanner.lua
 │       ├── Recorder.lua
 │       ├── JointCapture.lua
 │       ├── ScaleCapture.lua
+│       ├── PropCapture.lua
 │       ├── Timeline.lua
+│       ├── Interpolator.lua
 │       ├── PoseApplier.lua
 │       └── Exporter.lua
 │
@@ -60,20 +63,23 @@ R6 detection: `Humanoid` present AND part named `Torso` present (not `UpperTorso
 
 ## MCP Access
 
-Roblox Studio is reachable via the `roblox-studio` MCP server. Use Bash piped to
-`cmd.exe /c "C:\Users\kjell\AppData\Local\Roblox\mcp.bat"` to call tools:
+The `Roblox_Studio` MCP server is registered project-scoped in `~/.claude.json`. Use the
+`mcp__Roblox_Studio__*` tool family directly in Claude Code sessions.
+
+For terminal use, `mcp.py` at `~/GIT/Roblox/mcp.py` is aliased as `mcp` in `~/.bashrc`:
 
 ```bash
-{ echo '<initialize msg>'; sleep 0.5; echo '<tool call msg>'; sleep 2; } \
-  | cmd.exe /c "C:\Users\kjell\AppData\Local\Roblox\mcp.bat" 2>/dev/null | tail -1
+mcp luau "return workspace.Name"           # inline Lua
+mcp luau -f tests/test_exporter.lua        # run a test file
+mcp console MultiAnimation                 # filtered console output
+mcp tree ServerStorage.MultiAnimationData  # search_game_tree
+mcp inspect workspace.FIGURES.Rig1        # inspect_instance
+mcp capture                                # screen_capture
 ```
 
-Useful during development:
-- `search_game_tree` — inspect rig structure
-- `inspect_instance` — check Motor6D properties
-- `execute_luau` — run test snippets in Studio
-- `get_console_output` — read Studio output window after execute_luau
-- `screen_capture` — see current Studio viewport
+**Session start ritual every session:**
+1. `list_roblox_studios` → `set_active_studio` with the returned ID
+2. Quick verify: `execute_luau("return workspace.Name")` → should return `"Workspace"`
 
 Studio must be open with the place loaded for MCP to work.
 
@@ -81,23 +87,29 @@ Studio must be open with the place loaded for MCP to work.
 
 ## Tooling
 
-### Rojo
+### build.py
 
-Rojo syncs Lua source files to Studio automatically. Install via:
+`build.py` assembles the plugin from source files and copies it to the Roblox Plugins folder:
+
+```bash
+cd MultiAnimation
+python3 build.py           # build and install
+python3 build.py --dry-run # print XML to stdout only
 ```
-aftman install   (if aftman is set up)
--- or --
-rojo serve default.project.json
+
+Plugin is installed to `%LOCALAPPDATA%\Roblox\Plugins\MultiAnimation.rbxmx`.
+After building, reload the plugin in Studio: Plugins → Manage Plugins → reload MultiAnimation.
+
+### Hot-patching via MCP
+
+For fast iteration on a single module without a full Studio reload, push changes directly
+via `execute_luau`. This is especially useful for `game/MultiAnimPlayer.lua` changes since
+it lives in ServerStorage and doesn't require a plugin reload.
+
+```bash
+mcp luau -f tests/test_exporter.lua    # run a test file directly
+mcp console MultiAnimation             # check output after a change
 ```
-
-Plugin is installed to `%LOCALAPPDATA%\Roblox\Plugins\MultiAnimation.rbxm`.
-Studio must be restarted (or Plugin Manager → Manage Plugins → reload) after
-initial install; Rojo hot-reload handles subsequent changes.
-
-### Without Rojo
-
-Copy/paste individual Lua files into Studio manually, or use `execute_luau` via
-MCP to run test snippets. For early phases this is acceptable.
 
 ---
 
@@ -126,8 +138,11 @@ MCP to run test snippets. For early phases this is acceptable.
 
 ## Key Constraints
 
-- The plugin runs in **edit mode** only. Never call `game:GetService("Players")` or
-  `RunService:IsRunning()` — assume edit context.
+- The plugin runs in **edit mode** only. Never call `game:GetService("Players")` from
+  plugin code. `init.server.lua` starts with `if RunService:IsRunning() then return end`
+  to guard against re-execution when play mode starts (the `.rbxmx` root Script runs
+  again as a server script on F5 — `plugin` global is NOT nil there and cannot be used
+  as a guard).
 - `PoseApplier` must wrap all Motor6D writes in `ChangeHistoryService` waypoints to
   avoid polluting the undo stack. See `ARCHITECTURE.md`.
 - `MultiAnimPlayer` (`game/`) must have **zero dependency** on plugin APIs. It only

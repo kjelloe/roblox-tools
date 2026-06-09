@@ -38,10 +38,13 @@ HumanoidRootPart  (RootJoint.Transform)
 
 ```
 ServerStorage.MultiAnimationData
+├── MultiAnimPlayer   ModuleScript (deployed by Exporter)
 └── Scene_001
     ├── Rig1_Joints   KeyframeSequence
     ├── Rig2_Joints   KeyframeSequence
-    └── ScaleTracks   ModuleScript
+    ├── ScaleTracks   ModuleScript
+    ├── RootTracks    ModuleScript  (absent if no whole-model movement)
+    └── PropTracks    ModuleScript  (absent if no props tracked)
 ```
 
 ## MultiAnimPlayer API
@@ -112,8 +115,8 @@ rojo build default.project.json -o MultiAnimation.rbxm   # build plugin file
 | 3 Preview | ✅ |
 | 4 Export | ✅ |
 | 5 In-game Playback | ✅ |
-| 6 Polish | 🔄 In Progress |
-| 7 Prop Animation | ⬜ Designed |
+| 6 Polish | ✅ |
+| 7 Prop Animation | ✅ |
 | 8 Future | ⬜ Backlog |
 
 See `PHASES.md` for full task lists.

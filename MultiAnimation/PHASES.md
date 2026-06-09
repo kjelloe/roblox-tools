@@ -111,8 +111,8 @@ Simultaneous playback of both rigs in a live game.
 ### Tasks
 
 - [x] `MultiAnimPlayer.lua` ModuleScript (`game/`):
-  - `play(sceneName, rigMap, options?)` — loads KFS via `AnimationClipProvider:RegisterKeyframeSequence`, calls `Animator:Play()`; scale interpolated via `RunService.Heartbeat`
-  - `stop()` — stops all AnimationTracks and Heartbeat loop, fires `onFinished`
+  - `play(sceneName, rigMap, propMap?)` — drives animation by setting `Motor6D.Transform` directly in a `RunService.Heartbeat` loop; scale + root CFrame + prop CFrames interpolated in the same loop
+  - `stop()` — disconnects Heartbeat, fires `onFinished`
   - `onFinished(callback)` — single registered callback, fires on completion or stop
 - [x] Auto-deployed to `ServerStorage.MultiAnimationData` by `Exporter.export()`
 - [x] Test script: `tests/test_player.lua` (place in ServerScriptService, run in Play mode)
@@ -126,14 +126,14 @@ Simultaneous playback of both rigs in a live game.
 
 ### Notes
 
-- `AnimationClipProvider:RegisterKeyframeSequence` registers the in-memory KFS and returns a `rbxtemp://` content ID usable as `Animation.AnimationId`
-- Scale interpolation runs on `RunService.Heartbeat`; `CFrame:Lerp` / `Vector3:Lerp` for linear blending
+- `AnimationClipProvider:RegisterKeyframeSequence` was removed from Roblox's server-side API; `MultiAnimPlayer` drives animation via direct `Motor6D.Transform` writes in a Heartbeat loop — the same mechanism `Animator` uses internally
+- Joint poses, scale (`Part.Size`), root position (`HumanoidRootPart.CFrame`), and prop CFrames all interpolate in the same loop with `CFrame:Lerp` / `Vector3:Lerp`
 - `onFinished` is single-callback (last registered wins); call before `play()` to avoid race
 - Exporter clones `MultiAnimPlayer` from the plugin's `game` folder into `ServerStorage.MultiAnimationData` on every export so the game-side module is always up to date
 
 ---
 
-## Phase 6 — Polish 🔄
+## Phase 6 — Polish ✅
 
 Session persistence, keyframe editing, rig workflow improvements.
 
