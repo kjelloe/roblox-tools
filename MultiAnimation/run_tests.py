@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+"""
+run_tests.py — run MultiAnimation test suite against live Studio.
+
+Usage:
+    python3 run_tests.py              # run all tests/test_*.lua
+    python3 run_tests.py prop         # run tests matching *prop*
+    python3 run_tests.py -v           # verbose: print every PASS/FAIL line
+    python3 run_tests.py prop -v      # filter + verbose
+
+Prerequisites:
+    - Roblox Studio open with the place loaded (MCP plugin active)
+    - Studio session initialised (list_roblox_studios → set_active_studio)
+
+Skipped automatically:
+    - test_player.lua  (requires play mode; run manually as a Script in ServerScriptService)
+
+Exit code: 0 if all tests pass, 1 if any fail or Studio is unreachable.
+"""
+
+import os
+import re
+import sys
+import time
+import glob
+
+# Import call_mcp from the sibling mcp.py helper.
+_MCP_DIR = os.path.expanduser("~/GIT/Roblox")
+if _MCP_DIR not in sys.path:
+    sys.path.insert(0, _MCP_DIR)
+try:
+    from mcp import call_mcp
+except ImportError:
+    sys.exit("ERROR: cannot import mcp.py from ~/GIT/Roblox — is it present?")
+
+# ── config ─────────────────────────────────────────────────────────────────────
+
+TESTS_DIR    = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests")
+SKIP_FILES   = {"test_player.lua"}   # require play mode; run manually
+TIMEOUT_SECS = 25                    # per-test MCP timeout
+
+# ── output parsing ─────────────────────────────────────────────────────────────
+
+_SUMMARY_RE = re.compile(r"===\s*(\d+)\s*passed,\s*(\d+)\s*failed")
+
+def parse_result(texts: list[str]) -> tuple[int, int, bool, list[str]]:
+    """
+    Returns (passed, failed, all_passed, lines).
+    lines = every PASS/FAIL line from the output (for verbose mode).
+    """
+    full = "\n".join(texts)
+    passed, failed = 0, 0
+    detail_lines = []
+
+    for line in full.splitlines():
+        m = _SUMMARY_RE.search(line)
+        if m:
+            passed = int(m.group(1))
+            failed = int(m.group(2))
+        if line.startswith("PASS  ") or line.startswith("FAIL  "):
+            detail_lines.append(line)
+
+    all_passed = "ALL TESTS PASSED" in full
+    return passed, failed, all_passed, detail_lines
+
+# ── discovery ──────────────────────────────────────────────────────────────────
+
+def discover(pattern: str = "") -> list[str]:
+    """Return sorted list of test file paths matching the optional pattern."""
+    all_files = sorted(glob.glob(os.path.join(TESTS_DIR, "test_*.lua")))
+    out = []
+    for f in all_files:
+        name = os.path.basename(f)
+        if name in SKIP_FILES:
+            continue
+        if pattern and pattern not in name:
+            continue
+        out.append(f)
+    return out
+
+# ── runner ─────────────────────────────────────────────────────────────────────
+
+def run_all(files: list[str], verbose: bool) -> bool:
+    if not files:
+        print("No test files found.")
+        return True
+
+    print(f"Running {len(files)} test file(s) against Studio...\n")
+
+    col = max(len(os.path.basename(f)[:-4]) for f in files) + 2
+    total_passed = total_failed = 0
+    any_error = False
+    wall_start = time.time()
+
+    for path in files:
+        name = os.path.basename(path)[:-4]  # strip .lua
+        label = name.ljust(col)
+
+        with open(path, encoding="utf-8") as fh:
+            code = fh.read()
+
+        t0 = time.time()
+        texts, err = call_mcp("execute_luau", {"code": code, "timeout": TIMEOUT_SECS - 3})
+        elapsed = time.time() - t0
+
+        if err and not texts:
+            print(f"  {label}  ERROR  {err}")
+            any_error = True
+            continue
+
+        passed, failed, ok, detail = parse_result(texts)
+        total_passed += passed
+        total_failed += failed
+
+        status = "PASS" if ok else "FAIL"
+        count  = f"{passed}/{passed + failed}"
+        print(f"  {label}  {count:>7}  {status}  ({elapsed:.1f}s)")
+
+        if verbose or not ok:
+            for line in detail:
+                print(f"      {line}")
+            if not ok:
+                # Print full raw output so the failure is diagnosable.
+                print("    --- raw output ---")
+                for t in texts:
+                    for l in t.splitlines():
+                        print(f"    {l}")
+
+    wall = time.time() - wall_start
+    total = total_passed + total_failed
+    bar = "-" * (col + 25)
+    print(f"\n  {bar}")
+    overall = "PASS" if (total_failed == 0 and not any_error) else "FAIL"
+    print(f"  {'Total:'.ljust(col)}  {total_passed}/{total:>3}  {overall}  ({wall:.1f}s)")
+
+    skipped = set(os.path.basename(f) for f in
+                  glob.glob(os.path.join(TESTS_DIR, "test_*.lua"))) & SKIP_FILES
+    if skipped:
+        print(f"\n  Skipped (play-mode only): {', '.join(sorted(skipped))}")
+
+    return total_failed == 0 and not any_error
+
+# ── entry point ───────────────────────────────────────────────────────────────
+
+def main():
+    args = sys.argv[1:]
+    verbose = "-v" in args
+    args = [a for a in args if a != "-v"]
+    pattern = args[0] if args else ""
+
+    files = discover(pattern)
+    if not files:
+        print(f"No test files match pattern '{pattern}' in {TESTS_DIR}")
+        sys.exit(1)
+
+    ok = run_all(files, verbose)
+    sys.exit(0 if ok else 1)
+
+if __name__ == "__main__":
+    main()
