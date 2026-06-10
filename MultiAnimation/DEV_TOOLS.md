@@ -1,8 +1,63 @@
-# MultiAnimation — Dev Tooling Backlog
+# MultiAnimation — Dev Tooling
 
-Already built: `build.py`, `run_tests.py`, `watch.py`, `~/GIT/Roblox/mcp.py`.
+Already built: `build.py`, `run_tests.py`, `watch.py`, `hotpatch.py`,
+and `~/GIT/Roblox/mcp.py` with subcommands:
+`luau / console / tail / tree / inspect / read / grep / search / state /
+capture / studios / check / drift / test / deploy / playtest`.
 
-The three tools below are designed but not yet implemented.
+Tools 3–5 below were implemented from these specs (kept for reference).
+Tools 6–8 describe the second wave (also implemented).
+
+---
+
+## Tool 6 — `mcp check` + watch.py integration
+
+Compile-checks Lua files in Studio via `loadstring(src)` — compiles without executing,
+so syntax errors surface instantly instead of after build → reload → console error.
+
+```bash
+mcp check MultiAnimation/plugin/core/Exporter.lua    # one or more files
+```
+
+`watch.py` runs this automatically on every changed file before building.
+If Studio is unreachable the check is skipped with a warning (build proceeds);
+a confirmed compile error skips the build until the next save.
+Disable with `python3 watch.py --no-check`.
+
+The `[string "…"]` chunk name in loadstring errors is rewritten to the real filename.
+
+## Tool 7 — `mcp drift`
+
+Diffs local source against what is actually deployed in Studio. Catches the
+"rewrote the module but the old version is still deployed" bug class.
+
+```bash
+mcp drift     # exit 0 = in sync, 1 = drift or not deployed
+```
+
+Targets are listed in `DRIFT_TARGETS` in `mcp.py`
+(currently `game/MultiAnimPlayer.lua` ↔ `ServerStorage.MultiAnimationData.MultiAnimPlayer`).
+Prints a unified diff (truncated at 60 lines) and suggests `mcp deploy` to fix.
+
+## Tool 8 — `mcp playtest`
+
+Automates the manual F5 loop: deploy → enter play mode → watch console → verdict.
+
+```bash
+mcp playtest                       # full cycle, 45s timeout
+mcp playtest --no-deploy           # skip the deploy step
+mcp playtest --timeout 60          # longer scenes
+mcp playtest --marker "Done."      # custom success marker
+```
+
+PASS when the success marker (default `FINISHED`) appears in new console output;
+FAIL on `ERROR` / `FAIL` / `Stack Begin`; TIMEOUT otherwise. Play mode is always
+exited afterwards, even on Ctrl+C. Requires a test script in ServerScriptService
+that prints the marker (e.g. `tests/test_player.lua`).
+
+---
+
+The original specs for tools 3–5 follow.
 Each spec is self-contained — no need to read prior conversations to build them.
 
 ---
@@ -221,3 +276,16 @@ seen rather than the full set.
 | `mcp test` | `~/GIT/Roblox/mcp.py` | Built |
 | `mcp deploy` | `~/GIT/Roblox/mcp.py` | Built |
 | `mcp tail` | `~/GIT/Roblox/mcp.py` | Built |
+| `mcp check` (+ watch.py hook) | `~/GIT/Roblox/mcp.py` | Built |
+| `mcp drift` | `~/GIT/Roblox/mcp.py` | Built |
+| `mcp playtest` | `~/GIT/Roblox/mcp.py` | Built |
+| `mcp read/grep/search/state` | `~/GIT/Roblox/mcp.py` | Built |
+
+## Remaining backlog (designed, not built)
+
+| Tool | Effort | Notes |
+|------|--------|-------|
+| `mcp gen` / `mcp store` | ~1h | Wrap generate_* + wait_job_finished; creator store search+insert |
+| `mcp addrig [name]` | ~30m | Clone Rig1 in FIGURES with next free name (prototypes "+ Add Rig" TODO) |
+| Daemon mode | ~3h | Persistent StudioMCP process; cuts ~2s startup per call |
+| `devsync` hot-reload | ~1 day | Loader-stub plugin + module push; eliminates Studio reload entirely |

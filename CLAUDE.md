@@ -30,7 +30,7 @@ The studio ID changes every Studio restart, so steps 2–3 are required each ses
 | `inspect_instance` | Read properties/attributes of an instance |
 | `script_read` | Read a script's source |
 | `script_grep` | Search scripts by regex pattern |
-| `script_search` | Semantic search across scripts |
+| `script_search` | Fuzzy match on script names (not contents) |
 | `multi_edit` | Batch-edit instance properties |
 | `execute_luau` | Run Lua code in Studio |
 | `get_console_output` | Read the Studio output window |

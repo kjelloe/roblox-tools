@@ -9,7 +9,9 @@
 --   3. Part name must not collide with an existing prop
 
 local results = {}
+local passed, failed = 0, 0
 local function check(label, cond)
+    if cond then passed += 1 else failed += 1 end
     table.insert(results, (cond and "PASS" or "FAIL") .. "  " .. label)
 end
 
@@ -101,4 +103,6 @@ end
 
 -- ── Report ────────────────────────────────────────────────────────────────────
 
+table.insert(results, string.format("\n=== %d passed, %d failed ===", passed, failed))
+table.insert(results, failed == 0 and "ALL TESTS PASSED" or "FAILURES DETECTED")
 return table.concat(results, "\n")

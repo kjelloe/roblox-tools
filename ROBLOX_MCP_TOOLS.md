@@ -37,25 +37,27 @@ Read all properties and attributes of a specific instance.
 ## Scripts
 
 ### `script_read`
-Read the full source of a script.
+Read the source of a script (returned with line numbers, `LINE→CONTENT`).
 
 | Param | Type | Description |
 |-------|------|-------------|
-| `path` | string | Instance path to the script |
+| `target_file` | string | Dot-notation path, e.g. `"game.ServerScriptService.MyScript"` |
+| `should_read_entire_file` | boolean | Default true |
+| `start_line_one_indexed` / `end_line_one_indexed_inclusive` | integer | Range when not reading whole file |
 
 ### `script_grep`
-Regex search across all scripts in the game.
+Search across all script contents (string or Luau pattern, capped at 50 matches).
 
 | Param | Type | Description |
 |-------|------|-------------|
-| `pattern` | string | Regex pattern to match |
+| `query` | string | String or Luau pattern to match |
 
 ### `script_search`
-Semantic/keyword search across scripts.
+Fuzzy match on script **names** (not contents, not semantic). Capped at 10 results.
 
 | Param | Type | Description |
 |-------|------|-------------|
-| `query` | string | Search terms |
+| `keywords` | string | Comma-separated keywords, case-insensitive |
 
 ### `multi_edit`
 Batch-set properties across multiple instances.
@@ -65,11 +67,12 @@ Batch-set properties across multiple instances.
 ## Lua Execution
 
 ### `execute_luau`
-Run Lua code in the Studio edit context.
+Run Lua code in Studio.
 
 | Param | Type | Description |
 |-------|------|-------------|
 | `code` | string | Lua source to execute |
+| `datamodel_type` | string | **Required.** `"Edit"`, `"Client"`, or `"Server"` — check `get_studio_state` for what's available |
 
 ### `get_console_output`
 Read the Studio Output window (errors, prints, warns).

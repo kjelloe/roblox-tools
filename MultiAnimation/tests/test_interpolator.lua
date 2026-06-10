@@ -49,15 +49,16 @@ end
 
 -- ── Assertions ────────────────────────────────────────────────────────────────
 
+local out = {}
 local passed, failed = 0, 0
 
 local function ok(label, cond, extra)
     if cond then
-        print("PASS  " .. label)
         passed += 1
+        table.insert(out, "PASS  " .. label)
     else
-        print("FAIL  " .. label .. (extra and ("  >> " .. tostring(extra)) or ""))
         failed += 1
+        table.insert(out, "FAIL  " .. label .. (extra and ("  >> " .. tostring(extra)) or ""))
     end
 end
 
@@ -146,9 +147,6 @@ ok("CFrame Lerp 0→180° Y-rotation midpoint ≈ 90°",
 
 -- ── Summary ───────────────────────────────────────────────────────────────────
 
-print(string.format("\n=== %d passed, %d failed ===", passed, failed))
-if failed == 0 then
-    print("ALL TESTS PASSED")
-else
-    print("FAILURES DETECTED — see FAIL lines above")
-end
+table.insert(out, string.format("\n=== %d passed, %d failed ===", passed, failed))
+table.insert(out, failed == 0 and "ALL TESTS PASSED" or "FAILURES DETECTED")
+return table.concat(out, "\n")

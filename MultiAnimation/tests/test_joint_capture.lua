@@ -54,7 +54,14 @@ if not (torso and hrp and rArm and rShoulder and rootJoint) then
     return "ABORT: missing critical parts/motors\n" .. table.concat(out, "\n")
 end
 
-ok("Right Shoulder Part0 == Torso",    rShoulder.Part0 == torso)
+-- The plugin keeps motors disconnected during an active session; detect that
+-- state so the test also works alongside an open MultiAnimation panel.
+local pluginSessionActive = (rShoulder.Part0 == nil)
+if pluginSessionActive then
+    table.insert(out, "SKIP  Right Shoulder Part0 == Torso (plugin session active — motors disconnected)")
+else
+    ok("Right Shoulder Part0 == Torso", rShoulder.Part0 == torso)
+end
 ok("Right Shoulder Part1 == Right Arm", rShoulder.Part1 == rArm)
 
 -- ── Disconnect all motors (mirrors plugin session behaviour) ──────────────────
@@ -143,10 +150,12 @@ applyTransform(rShoulder, torso, rArm, savedTf)
 local origTorsoCF = torso.CFrame
 local origArmCF   = rArm.CFrame
 local rootTf      = computeTransform(rootJoint, hrp, torso)
+-- Capture the arm transform BEFORE moving the torso — capturing after would
+-- bake the new torso position into the transform and the arm could never follow.
+local armTf       = computeTransform(rShoulder, torso, rArm)
 
 hrp.CFrame   = hrp.CFrame + Vector3.new(5, 0, 0)
 torso.CFrame = hrp.CFrame * rootJoint.C0 * rootTf * rootJoint.C1:Inverse()
-local armTf  = computeTransform(rShoulder, torso, rArm)
 rArm.CFrame  = torso.CFrame * rShoulder.C0 * armTf * rShoulder.C1:Inverse()
 
 local expectedPos = origArmCF.Position + Vector3.new(5, 0, 0)
@@ -160,7 +169,9 @@ hrp.CFrame   = hrp.CFrame   - Vector3.new(5, 0, 0)
 torso.CFrame = origTorsoCF
 rArm.CFrame  = origArmCF
 
--- ── Reconnect motors ──────────────────────────────────────────────────────────
+-- ── Restore motors to their pre-test state ────────────────────────────────────
+-- Reconnected normally; left disconnected if a plugin session already had them
+-- disconnected (savedPart0 holds nil in that case — don't fight the plugin).
 
 for _, j in ipairs(JOINTS) do
     local motor = j.container and j.container:FindFirstChild(j.name)
@@ -168,7 +179,8 @@ for _, j in ipairs(JOINTS) do
         motor.Part0 = savedPart0[j.name]
     end
 end
-ok("Motors reconnected", rShoulder.Part0 == torso)
+ok("Motors restored to pre-test state",
+    rShoulder.Part0 == savedPart0["Right Shoulder"])
 
 -- ── Summary ───────────────────────────────────────────────────────────────────
 

@@ -70,11 +70,21 @@ mcp luau - <<'EOF'                         # multi-line stdin
   return table.concat(t,'|')
 EOF
 mcp luau -f tests/test_scrubber.lua        # run a file
-mcp console MultiAnimation                 # filtered console output
+mcp console MultiAnimation                 # filtered console output (one-shot)
+mcp tail MultiAnimation                    # live-tail console; Ctrl+C to stop
 mcp tree workspace.FIGURES                 # search_game_tree
 mcp inspect workspace.FIGURES.Rig1        # inspect_instance
+mcp read ServerStorage.MultiAnimationData.MultiAnimPlayer   # deployed source
+mcp grep "RegisterKeyframeSequence"        # regex search across all scripts
+mcp search "play animation"                # semantic search across scripts
+mcp state                                  # edit/play mode, place info
 mcp capture                                # screen_capture
 mcp studios                                # list open Studio instances
+mcp check plugin/core/Exporter.lua         # compile-check (loadstring, no run)
+mcp drift                                  # local vs deployed diff
+mcp test [pattern] [-v]                    # run test suite
+mcp deploy                                 # push MultiAnimPlayer → ServerStorage
+mcp playtest [--timeout N] [--no-deploy]   # deploy → F5 → watch console → verdict
 ```
 
 ## Common MCP Calls

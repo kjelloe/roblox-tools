@@ -105,7 +105,7 @@ return string.format("patched %s (%d bytes)", {_lua_str(studio_path)}, #_m.Sourc
 """
 
     print(f"Patching {studio_path} ...", flush=True)
-    texts, err = call_mcp("execute_luau", {"code": lua, "timeout": 12})
+    texts, err = call_mcp("execute_luau", {"code": lua, "datamodel_type": "Edit"})
     for t in texts:
         print(f"  {t}")
     if err:

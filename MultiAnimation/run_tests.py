@@ -36,7 +36,10 @@ except ImportError:
 # ── config ─────────────────────────────────────────────────────────────────────
 
 TESTS_DIR    = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests")
-SKIP_FILES   = {"test_player.lua"}   # require play mode; run manually
+SKIP_FILES   = {
+    "test_player.lua",    # requires play mode; use `mcp playtest` instead
+    "test_scrubber.lua",  # interactive diagnostic — needs real mouse movement over the panel
+}
 TIMEOUT_SECS = 25                    # per-test MCP timeout
 
 # ── output parsing ─────────────────────────────────────────────────────────────
@@ -100,7 +103,8 @@ def run_all(files: list[str], verbose: bool) -> bool:
             code = fh.read()
 
         t0 = time.time()
-        texts, err = call_mcp("execute_luau", {"code": code, "timeout": TIMEOUT_SECS - 3})
+        texts, err = call_mcp("execute_luau", {"code": code, "datamodel_type": "Edit"},
+                              timeout=TIMEOUT_SECS)
         elapsed = time.time() - t0
 
         if err and not texts:
