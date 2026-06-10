@@ -95,16 +95,18 @@ mcp console MultiAnimation
 mcp tree ServerStorage.MultiAnimationData
 ```
 
-## Rojo Commands
+## Build Commands
 
 ```bash
-rojo serve default.project.json    # sync plugin source to Studio
-rojo build default.project.json -o MultiAnimation.rbxm   # build plugin file
+cd MultiAnimation
+python3 build.py           # build and install to Plugins folder
+python3 build.py --dry-run # print assembled XML to stdout
+python3 watch.py           # auto-rebuild on any .lua save (Ctrl+C to stop)
 ```
 
 ## Plugin File Location
 
-`C:\Users\kjell\AppData\Local\Roblox\Plugins\MultiAnimation.rbxm`
+`C:\Users\kjell\AppData\Local\Roblox\Plugins\MultiAnimation.rbxmx`
 
 ## Phase Status
 

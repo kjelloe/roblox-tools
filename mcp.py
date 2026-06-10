@@ -7,10 +7,13 @@ Usage:
     mcp.py luau -                 execute Lua read from stdin
     mcp.py luau -f <file.lua>     execute a Lua file
     mcp.py console [filter]       print Studio console output (optionally filtered)
+    mcp.py tail [filter]          live-tail Studio console; Ctrl+C to stop
     mcp.py tree [path]            search_game_tree  (default: game)
     mcp.py inspect <path>         inspect_instance
     mcp.py capture                screen_capture
     mcp.py studios                list open Studio instances
+    mcp.py test [pattern] [-v]    run MultiAnimation test suite (pattern filters filenames)
+    mcp.py deploy                 push game/MultiAnimPlayer.lua into ServerStorage
     mcp.py <tool> [json_args]     call any raw tool by name
 
 Examples:
@@ -22,10 +25,14 @@ Examples:
     EOF
     mcp.py luau -f tests/test_scrubber.lua
     mcp.py console MultiAnimation
+    mcp.py tail MultiAnimation
     mcp.py tree workspace.FIGURES
     mcp.py inspect workspace.FIGURES.Rig1
+    mcp.py test prop -v
+    mcp.py deploy
 """
 
+import os
 import sys
 import json
 import subprocess
@@ -229,6 +236,94 @@ def cmd_studios(_argv):
     _print(texts)
 
 
+def cmd_tail(argv: list[str]):
+    filt = argv[0] if argv else ""
+    label = f" (filter: {filt})" if filt else ""
+    print(f"Tailing Studio console{label}... (Ctrl+C to stop)\n", flush=True)
+
+    seen_count: int | None = None
+
+    try:
+        while True:
+            texts, err = call_mcp("get_console_output", {}, timeout=8)
+            if not err:
+                lines = _fmt_console(texts, filt)
+                # Strip the placeholder lines _fmt_console emits when output is empty.
+                lines = [l for l in lines if not l.startswith("(")]
+
+                if seen_count is None:
+                    # First poll: show last 5 lines as context, then track from here.
+                    for line in lines[-5:]:
+                        print(f"  {line}", flush=True)
+                    seen_count = len(lines)
+                else:
+                    if len(lines) < seen_count:
+                        # Console was cleared or truncated — reset baseline.
+                        seen_count = len(lines)
+                    for line in lines[seen_count:]:
+                        print(f"  {line}", flush=True)
+                    seen_count = len(lines)
+            time.sleep(1.5)
+    except KeyboardInterrupt:
+        print("\nStopped.")
+
+
+def cmd_test(argv: list[str]):
+    candidates = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "MultiAnimation", "run_tests.py"),
+        "/mnt/c/GIT/Roblox/MultiAnimation/run_tests.py",
+    ]
+    script = next((p for p in candidates if os.path.exists(p)), None)
+    if not script:
+        sys.exit("run_tests.py not found — run it directly from MultiAnimation/")
+    result = subprocess.run([sys.executable, script] + argv)
+    sys.exit(result.returncode)
+
+
+def _lua_str(s: str) -> str:
+    """Encode s as a double-quoted Lua string literal (safe for any source text)."""
+    return (
+        '"'
+        + s.replace("\\", "\\\\")
+           .replace('"',  '\\"')
+           .replace("\n", "\\n")
+           .replace("\r", "")
+           .replace("\0", "")
+        + '"'
+    )
+
+
+def cmd_deploy(_argv):
+    candidates = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "MultiAnimation", "game", "MultiAnimPlayer.lua"),
+        "/mnt/c/GIT/Roblox/MultiAnimation/game/MultiAnimPlayer.lua",
+    ]
+    src_path = next((p for p in candidates if os.path.exists(p)), None)
+    if not src_path:
+        sys.exit("game/MultiAnimPlayer.lua not found")
+
+    with open(src_path, encoding="utf-8") as f:
+        source = f.read()
+
+    lua = f"""
+local ss  = game:GetService("ServerStorage")
+local mad = ss:FindFirstChild("MultiAnimationData")
+assert(mad, "ServerStorage.MultiAnimationData not found — export a scene first")
+local existing = mad:FindFirstChild("MultiAnimPlayer")
+if existing then existing:Destroy() end
+local m    = Instance.new("ModuleScript")
+m.Name     = "MultiAnimPlayer"
+m.Source   = {_lua_str(source)}
+m.Parent   = mad
+return "deployed MultiAnimPlayer (" .. #m.Source .. " bytes)"
+"""
+    texts, err = call_mcp("execute_luau", {"code": lua})
+    _print(texts)
+    if err:
+        sys.stderr.write(f"[mcp error] {err}\n"); sys.stderr.flush()
+        sys.exit(1)
+
+
 def cmd_raw(tool: str, argv: list[str]):
     args = {}
     if argv:
@@ -248,10 +343,13 @@ def cmd_raw(tool: str, argv: list[str]):
 _COMMANDS = {
     "luau":    cmd_luau,
     "console": cmd_console,
+    "tail":    cmd_tail,
     "tree":    cmd_tree,
     "inspect": cmd_inspect,
     "capture": cmd_capture,
     "studios": cmd_studios,
+    "test":    cmd_test,
+    "deploy":  cmd_deploy,
 }
 
 def main():

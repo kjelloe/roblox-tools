@@ -99,7 +99,7 @@ Write animation data to `ServerStorage` as usable Roblox assets.
 ### Notes
 
 - Pose hierarchy: `HumanoidRootPart` (identity) → `Torso` (RootJoint.Transform) → limbs
-- Each limb Pose.Transform = the captured CFrame for that joint (Neck→Head, shoulders→arms, hips→legs)
+- Each limb `Pose.CFrame` = the captured CFrame for that joint (Neck→Head, shoulders→arms, hips→legs)
 - `AuthoredHipHeight = 0`, `Loop = false`, `EasingStyle = Linear` per spec
 
 ---

@@ -57,7 +57,7 @@ session = {
 **CFrame values** in `propTrack` are world-space `Part.CFrame` (absolute position + rotation), not relative to any parent or joint.
 
 **CFrame values** stored in `jointTrack` are `Motor6D.Transform` — the joint's
-current deviation from its rest position. This maps directly to `Pose.Transform`
+current deviation from its rest position. This maps directly to `Pose.CFrame`
 in a `KeyframeSequence` with no additional conversion.
 
 **Vector3 values** stored in `scaleTrack` are absolute `Part.Size`, not deltas.

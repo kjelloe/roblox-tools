@@ -217,7 +217,7 @@ seen rather than the full set.
 | `run_tests.py` | `MultiAnimation/run_tests.py` | Built |
 | `watch.py` | `MultiAnimation/watch.py` | Built |
 | `mcp` alias | `~/GIT/Roblox/mcp.py` | Built |
-| `hotpatch.py` | `MultiAnimation/hotpatch.py` | **Designed** |
-| `mcp test` | add to `~/GIT/Roblox/mcp.py` | **Designed** |
-| `mcp deploy` | add to `~/GIT/Roblox/mcp.py` | **Designed** |
-| `mcp tail` | add to `~/GIT/Roblox/mcp.py` | **Designed** |
+| `hotpatch.py` | `MultiAnimation/hotpatch.py` | Built |
+| `mcp test` | `~/GIT/Roblox/mcp.py` | Built |
+| `mcp deploy` | `~/GIT/Roblox/mcp.py` | Built |
+| `mcp tail` | `~/GIT/Roblox/mcp.py` | Built |

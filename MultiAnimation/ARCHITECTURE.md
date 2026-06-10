@@ -283,10 +283,9 @@ session start.  While disconnected:
 
 ### Motor6D Transform vs. C0/C1
 
-Roblox animations store `Pose.Transform` — the deviation of the joint from its rest
-`C0 * C1:Inverse()` offset. We derive this value from actual part CFrames:
+Roblox animations store the joint deviation in `Pose.CFrame` (renamed from `Pose.Transform` in a Studio update) — the joint's deviation from its rest `C0 * C1:Inverse()` offset. We derive this value from actual part CFrames:
 `Transform = C0:Inv * Part0.CFrame:Inv * Part1.CFrame * C1`
-This formula gives the value already in the correct space for `KeyframeSequence`.
+This formula gives the value already in the correct space for `KeyframeSequence` and `Motor6D.Transform`.
 
 ### Rest Pose Baseline
 

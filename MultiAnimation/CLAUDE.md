@@ -21,9 +21,9 @@ MultiAnimation/
 ├── DATA_FORMAT.md          ← exact data structures (session, export, API)
 ├── PHASES.md               ← implementation roadmap with acceptance criteria
 │
-├── default.project.json    ← Rojo project file (created in Phase 1)
+├── default.project.json    ← Rojo project file (kept for reference; build uses build.py)
 │
-├── plugin/                 ← Plugin source (Rojo syncs this to Studio)
+├── plugin/                 ← Plugin source (built by build.py)
 │   ├── init.server.lua     ← entry point
 │   ├── ui/
 │   │   ├── Panel.lua
@@ -55,7 +55,7 @@ MultiAnimation/
 - **Target rigs:** `Workspace.FIGURES.Rig1` and `Workspace.FIGURES.Rig2` — both R6
 - **R6 joints:** `RootJoint`, `Neck`, `Right Shoulder`, `Left Shoulder`, `Right Hip`, `Left Hip`
 - **R6 parts:** `Head`, `Torso`, `Left Arm`, `Right Arm`, `Left Leg`, `Right Leg`, `HumanoidRootPart`
-- **Plugin output path:** `%LOCALAPPDATA%\Roblox\Plugins\MultiAnimation.rbxm`
+- **Plugin output path:** `%LOCALAPPDATA%\Roblox\Plugins\MultiAnimation.rbxmx`
 
 R6 detection: `Humanoid` present AND part named `Torso` present (not `UpperTorso`).
 
@@ -146,7 +146,7 @@ mcp console MultiAnimation             # check output after a change
 - `PoseApplier` must wrap all Motor6D writes in `ChangeHistoryService` waypoints to
   avoid polluting the undo stack. See `ARCHITECTURE.md`.
 - `MultiAnimPlayer` (`game/`) must have **zero dependency** on plugin APIs. It only
-  uses standard Roblox game APIs (`TweenService`, `RunService`, `Animator`).
+  uses standard Roblox game APIs (`RunService`) only — no plugin dependency, no TweenService, no Animator.
 - Scale changes use custom interpolation — do not use `AnimationTrack` for scale.
 - KeyframeSequence `AuthoredHipHeight` should be set to `0` (let Animator handle it).
 
