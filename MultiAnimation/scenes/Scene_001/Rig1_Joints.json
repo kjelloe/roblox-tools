@@ -1,0 +1,567 @@
+{
+  "authoredHipHeight": 0,
+  "keyframes": [
+    {
+      "poses": [
+        {
+          "cframe": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "children": [
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [
+                {
+                  "cframe": [
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1
+                  ],
+                  "children": [],
+                  "name": "Head",
+                  "weight": 1
+                },
+                {
+                  "cframe": [
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1
+                  ],
+                  "children": [],
+                  "name": "Left Arm",
+                  "weight": 1
+                },
+                {
+                  "cframe": [
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1
+                  ],
+                  "children": [],
+                  "name": "Left Leg",
+                  "weight": 1
+                },
+                {
+                  "cframe": [
+                    1e-06,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1
+                  ],
+                  "children": [],
+                  "name": "Right Arm",
+                  "weight": 1
+                },
+                {
+                  "cframe": [
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1
+                  ],
+                  "children": [],
+                  "name": "Right Leg",
+                  "weight": 1
+                }
+              ],
+              "name": "Torso",
+              "weight": 1
+            }
+          ],
+          "name": "HumanoidRootPart",
+          "weight": 1
+        }
+      ],
+      "time": 0
+    },
+    {
+      "poses": [
+        {
+          "cframe": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "children": [
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [
+                {
+                  "cframe": [
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1
+                  ],
+                  "children": [],
+                  "name": "Head",
+                  "weight": 1
+                },
+                {
+                  "cframe": [
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1
+                  ],
+                  "children": [],
+                  "name": "Left Arm",
+                  "weight": 1
+                },
+                {
+                  "cframe": [
+                    -5.111017,
+                    -1.522843,
+                    0,
+                    0.101766,
+                    0.994808,
+                    0,
+                    -0.994808,
+                    0.101766,
+                    0,
+                    0,
+                    0,
+                    1
+                  ],
+                  "children": [],
+                  "name": "Left Leg",
+                  "weight": 1
+                },
+                {
+                  "cframe": [
+                    2e-06,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1
+                  ],
+                  "children": [],
+                  "name": "Right Arm",
+                  "weight": 1
+                },
+                {
+                  "cframe": [
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1
+                  ],
+                  "children": [],
+                  "name": "Right Leg",
+                  "weight": 1
+                }
+              ],
+              "name": "Torso",
+              "weight": 1
+            }
+          ],
+          "name": "HumanoidRootPart",
+          "weight": 1
+        }
+      ],
+      "time": 0.458333
+    },
+    {
+      "poses": [
+        {
+          "cframe": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "children": [
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [
+                {
+                  "cframe": [
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1
+                  ],
+                  "children": [],
+                  "name": "Head",
+                  "weight": 1
+                },
+                {
+                  "cframe": [
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1
+                  ],
+                  "children": [],
+                  "name": "Left Arm",
+                  "weight": 1
+                },
+                {
+                  "cframe": [
+                    -5.111017,
+                    -1.522843,
+                    1e-06,
+                    0.101766,
+                    0.994808,
+                    0,
+                    -0.994808,
+                    0.101766,
+                    0,
+                    0,
+                    0,
+                    1
+                  ],
+                  "children": [],
+                  "name": "Left Leg",
+                  "weight": 1
+                },
+                {
+                  "cframe": [
+                    3e-06,
+                    0,
+                    -1e-06,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1
+                  ],
+                  "children": [],
+                  "name": "Right Arm",
+                  "weight": 1
+                },
+                {
+                  "cframe": [
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1
+                  ],
+                  "children": [],
+                  "name": "Right Leg",
+                  "weight": 1
+                }
+              ],
+              "name": "Torso",
+              "weight": 1
+            }
+          ],
+          "name": "HumanoidRootPart",
+          "weight": 1
+        }
+      ],
+      "time": 0.541667
+    },
+    {
+      "poses": [
+        {
+          "cframe": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "children": [
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [
+                {
+                  "cframe": [
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1
+                  ],
+                  "children": [],
+                  "name": "Head",
+                  "weight": 1
+                },
+                {
+                  "cframe": [
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1
+                  ],
+                  "children": [],
+                  "name": "Left Arm",
+                  "weight": 1
+                },
+                {
+                  "cframe": [
+                    -9.834069,
+                    -2.005998,
+                    1e-06,
+                    0.101766,
+                    0.994808,
+                    0,
+                    -0.994808,
+                    0.101766,
+                    0,
+                    0,
+                    0,
+                    1
+                  ],
+                  "children": [],
+                  "name": "Left Leg",
+                  "weight": 1
+                },
+                {
+                  "cframe": [
+                    4e-06,
+                    0,
+                    -1e-06,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1
+                  ],
+                  "children": [],
+                  "name": "Right Arm",
+                  "weight": 1
+                },
+                {
+                  "cframe": [
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1
+                  ],
+                  "children": [],
+                  "name": "Right Leg",
+                  "weight": 1
+                }
+              ],
+              "name": "Torso",
+              "weight": 1
+            }
+          ],
+          "name": "HumanoidRootPart",
+          "weight": 1
+        }
+      ],
+      "time": 0.625
+    }
+  ],
+  "loop": false,
+  "name": "Rig1_Joints"
+}

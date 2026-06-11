@@ -366,6 +366,37 @@ don't fight; `uninstall` restores it. Push takes ~0.4 s with the daemon running.
 The teardown changes in `init.server.lua` are inert for the normally installed
 plugin (`_G` is per plugin VM, empty on every normal load).
 
+## Tool 14 — `mcp scene` (animation version control)
+
+The exported animation data (KeyframeSequences + track ModuleScripts) lives only
+inside the binary `.rbxl` — `mcp scene` makes it text, diffable, and committable.
+
+```bash
+mcp scene list                       # scenes in Studio vs scenes on disk
+mcp scene pull Scene_001             # → MultiAnimation/scenes/Scene_001/
+mcp scene push Scene_001             # rebuild in ServerStorage from disk
+mcp scene push Scene_001 --as Copy   # push under a different name
+```
+
+On-disk format per scene: `<Rig>_Joints.json` (keyframes sorted by time, pose
+tree nested, CFrames as 12-number arrays rounded to 6 decimals), track
+ModuleScripts as verbatim `.lua`, plus `manifest.json`. Round-trip verified
+byte-identical (pull → push --as → pull → diff).
+
+## Tool 15 — TestBridge (UI integration tests)
+
+`plugin/core/TestBridge.lua` exposes a `BindableFunction` in CoreGui
+(`__MultiAnimTestBridge`) that lets `execute_luau` — a different Lua VM — drive
+the live panel: `ping`, `getRigs`, `getActiveRigs`, `setActiveRig`, `setFrame`,
+`stepFrame`, `addKeyframe`, `getFrames`, `deleteKeyframe`, `getCurrentFrame`,
+`getFrameCount`. Payloads cross the VM boundary as JSON strings.
+
+`tests/test_ui_bridge.lua` (18 cases) covers exclusive rig selection, frame
+clamping, and a keyframe add/delete round-trip at a parking frame — restoring
+the user's active rig and timeline position afterwards. The bridge is destroyed
+on devsync teardown and on plugin unload.
+
 ## Backlog
 
-Empty — all planned dev tools are built.
+Empty — all planned dev tools are built. (Daemon now auto-starts on first
+`call_mcp` use; opt out with `MCP_NO_DAEMON=1`.)

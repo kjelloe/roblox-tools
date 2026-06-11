@@ -90,7 +90,8 @@ mcp gen mesh "desc" [--size x,y,z] [--tris N]   # AI-generate textured mesh
 mcp gen material "desc" [--base Rock]      # AI-generate material variant
 mcp store "query" [--insert] [--name X]    # Creator Store search / insert
 mcp addrig [name]                          # clone Rig1 → next free RigN
-mcp daemon start|stop|status               # persistent proxy — ~100x faster calls
+mcp scene list|pull|push <name>            # animation data ↔ disk (git-diffable)
+mcp daemon start|stop|status               # persistent proxy (auto-starts on first call)
 ```
 
 ## Hot Reload (devsync)

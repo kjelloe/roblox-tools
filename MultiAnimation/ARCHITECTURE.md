@@ -57,6 +57,7 @@
 | `core/JointCapture` | Core | Reads/writes Motor6D.Transform; validate() checks joint health |
 | `core/ScaleCapture` | Core | Reads/writes Part.Size |
 | `core/PropCapture` | Core | Reads/writes BasePart.CFrame (world space) |
+| `core/TestBridge` | Core | CoreGui BindableFunction — lets execute_luau drive the live panel (UI tests) |
 | `core/Timeline` | Core | Frame counter, fps, prev/next KF helpers |
 | `core/Interpolator` | Core | Linear lerp between keyframes (joints, scale, props) |
 | `core/PoseApplier` | Core | Applies poses; manages ChangeHistoryService |
@@ -108,6 +109,9 @@ init.server.lua
     │                       Returns: { [partName] = Vector3 }
     │
     ├── PropCapture.lua     Reads/writes BasePart.CFrame (world space)
+    │
+    ├── TestBridge.lua      BindableFunction in CoreGui (JSON protocol) so
+    │                       execute_luau can drive the panel — UI integration tests
     │
     ├── Timeline.lua        Tracks currentFrame, frameCount, fps
     │                       Interpolation helpers (lerp between keyframes)
@@ -429,10 +433,15 @@ Roblox renamed `Pose.Transform` → `Pose.CFrame` in a Studio update. The Export
 | Tool | Role |
 |------|------|
 | `build.py` | Assembles `.rbxmx` from source files and copies to Plugins folder |
-| `mcp.py` (`mcp` alias) | CLI wrapper for MCP tools — `mcp luau`, `mcp console`, `mcp tree`, `mcp inspect`, `mcp capture` |
-| MCP (`execute_luau`) | Quick iteration: run snippets / test files against live Studio |
-| MCP (`inspect_instance`, `search_game_tree`) | Inspect rig and ServerStorage state during development |
+| `watch.py` | Auto-build on save, with Studio compile-check first |
+| `devsync.py` + `plugin/devloader.lua` | Hot-reload the plugin on save — no Studio restart |
+| `run_tests.py` | Runs the full `tests/` suite (164 cases) against live Studio |
+| `hotpatch.py` | Push a single `game/` module without reload |
+| `mcp.py` (`mcp` alias) | CLI for everything: luau, console/tail, tree/inspect/read/grep, check, drift, test, deploy, playtest, gen, store, addrig, scene, daemon |
+| MCP daemon | Persistent StudioMCP proxy (auto-starts) — 0.07s/call vs ~7s |
 | Claude Code | All source authoring, MCP tool calls |
+
+Full tool documentation: `DEV_TOOLS.md`. Human guide: repo-root `README.md`.
 
 Plugin output path:
 `%LOCALAPPDATA%\Roblox\Plugins\MultiAnimation.rbxmx`

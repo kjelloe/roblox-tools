@@ -1,0 +1,11 @@
+{
+  "kfs": [
+    "Rig1_Joints",
+    "Rig2_Joints"
+  ],
+  "modules": [
+    "RootTracks",
+    "ScaleTracks"
+  ],
+  "scene": "Scene_001"
+}

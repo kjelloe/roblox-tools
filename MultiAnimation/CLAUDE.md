@@ -100,16 +100,27 @@ python3 build.py --dry-run # print XML to stdout only
 Plugin is installed to `%LOCALAPPDATA%\Roblox\Plugins\MultiAnimation.rbxmx`.
 After building, reload the plugin in Studio: Plugins → Manage Plugins → reload MultiAnimation.
 
-### Hot-patching via MCP
-
-For fast iteration on a single module without a full Studio reload, push changes directly
-via `execute_luau`. This is especially useful for `game/MultiAnimPlayer.lua` changes since
-it lives in ServerStorage and doesn't require a plugin reload.
+### Hot reload (devsync) — preferred dev loop
 
 ```bash
-mcp luau -f tests/test_exporter.lua    # run a test file directly
-mcp console MultiAnimation             # check output after a change
+python3 devsync.py install     # one-time; restart Studio once after
+python3 devsync.py             # watch: every .lua save hot-reloads the plugin (~0.4s)
+python3 devsync.py uninstall   # back to build.py + manual reload
 ```
+
+### Other dev scripts
+
+```bash
+python3 run_tests.py [pattern] [-v]   # full suite (164 cases), or `mcp test`
+python3 watch.py                      # auto-build on save (when not using devsync)
+python3 hotpatch.py game/MultiAnimPlayer.lua   # push one game/ module, or `mcp deploy`
+mcp check <file.lua>                  # compile-check in Studio without executing
+mcp drift                             # local vs deployed MultiAnimPlayer diff
+mcp playtest                          # deploy → F5 → console watch → PASS/FAIL
+mcp scene pull|push <name>            # animation data ↔ scenes/ (git-diffable)
+```
+
+The MCP daemon auto-starts on first use (~0.07s/call). See `DEV_TOOLS.md` for details.
 
 ---
 
@@ -181,6 +192,7 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 | `test_prop_serialization.lua` | CFrame `GetComponents()` round-trip; `Lerp` boundary + slerp (17 cases) |
 | `test_rig_root_motion.lua` | rootTrack capture/apply/interpolate; whole-model lift on real Rig1 (15 cases) |
 | `test_exporter.lua` | `Pose.CFrame` API; KFS structure; RootTracks whole-model positions (23 cases) |
+| `test_ui_bridge.lua` | UI integration via CoreGui TestBridge — rig selection, frame nav, KF round-trip (18 cases) |
 
 All tests inline their module logic (no `require()` to plugin modules) and return a PASS/FAIL string for `execute_luau`. Run with:
 

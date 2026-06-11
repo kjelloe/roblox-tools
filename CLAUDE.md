@@ -73,3 +73,16 @@ Workspace.Folder.Script
 - Use `get_console_output` after `execute_luau` to check for errors.
 - Generation tools (`generate_*`) are async — always follow with `wait_job_finished`.
 - Multiple Studio instances: call `list_roblox_studios` then `set_active_studio` to pick the right one.
+- `execute_luau` requires `datamodel_type` ("Edit"/"Client"/"Server").
+
+## Dev Tooling
+
+`mcp.py` at the repo root (aliased `mcp`) wraps every workflow: `luau`, `console`/`tail`,
+`tree`/`inspect`/`read`/`grep`/`search`/`state`, `check` (compile-check), `drift`,
+`test`, `deploy`, `playtest`, `gen`, `store`, `addrig`, `scene` (pull/push), `daemon`.
+The daemon auto-starts and makes calls ~100x faster.
+
+MultiAnimation-specific scripts in `MultiAnimation/`: `build.py`, `watch.py`,
+`devsync.py` (hot-reload without Studio restart), `run_tests.py`, `hotpatch.py`.
+
+Human guide: `README.md`. Full tool docs: `MultiAnimation/DEV_TOOLS.md`.

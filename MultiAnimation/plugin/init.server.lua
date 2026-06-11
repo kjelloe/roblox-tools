@@ -746,6 +746,9 @@ end))
 track(plugin.Unloading:Connect(function()
     stopPlayback()
     reconnectAllRigs()
+    -- testBridge is declared below; guard for the unload-before-init edge.
+    local bridge = game:GetService("CoreGui"):FindFirstChild("__MultiAnimTestBridge")
+    if bridge then bridge:Destroy() end
 end))
 
 -- ── FIGURES auto-detect (ChildAdded / ChildRemoved) ──────────────────────────
@@ -793,6 +796,65 @@ end
 
 scanAndSetup()
 
+-- ── Test bridge ───────────────────────────────────────────────────────────────
+-- Lets tests/test_ui_*.lua drive the live panel from execute_luau.
+-- See core/TestBridge.lua for the protocol.
+
+local TestBridge = require(script.core.TestBridge)
+local testBridge = TestBridge.start({
+    ping = function() return "pong" end,
+
+    getRigs = function()
+        local names = {}
+        for n in pairs(allRigs) do table.insert(names, n) end
+        table.sort(names)
+        return names
+    end,
+
+    getActiveRigs = function()
+        local names = {}
+        for n in pairs(panel:getActiveRigs()) do table.insert(names, n) end
+        table.sort(names)
+        return names
+    end,
+
+    setActiveRig = function(a)
+        if not allRigs[a.name] then error("no such rig: " .. tostring(a.name)) end
+        panel:setActiveRigs({ [a.name] = true })
+        return true
+    end,
+
+    getCurrentFrame = function() return timeline:getCurrent() end,
+    getFrameCount   = function() return timeline:getFrameCount() end,
+
+    setFrame = function(a)
+        local f = timeline:setCurrent(a.frame)
+        panel:setFrameDisplay(f, timeline:getFrameCount())
+        applyPosesAt(f, false)
+        return f
+    end,
+
+    stepFrame = function(a)
+        doStepFrame(a.delta or 1)
+        return timeline:getCurrent()
+    end,
+
+    addKeyframe = function()
+        doAddKeyframe()
+        return timeline:getCurrent()
+    end,
+
+    getFrames = function(a)
+        return recorder:getSortedFrames(a.rig)
+    end,
+
+    deleteKeyframe = function(a)
+        recorder:deleteRigKeyframe(a.rig, a.frame)
+        panel:removeKeyframeMarker(a.rig, a.frame)
+        return true
+    end,
+})
+
 -- ── devsync teardown registration ─────────────────────────────────────────────
 -- The dev loader (devsync.py + MultiAnimationDevLoader) re-runs this source in
 -- the same plugin VM on every push; this closure lets the next boot cleanly
@@ -804,6 +866,7 @@ _G.__MultiAnimTeardown = function()
     for _, c in ipairs(devConns) do
         pcall(function() c:Disconnect() end)
     end
+    pcall(function() testBridge:Destroy() end)
     -- Toolbar/button are reused across boots (IDs can't be re-created in
     -- this plugin VM) — only the widget is destroyed and rebuilt.
     pcall(function() widget:Destroy() end)

@@ -28,7 +28,10 @@ Usage:
     mcp.py store <query>          search the Creator Store
     mcp.py store <query> --insert insert the first matching asset [--name X] [--types A,B]
     mcp.py addrig [name]          clone Rig1 in Workspace.FIGURES (next free RigN if no name)
-    mcp.py daemon start|stop|status   persistent proxy — makes every call ~10x faster
+    mcp.py scene list             scenes in Studio vs scenes pulled to disk
+    mcp.py scene pull <name>      serialize a scene to MultiAnimation/scenes/<name>/ (git-diffable)
+    mcp.py scene push <name> [--as <target>]   rebuild scene in ServerStorage from disk
+    mcp.py daemon start|stop|status   persistent proxy — auto-starts on first call
     mcp.py <tool> [json_args]     call any raw tool by name
 
 Daemon mode:
@@ -155,15 +158,46 @@ def _daemon_call(tool: str, args: dict, timeout: int) -> tuple[list[str], str | 
         return None
 
 
+_autostart_attempted = False
+
+def _daemon_autostart() -> bool:
+    """Start the daemon in the background (once per process). Returns True if it came up.
+
+    Opt out with MCP_NO_DAEMON=1 in the environment.
+    """
+    global _autostart_attempted
+    if _autostart_attempted or os.environ.get("MCP_NO_DAEMON"):
+        return False
+    _autostart_attempted = True
+    try:
+        if os.path.exists(DAEMON_SOCK):
+            os.unlink(DAEMON_SOCK)   # stale socket from a dead daemon
+        log = open(DAEMON_LOG, "a")
+        subprocess.Popen(
+            [sys.executable, os.path.abspath(__file__), "daemon", "run"],
+            stdout=log, stderr=log, start_new_session=True,
+        )
+        for _ in range(20):
+            time.sleep(0.25)
+            if _daemon_send_cmd("ping"):
+                return True
+    except OSError:
+        pass
+    return False
+
+
 def call_mcp(tool: str, args: dict, timeout: int = 15) -> tuple[list[str], str | None]:
     """
     Call a single MCP tool.  Returns (texts, error_or_None).
 
-    Uses the daemon socket when `mcp daemon start` is running (fast path).
-    Otherwise spawns a fresh StudioMCP.exe — active-studio state is per proxy
-    process, so each spawn is primed with list_roblox_studios + set_active_studio.
+    Uses the daemon socket (auto-starting the daemon on first use; opt out with
+    MCP_NO_DAEMON=1).  Falls back to spawning a fresh StudioMCP.exe — active-studio
+    state is per proxy process, so each spawn is primed with list_roblox_studios +
+    set_active_studio.
     """
     via_daemon = _daemon_call(tool, args, timeout)
+    if via_daemon is None and _daemon_autostart():
+        via_daemon = _daemon_call(tool, args, timeout)
     if via_daemon is not None:
         return via_daemon
 
@@ -900,6 +934,219 @@ return string.format("Added rig '%s' (offset +%d studs X); plugin auto-detect wi
         sys.exit(1)
 
 
+# ── scene: pull/push animation scenes to disk (version control) ──────────────
+
+SCENES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "MultiAnimation", "scenes")
+
+_SCENE_PULL_LUA = """
+local HttpService = game:GetService("HttpService")
+local mad = game:GetService("ServerStorage"):FindFirstChild("MultiAnimationData")
+assert(mad, "ServerStorage.MultiAnimationData not found")
+local scene = mad:FindFirstChild(%s)
+assert(scene, "scene not found: " .. %s)
+
+local function r6(v) return math.floor(v * 1e6 + 0.5) / 1e6 end
+local function cfTo(cf)
+    local c = { cf:GetComponents() }
+    for i = 1, 12 do c[i] = r6(c[i]) end
+    return c
+end
+local function poseTo(p)
+    local kids = {}
+    for _, ch in ipairs(p:GetChildren()) do
+        if ch:IsA("Pose") then table.insert(kids, poseTo(ch)) end
+    end
+    table.sort(kids, function(a, b) return a.name < b.name end)
+    return { name = p.Name, cframe = cfTo(p.CFrame), weight = r6(p.Weight), children = kids }
+end
+
+local out = { scene = scene.Name, kfs = {}, modules = {} }
+for _, child in ipairs(scene:GetChildren()) do
+    if child:IsA("KeyframeSequence") then
+        local frames = {}
+        for _, kf in ipairs(child:GetChildren()) do
+            if kf:IsA("Keyframe") then
+                local poses = {}
+                for _, p in ipairs(kf:GetChildren()) do
+                    if p:IsA("Pose") then table.insert(poses, poseTo(p)) end
+                end
+                table.insert(frames, { time = r6(kf.Time), poses = poses })
+            end
+        end
+        table.sort(frames, function(a, b) return a.time < b.time end)
+        table.insert(out.kfs, {
+            name = child.Name, loop = child.Loop,
+            authoredHipHeight = child.AuthoredHipHeight, keyframes = frames,
+        })
+    elseif child:IsA("ModuleScript") then
+        table.insert(out.modules, { name = child.Name, source = child.Source })
+    end
+end
+table.sort(out.kfs, function(a, b) return a.name < b.name end)
+table.sort(out.modules, function(a, b) return a.name < b.name end)
+return HttpService:JSONEncode(out)
+"""
+
+_SCENE_PUSH_LUA = """
+local HttpService = game:GetService("HttpService")
+local data = HttpService:JSONDecode(%s)
+local targetName = %s
+
+local ss = game:GetService("ServerStorage")
+local mad = ss:FindFirstChild("MultiAnimationData")
+if not mad then
+    mad = Instance.new("Folder")
+    mad.Name = "MultiAnimationData"
+    mad.Parent = ss
+end
+local old = mad:FindFirstChild(targetName)
+if old then old:Destroy() end
+local sceneF = Instance.new("Folder")
+sceneF.Name = targetName
+
+local function buildPose(d, parent)
+    local p = Instance.new("Pose")
+    p.Name = d.name
+    p.CFrame = CFrame.new(unpack(d.cframe))
+    p.Weight = d.weight or 1
+    p.EasingStyle = Enum.PoseEasingStyle.Linear
+    p.EasingDirection = Enum.PoseEasingDirection.Out
+    p.Parent = parent
+    for _, c in ipairs(d.children or {}) do buildPose(c, p) end
+end
+
+local nk = 0
+for _, k in ipairs(data.kfs or {}) do
+    local kfs = Instance.new("KeyframeSequence")
+    kfs.Name = k.name
+    kfs.Loop = k.loop and true or false
+    kfs.AuthoredHipHeight = k.authoredHipHeight or 0
+    for _, fr in ipairs(k.keyframes or {}) do
+        local kf = Instance.new("Keyframe")
+        kf.Time = fr.time
+        for _, p in ipairs(fr.poses or {}) do buildPose(p, kf) end
+        kf.Parent = kfs
+        nk += 1
+    end
+    kfs.Parent = sceneF
+end
+for _, m in ipairs(data.modules or {}) do
+    local ms = Instance.new("ModuleScript")
+    ms.Name = m.name
+    ms.Source = m.source
+    ms.Parent = sceneF
+end
+sceneF.Parent = mad
+return string.format("pushed '%%s' — %%d KFS, %%d keyframes, %%d module(s)",
+    targetName, #(data.kfs or {}), nk, #(data.modules or {}))
+"""
+
+
+def cmd_scene(argv: list[str]):
+    sub = argv[0] if argv else "list"
+    rest = argv[1:]
+
+    if sub == "list":
+        texts, err = call_mcp("execute_luau", {"code": """
+local mad = game:GetService("ServerStorage"):FindFirstChild("MultiAnimationData")
+if not mad then return "(no MultiAnimationData in ServerStorage)" end
+local t = {}
+for _, c in ipairs(mad:GetChildren()) do
+    if c:IsA("Folder") then table.insert(t, c.Name) end
+end
+table.sort(t)
+return #t > 0 and table.concat(t, "\\n") or "(no scenes)"
+""", "datamodel_type": "Edit"})
+        print("In Studio:")
+        for t in texts:
+            for line in t.splitlines():
+                print(f"  {line}")
+        if err:
+            sys.stderr.write(f"[mcp error] {err}\n")
+        print("On disk:")
+        if os.path.isdir(SCENES_DIR):
+            names = sorted(d for d in os.listdir(SCENES_DIR)
+                           if os.path.isdir(os.path.join(SCENES_DIR, d)))
+            for n in names:
+                print(f"  {n}")
+            if not names:
+                print("  (none)")
+        else:
+            print("  (none)")
+        return
+
+    if sub == "pull":
+        if not rest:
+            sys.exit("Usage: mcp.py scene pull <SceneName>")
+        name = rest[0]
+        lua = _SCENE_PULL_LUA % (_lua_str(name), _lua_str(name))
+        texts, err = call_mcp("execute_luau", {"code": lua, "datamodel_type": "Edit"}, timeout=30)
+        if err:
+            _print(texts)
+            sys.stderr.write(f"[mcp error] {err}\n")
+            sys.exit(1)
+        data = json.loads("\n".join(texts))
+
+        out_dir = os.path.join(SCENES_DIR, name)
+        os.makedirs(out_dir, exist_ok=True)
+        written = []
+        for kfs in data.get("kfs", []):
+            path = os.path.join(out_dir, kfs["name"] + ".json")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(kfs, f, indent=2, sort_keys=True)
+                f.write("\n")
+            written.append(os.path.basename(path))
+        for mod in data.get("modules", []):
+            path = os.path.join(out_dir, mod["name"] + ".lua")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(mod["source"])
+            written.append(os.path.basename(path))
+        manifest = {
+            "scene": name,
+            "kfs": sorted(k["name"] for k in data.get("kfs", [])),
+            "modules": sorted(m["name"] for m in data.get("modules", [])),
+        }
+        with open(os.path.join(out_dir, "manifest.json"), "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2, sort_keys=True)
+            f.write("\n")
+        print(f"Pulled '{name}' → {os.path.relpath(out_dir)} ({', '.join(written)})")
+        return
+
+    if sub == "push":
+        if not rest:
+            sys.exit("Usage: mcp.py scene push <SceneName> [--as <TargetName>]")
+        name = rest[0]
+        target = name
+        if len(rest) >= 3 and rest[1] == "--as":
+            target = rest[2]
+
+        src_dir = os.path.join(SCENES_DIR, name)
+        manifest_path = os.path.join(src_dir, "manifest.json")
+        if not os.path.exists(manifest_path):
+            sys.exit(f"No pulled scene at {src_dir} — run `mcp scene pull {name}` first")
+        with open(manifest_path, encoding="utf-8") as f:
+            manifest = json.load(f)
+
+        data = {"scene": target, "kfs": [], "modules": []}
+        for kname in manifest.get("kfs", []):
+            with open(os.path.join(src_dir, kname + ".json"), encoding="utf-8") as f:
+                data["kfs"].append(json.load(f))
+        for mname in manifest.get("modules", []):
+            with open(os.path.join(src_dir, mname + ".lua"), encoding="utf-8") as f:
+                data["modules"].append({"name": mname, "source": f.read()})
+
+        lua = _SCENE_PUSH_LUA % (_lua_str(json.dumps(data)), _lua_str(target))
+        texts, err = call_mcp("execute_luau", {"code": lua, "datamodel_type": "Edit"}, timeout=30)
+        _print(texts)
+        if err:
+            sys.stderr.write(f"[mcp error] {err}\n")
+            sys.exit(1)
+        return
+
+    print("Usage: mcp.py scene list | pull <name> | push <name> [--as <target>]", file=sys.stderr)
+    sys.exit(1)
+
+
 # ── daemon server ─────────────────────────────────────────────────────────────
 
 class _ProxySession:
@@ -1190,6 +1437,7 @@ _COMMANDS = {
     "store":    cmd_store,
     "addrig":   cmd_addrig,
     "daemon":   cmd_daemon,
+    "scene":    cmd_scene,
 }
 
 def main():

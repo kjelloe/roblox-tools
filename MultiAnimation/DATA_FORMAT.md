@@ -282,6 +282,47 @@ Smooth scrub interpolation is a v2 enhancement.
 
 ---
 
+## On-Disk Scene Format (`mcp scene pull/push`)
+
+`mcp scene pull <name>` serializes a ServerStorage scene to `MultiAnimation/scenes/<name>/`
+so animation data is git-diffable instead of trapped in the binary `.rbxl`:
+
+```
+scenes/Scene_001/
+├── manifest.json        { scene, kfs: [names], modules: [names] }
+├── Rig1_Joints.json     KeyframeSequence as JSON (see below)
+├── Rig2_Joints.json
+├── ScaleTracks.lua      ModuleScript Source, verbatim
+└── RootTracks.lua       (PropTracks.lua when props were tracked)
+```
+
+KeyframeSequence JSON (keys sorted, floats rounded to 6 decimals for stable diffs):
+
+```json
+{
+  "name": "Rig1_Joints",
+  "loop": false,
+  "authoredHipHeight": 0,
+  "keyframes": [
+    {
+      "time": 0.125,
+      "poses": [
+        { "name": "HumanoidRootPart",
+          "cframe": [x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22],
+          "weight": 1,
+          "children": [ { "name": "Torso", "...": "nested same shape" } ] }
+      ]
+    }
+  ]
+}
+```
+
+`cframe` arrays use `CFrame:GetComponents()` order (position first), matching the
+`CFrame.new(...)` constructor. Keyframes are sorted by time and pose children by
+name, so a pull → push → pull round-trip is byte-identical.
+
+---
+
 ## Naming Conventions
 
 | Item | Convention | Example |
