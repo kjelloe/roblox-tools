@@ -280,12 +280,49 @@ seen rather than the full set.
 | `mcp drift` | `~/GIT/Roblox/mcp.py` | Built |
 | `mcp playtest` | `~/GIT/Roblox/mcp.py` | Built |
 | `mcp read/grep/search/state` | `~/GIT/Roblox/mcp.py` | Built |
+| `mcp gen model/mesh/material/wait` | `~/GIT/Roblox/mcp.py` | Built |
+| `mcp store [--insert]` | `~/GIT/Roblox/mcp.py` | Built |
+| `mcp addrig [name]` | `~/GIT/Roblox/mcp.py` | Built |
+
+## Tool 9 — `mcp gen` (AI generation)
+
+```bash
+mcp gen model "a wooden crate with adjustable size"   # ProceduralModel, auto-inserts
+mcp gen model "a crate" --wait                        # block until job completes
+mcp gen mesh "medieval sword" --size 1,4,0.3 --tris 5000
+mcp gen material "rough mossy stone" --base Rock --pattern Organic
+mcp gen wait <generationId> [--timeout N]             # await a submitted job
+```
+
+Notes: `gen model` is async — returns a generation ID immediately; `--wait` polls via
+`wait_job_finished` and reports the inserted model path (e.g. `Workspace.WoodenCrate`).
+`gen material` is synchronous — returns `{BaseMaterial, Name}`; set those on a BasePart's
+`Material` and `MaterialVariant` properties to use it. `--base` must be a valid
+Roblox material enum name (Rock, Wood, Metal, …); `--pattern` is Regular or Organic.
+
+## Tool 10 — `mcp store` (Creator Store)
+
+```bash
+mcp store "low poly tree"                       # search → searchId + objectTypes
+mcp store "low poly tree" --insert              # search + insert first match
+mcp store "low poly tree" --insert --name Pine --types tree,plant
+```
+
+## Tool 11 — `mcp addrig`
+
+```bash
+mcp addrig            # clone Rig1 → next free RigN, offset +5 studs X per existing rig
+mcp addrig Villain    # explicit name
+```
+
+Restores canonical R6 Motor6D connections on the clone (Rig1's may be nil'd by an
+active plugin session), then parents it to FIGURES — the plugin's ChildAdded
+auto-detect picks it up, captures rest pose, and manages its motors from there.
+Verified live: `[MultiAnimation] Auto-detected rig: Rig3`.
 
 ## Remaining backlog (designed, not built)
 
 | Tool | Effort | Notes |
 |------|--------|-------|
-| `mcp gen` / `mcp store` | ~1h | Wrap generate_* + wait_job_finished; creator store search+insert |
-| `mcp addrig [name]` | ~30m | Clone Rig1 in FIGURES with next free name (prototypes "+ Add Rig" TODO) |
-| Daemon mode | ~3h | Persistent StudioMCP process; cuts ~2s startup per call |
+| Daemon mode | ~3h | Persistent StudioMCP process; cuts startup + priming per call |
 | `devsync` hot-reload | ~1 day | Loader-stub plugin + module push; eliminates Studio reload entirely |

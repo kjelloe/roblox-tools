@@ -21,6 +21,13 @@ Usage:
     mcp.py test [pattern] [-v]    run MultiAnimation test suite (pattern filters filenames)
     mcp.py deploy                 push game/MultiAnimPlayer.lua into ServerStorage
     mcp.py playtest [options]     deploy → play mode → watch console → PASS/FAIL
+    mcp.py gen model <desc>       AI-generate a procedural model (auto-inserts into workspace)
+    mcp.py gen mesh <desc>        AI-generate a textured mesh  [--size x,y,z] [--tris N]
+    mcp.py gen material <desc>    AI-generate a material variant [--base Rock] [--pattern Organic]
+    mcp.py gen wait <id>          wait for a generation job    [--timeout N]
+    mcp.py store <query>          search the Creator Store
+    mcp.py store <query> --insert insert the first matching asset [--name X] [--types A,B]
+    mcp.py addrig [name]          clone Rig1 in Workspace.FIGURES (next free RigN if no name)
     mcp.py <tool> [json_args]     call any raw tool by name
 
 Playtest options:
@@ -47,6 +54,13 @@ Examples:
     mcp.py test prop -v
     mcp.py deploy
     mcp.py playtest --timeout 60
+    mcp.py gen model "a wooden crate with adjustable size"
+    mcp.py gen mesh "medieval sword" --size 1,4,0.3 --tris 5000
+    mcp.py gen material "rough mossy stone" --base Rock --pattern Organic
+    mcp.py store "low poly tree"
+    mcp.py store "low poly tree" --insert --name PineTree
+    mcp.py addrig
+    mcp.py addrig Villain
 """
 
 import os
@@ -646,6 +660,203 @@ def cmd_playtest(argv: list[str]):
     sys.exit(0 if verdict == "PASS" else 1)
 
 
+# ── gen: AI generation pipeline ───────────────────────────────────────────────
+
+def _split_flags(argv: list[str], value_flags: tuple, bool_flags: tuple = ()) -> tuple[dict, list[str]]:
+    """Separate --flag value / --flag pairs from positional args."""
+    flags, pos = {}, []
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in value_flags and i + 1 < len(argv):
+            flags[a] = argv[i + 1]; i += 2
+        elif a in bool_flags:
+            flags[a] = True; i += 1
+        else:
+            pos.append(a); i += 1
+    return flags, pos
+
+
+def _find_generation_id(text: str) -> str | None:
+    import re as _re
+    m = _re.search(r'"?generationId"?\s*[:=]\s*"?([\w-]+)', text)
+    if m:
+        return m.group(1)
+    m = _re.search(r'\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b', text)
+    return m.group(1) if m and m.lastindex else (m.group(0) if m else None)
+
+
+def cmd_gen(argv: list[str]):
+    if not argv or argv[0] not in ("model", "mesh", "material", "wait"):
+        print("Usage: mcp.py gen model|mesh|material <description> | gen wait <generationId>", file=sys.stderr)
+        sys.exit(1)
+
+    kind = argv[0]
+    flags, pos = _split_flags(argv[1:],
+                              value_flags=("--size", "--tris", "--timeout", "--base", "--pattern"),
+                              bool_flags=("--wait",))
+    desc = " ".join(pos)
+
+    if kind == "wait":
+        if not pos:
+            print("Usage: mcp.py gen wait <generationId> [--timeout N]", file=sys.stderr)
+            sys.exit(1)
+        wait_timeout = int(flags.get("--timeout", 600))
+        texts, err = call_mcp("wait_job_finished",
+                              {"generationId": pos[0], "timeout": wait_timeout},
+                              timeout=wait_timeout + 30)
+        _print(texts)
+        if err:
+            sys.stderr.write(f"[mcp error] {err}\n"); sys.stderr.flush()
+            sys.exit(1)
+        return
+
+    if not desc:
+        print(f"Usage: mcp.py gen {kind} <description>", file=sys.stderr)
+        sys.exit(1)
+
+    if kind == "model":
+        tool, args = "generate_procedural_model", {"prompt": desc}
+    elif kind == "mesh":
+        tool, args = "generate_mesh", {"textPrompt": desc}
+        if "--tris" in flags:
+            args["maxTriangles"] = int(flags["--tris"])
+        if "--size" in flags:
+            try:
+                x, y, z = (float(v) for v in flags["--size"].split(","))
+                args["size"] = {"x": x, "y": y, "z": z}
+            except ValueError:
+                print("--size must be x,y,z numbers, e.g. --size 4,6,2", file=sys.stderr)
+                sys.exit(1)
+    else:  # material
+        import uuid
+        tool, args = "generate_material", {
+            "materialDescription": desc,
+            "baseMaterial":   flags.get("--base", "Plastic"),
+            "materialPattern": flags.get("--pattern", "Regular"),
+            "materialId":     str(uuid.uuid4()),
+        }
+
+    submit_timeout = int(flags.get("--timeout", 300))
+    print(f"[gen] Submitting {kind} generation...", flush=True)
+    texts, err = call_mcp(tool, args, timeout=submit_timeout)
+    _print(texts)
+    if err:
+        sys.stderr.write(f"[mcp error] {err}\n"); sys.stderr.flush()
+        sys.exit(1)
+
+    if flags.get("--wait"):
+        gen_id = _find_generation_id("\n".join(texts))
+        if not gen_id:
+            print("[gen] No generationId found in response — nothing to wait for.")
+            return
+        print(f"[gen] Waiting for job {gen_id}...", flush=True)
+        texts, err = call_mcp("wait_job_finished", {"generationId": gen_id}, timeout=630)
+        _print(texts)
+        if err:
+            sys.stderr.write(f"[mcp error] {err}\n"); sys.stderr.flush()
+            sys.exit(1)
+
+
+# ── store: Creator Store search + insert ──────────────────────────────────────
+
+def cmd_store(argv: list[str]):
+    flags, pos = _split_flags(argv, value_flags=("--name", "--types"), bool_flags=("--insert",))
+    query = " ".join(pos)
+    if not query:
+        print("Usage: mcp.py store <query> [--insert] [--name X] [--types A,B]", file=sys.stderr)
+        sys.exit(1)
+
+    texts, err = call_mcp("search_creator_store", {"query": query}, timeout=60)
+    _print(texts)
+    if err:
+        sys.stderr.write(f"[mcp error] {err}\n"); sys.stderr.flush()
+        sys.exit(1)
+
+    if not flags.get("--insert"):
+        return
+
+    # Pull the searchId out of the search response (JSON or labelled text).
+    full = "\n".join(texts)
+    search_id = None
+    try:
+        search_id = json.loads(full).get("searchId")
+    except (json.JSONDecodeError, AttributeError):
+        import re as _re
+        m = _re.search(r'"?searchId"?\s*[:=]\s*"?([\w-]+)', full)
+        search_id = m.group(1) if m else None
+    if not search_id:
+        sys.stderr.write("[mcp error] could not find searchId in search response\n")
+        sys.exit(1)
+
+    args = {"searchId": search_id}
+    if "--types" in flags:
+        args["objectTypes"] = [t.strip() for t in flags["--types"].split(",") if t.strip()]
+    if "--name" in flags:
+        args["assetName"] = flags["--name"]
+
+    print(f"\n[store] Inserting from searchId {search_id}...", flush=True)
+    texts, err = call_mcp("insert_from_creator_store", args, timeout=120)
+    _print(texts)
+    if err:
+        sys.stderr.write(f"[mcp error] {err}\n"); sys.stderr.flush()
+        sys.exit(1)
+
+
+# ── addrig: clone Rig1 in Workspace.FIGURES ───────────────────────────────────
+
+def cmd_addrig(argv: list[str]):
+    name_expr = _lua_str(argv[0]) if argv else "nil"
+
+    lua = f"""
+local fig = workspace:FindFirstChild("FIGURES")
+assert(fig, "Workspace.FIGURES not found")
+local src = fig:FindFirstChild("Rig1")
+assert(src, "Rig1 not found in FIGURES — nothing to clone")
+
+local name = {name_expr}
+if not name then
+    local n = 2
+    while fig:FindFirstChild("Rig" .. n) do n += 1 end
+    name = "Rig" .. n
+end
+assert(not fig:FindFirstChild(name), "'" .. name .. "' already exists in FIGURES")
+
+local rigCount = 0
+for _, c in ipairs(fig:GetChildren()) do
+    if c:FindFirstChildOfClass("Humanoid") then rigCount += 1 end
+end
+
+local clone = src:Clone()
+clone.Name = name
+
+-- Rig1's motors may be disconnected (active plugin session nils Part0).
+-- Restore canonical R6 connections on the clone so it arrives healthy;
+-- the plugin's FIGURES auto-detect will manage its session state itself.
+local JOINT_PARENT = {{
+    RootJoint = "HumanoidRootPart", Neck = "Torso",
+    ["Right Shoulder"] = "Torso", ["Left Shoulder"] = "Torso",
+    ["Right Hip"] = "Torso", ["Left Hip"] = "Torso",
+}}
+for jName, pName in pairs(JOINT_PARENT) do
+    local container = clone:FindFirstChild(pName)
+    local motor = container and container:FindFirstChild(jName)
+    if motor and motor:IsA("Motor6D") then
+        motor.Part0 = container
+    end
+end
+
+clone.Parent = fig
+clone:PivotTo(src:GetPivot() * CFrame.new(5 * rigCount, 0, 0))
+return string.format("Added rig '%s' (offset +%d studs X); plugin auto-detect will pick it up", name, 5 * rigCount)
+"""
+    texts, err = call_mcp("execute_luau", {"code": lua, "datamodel_type": "Edit"}, timeout=30)
+    _print(texts)
+    if err:
+        sys.stderr.write(f"[mcp error] {err}\n"); sys.stderr.flush()
+        sys.exit(1)
+
+
 def cmd_raw(tool: str, argv: list[str]):
     args = {}
     if argv:
@@ -679,6 +890,9 @@ _COMMANDS = {
     "test":     cmd_test,
     "deploy":   cmd_deploy,
     "playtest": cmd_playtest,
+    "gen":      cmd_gen,
+    "store":    cmd_store,
+    "addrig":   cmd_addrig,
 }
 
 def main():

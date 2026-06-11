@@ -85,6 +85,11 @@ mcp drift                                  # local vs deployed diff
 mcp test [pattern] [-v]                    # run test suite
 mcp deploy                                 # push MultiAnimPlayer → ServerStorage
 mcp playtest [--timeout N] [--no-deploy]   # deploy → F5 → watch console → verdict
+mcp gen model "desc" [--wait]              # AI-generate model (auto-inserts)
+mcp gen mesh "desc" [--size x,y,z] [--tris N]   # AI-generate textured mesh
+mcp gen material "desc" [--base Rock]      # AI-generate material variant
+mcp store "query" [--insert] [--name X]    # Creator Store search / insert
+mcp addrig [name]                          # clone Rig1 → next free RigN
 ```
 
 ## Common MCP Calls
