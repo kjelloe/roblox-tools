@@ -283,6 +283,8 @@ seen rather than the full set.
 | `mcp gen model/mesh/material/wait` | `~/GIT/Roblox/mcp.py` | Built |
 | `mcp store [--insert]` | `~/GIT/Roblox/mcp.py` | Built |
 | `mcp addrig [name]` | `~/GIT/Roblox/mcp.py` | Built |
+| `mcp daemon start/stop/status` | `~/GIT/Roblox/mcp.py` | Built |
+| `devsync.py` + dev loader | `MultiAnimation/devsync.py`, `plugin/devloader.lua` | Built |
 
 ## Tool 9 — `mcp gen` (AI generation)
 
@@ -320,9 +322,50 @@ active plugin session), then parents it to FIGURES — the plugin's ChildAdded
 auto-detect picks it up, captures rest pose, and manages its motors from there.
 Verified live: `[MultiAnimation] Auto-detected rig: Rig3`.
 
-## Remaining backlog (designed, not built)
+## Tool 12 — `mcp daemon` (persistent proxy)
 
-| Tool | Effort | Notes |
-|------|--------|-------|
-| Daemon mode | ~3h | Persistent StudioMCP process; cuts startup + priming per call |
-| `devsync` hot-reload | ~1 day | Loader-stub plugin + module push; eliminates Studio reload entirely |
+Without the daemon every `mcp` call spawns a fresh `StudioMCP.exe` and re-primes the
+active studio (~5–10 s of overhead per call). The daemon keeps one proxy alive behind
+a Unix socket; all `mcp.py` commands and any script importing `call_mcp`
+(`run_tests.py`, `hotpatch.py`, `devsync.py`) use it automatically and fall back to
+spawn-per-call when it isn't running.
+
+```bash
+mcp daemon start     # background; socket /tmp/roblox_mcp_daemon.sock
+mcp daemon status
+mcp daemon stop
+```
+
+Measured: single call 0.07 s (was ~7 s); full 146-case test suite 0.6 s (was ~13 s).
+The daemon self-heals — if Studio restarts (stale studio ID) or the proxy dies, it
+re-spawns/re-primes and retries once. Log: `/tmp/roblox_mcp_daemon.log`.
+
+## Tool 13 — `devsync` (hot-reload, no Studio restart)
+
+Eliminates the build → restart-Studio cycle for plugin development.
+
+```bash
+python3 devsync.py install     # one-time; restart Studio once after
+python3 devsync.py             # watch mode: every .lua save hot-reloads the plugin
+python3 devsync.py push        # one-shot push
+python3 devsync.py uninstall   # back to the normal build.py workflow
+```
+
+**Mechanism:** pushes the source tree as fresh ModuleScripts into
+`CoreGui.__MultiAnimDevSrc` (never saved with the place; fresh instances bust the
+require cache) and bumps a `Version` attribute. The `MultiAnimationDevLoader` stub
+plugin (built from `plugin/devloader.lua`) watches the attribute and re-runs
+`init.server.lua` via `loadstring` + `setfenv` with `script` → dev tree and
+`plugin` → loader handle. `init.server.lua` registers `_G.__MultiAnimTeardown`
+(stop playback, reconnect motors, disconnect DataModel-level connections, destroy
+widget + toolbar) which the next boot invokes first.
+
+`install` renames `MultiAnimation.rbxmx` → `.disabled` so the two plugin instances
+don't fight; `uninstall` restores it. Push takes ~0.4 s with the daemon running.
+
+The teardown changes in `init.server.lua` are inert for the normally installed
+plugin (`_G` is per plugin VM, empty on every normal load).
+
+## Backlog
+
+Empty — all planned dev tools are built.

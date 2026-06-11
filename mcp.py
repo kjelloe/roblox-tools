@@ -28,7 +28,14 @@ Usage:
     mcp.py store <query>          search the Creator Store
     mcp.py store <query> --insert insert the first matching asset [--name X] [--types A,B]
     mcp.py addrig [name]          clone Rig1 in Workspace.FIGURES (next free RigN if no name)
+    mcp.py daemon start|stop|status   persistent proxy — makes every call ~10x faster
     mcp.py <tool> [json_args]     call any raw tool by name
+
+Daemon mode:
+    Without the daemon every call spawns a fresh StudioMCP.exe and re-primes the
+    active studio (~5-10 s overhead).  `mcp daemon start` keeps one proxy alive
+    behind a Unix socket; all mcp.py commands (and run_tests.py / devsync.py)
+    use it automatically when running, and fall back to spawn-per-call if not.
 
 Playtest options:
     --no-deploy        skip the deploy step
@@ -116,14 +123,50 @@ def _result_texts(d: dict) -> tuple[list[str], bool]:
     return texts, result.get("isError", False)
 
 
+# ── daemon (persistent proxy) ─────────────────────────────────────────────────
+
+DAEMON_SOCK = "/tmp/roblox_mcp_daemon.sock"
+DAEMON_PID  = "/tmp/roblox_mcp_daemon.pid"
+DAEMON_LOG  = "/tmp/roblox_mcp_daemon.log"
+
+
+def _daemon_call(tool: str, args: dict, timeout: int) -> tuple[list[str], str | None] | None:
+    """Try the daemon socket. Returns (texts, err) or None if the daemon is unavailable."""
+    import socket
+    if not os.path.exists(DAEMON_SOCK):
+        return None
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(timeout + 40)   # leave room for daemon-side re-priming
+        s.connect(DAEMON_SOCK)
+        s.sendall((json.dumps({"tool": tool, "args": args, "timeout": timeout}) + "\n").encode())
+        buf = b""
+        while not buf.endswith(b"\n"):
+            chunk = s.recv(65536)
+            if not chunk:
+                break
+            buf += chunk
+        s.close()
+        if not buf:
+            return None
+        d = json.loads(buf.decode())
+        return d.get("texts", []), d.get("err")
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
 def call_mcp(tool: str, args: dict, timeout: int = 15) -> tuple[list[str], str | None]:
     """
     Call a single MCP tool.  Returns (texts, error_or_None).
 
-    Active-studio state is per proxy process, and this helper spawns a fresh
-    StudioMCP.exe per call — so every call is primed with list_roblox_studios +
-    set_active_studio before the real tool is sent.
+    Uses the daemon socket when `mcp daemon start` is running (fast path).
+    Otherwise spawns a fresh StudioMCP.exe — active-studio state is per proxy
+    process, so each spawn is primed with list_roblox_studios + set_active_studio.
     """
+    via_daemon = _daemon_call(tool, args, timeout)
+    if via_daemon is not None:
+        return via_daemon
+
     try:
         proc = subprocess.Popen(
             MCP_CMD,
@@ -857,6 +900,259 @@ return string.format("Added rig '%s' (offset +%d studs X); plugin auto-detect wi
         sys.exit(1)
 
 
+# ── daemon server ─────────────────────────────────────────────────────────────
+
+class _ProxySession:
+    """One long-lived StudioMCP.exe with priming and auto-recovery."""
+
+    def __init__(self):
+        self.proc = None
+        self.results: queue.Queue = queue.Queue()
+        self.msg_id = 1
+        self.primed = False
+
+    def _alive(self) -> bool:
+        return self.proc is not None and self.proc.poll() is None
+
+    def _spawn(self) -> str | None:
+        self.results = queue.Queue()
+        self.msg_id = 1
+        self.primed = False
+        try:
+            self.proc = subprocess.Popen(
+                MCP_CMD, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL, text=True,
+            )
+        except FileNotFoundError:
+            return "cmd.exe not found"
+
+        def _read(p=self.proc, q=self.results):
+            for raw in p.stdout:
+                raw = raw.strip()
+                if raw:
+                    try:
+                        q.put(json.loads(raw))
+                    except json.JSONDecodeError:
+                        pass
+        threading.Thread(target=_read, daemon=True).start()
+
+        self.proc.stdin.write(_INIT)
+        self.proc.stdin.flush()
+        deadline = time.time() + 6
+        while time.time() < deadline:
+            try:
+                if self.results.get(timeout=0.2).get("id") == 1:
+                    return None
+            except queue.Empty:
+                pass
+        return "proxy init handshake timed out"
+
+    def _next_id(self) -> int:
+        self.msg_id += 1
+        return self.msg_id
+
+    def _prime(self) -> str | None:
+        studios = []
+        for _ in range(5):
+            d = _rpc(self.proc, self.results, self._next_id(), "list_roblox_studios", {}, 10)
+            if d is not None:
+                texts, _ = _result_texts(d)
+                try:
+                    studios = (json.loads(texts[0]) if texts else {}).get("studios", [])
+                except (json.JSONDecodeError, IndexError):
+                    studios = []
+            if studios:
+                break
+            time.sleep(1)
+        if not studios:
+            return "no Studio instance connected"
+        chosen = next((s for s in studios if s.get("active")), studios[0])
+        _rpc(self.proc, self.results, self._next_id(), "set_active_studio",
+             {"studio_id": chosen["id"]}, 10)
+        self.primed = True
+        return None
+
+    def call(self, tool: str, args: dict, timeout: int) -> tuple[list[str], str | None]:
+        for attempt in (1, 2):
+            if not self._alive():
+                err = self._spawn()
+                if err:
+                    return [], err
+            if not self.primed and tool not in ("list_roblox_studios", "set_active_studio"):
+                err = self._prime()
+                if err:
+                    return [], err
+            try:
+                d = _rpc(self.proc, self.results, self._next_id(), tool, args, timeout)
+            except BrokenPipeError:
+                d = None
+                self.proc = None   # force respawn on retry
+            if d is None:
+                if attempt == 1:
+                    self.proc = None
+                    continue
+                return [], f"timeout after {timeout}s — Studio might not be open"
+            if "error" in d:
+                return [], d["error"].get("message", "MCP error")
+            texts, is_err = _result_texts(d)
+            full = "\n".join(texts)
+            # Studio restarted → stale active-studio. Re-prime and retry once.
+            stale = (
+                "Unable to find an active Studio" in full
+                or "previously active Studio has disconnected" in full
+                or "doesn't have a place opened" in full
+            )
+            if stale and attempt == 1:
+                self.primed = False
+                continue
+            return texts, ("Lua error (see output above)" if is_err else None)
+        return [], "daemon: unreachable"
+
+
+def _daemon_serve():
+    """Foreground daemon loop: serve call_mcp requests over a Unix socket."""
+    import socket
+    if os.path.exists(DAEMON_SOCK):
+        os.unlink(DAEMON_SOCK)
+
+    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    srv.bind(DAEMON_SOCK)
+    srv.listen(4)
+    with open(DAEMON_PID, "w") as f:
+        f.write(str(os.getpid()))
+
+    session = _ProxySession()
+    print(f"[daemon] listening on {DAEMON_SOCK} (pid {os.getpid()})", flush=True)
+
+    try:
+        while True:
+            conn, _ = srv.accept()
+            try:
+                buf = b""
+                conn.settimeout(10)
+                while not buf.endswith(b"\n"):
+                    chunk = conn.recv(65536)
+                    if not chunk:
+                        break
+                    buf += chunk
+                if not buf:
+                    conn.close(); continue
+                req = json.loads(buf.decode())
+
+                if req.get("cmd") == "stop":
+                    conn.sendall(b'{"texts": ["daemon stopping"], "err": null}\n')
+                    conn.close()
+                    break
+                if req.get("cmd") == "ping":
+                    alive = session._alive()
+                    conn.sendall((json.dumps({
+                        "texts": [f"daemon up (pid {os.getpid()}, proxy {'alive' if alive else 'idle'})"],
+                        "err": None}) + "\n").encode())
+                    conn.close(); continue
+
+                tool = req.get("tool", "")
+                args = req.get("args", {})
+                timeout = int(req.get("timeout", 15))
+                conn.settimeout(timeout + 60)
+                texts, err = session.call(tool, args, timeout)
+                conn.sendall((json.dumps({"texts": texts, "err": err}) + "\n").encode())
+            except (OSError, json.JSONDecodeError) as e:
+                try:
+                    conn.sendall((json.dumps({"texts": [], "err": f"daemon: {e}"}) + "\n").encode())
+                except OSError:
+                    pass
+            finally:
+                conn.close()
+    finally:
+        srv.close()
+        for p in (DAEMON_SOCK, DAEMON_PID):
+            if os.path.exists(p):
+                os.unlink(p)
+        if session.proc is not None:
+            session.proc.kill()
+        print("[daemon] stopped", flush=True)
+
+
+def _daemon_send_cmd(cmd: str) -> tuple[list[str], str | None] | None:
+    import socket
+    if not os.path.exists(DAEMON_SOCK):
+        return None
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(10)
+        s.connect(DAEMON_SOCK)
+        s.sendall((json.dumps({"cmd": cmd}) + "\n").encode())
+        buf = b""
+        while not buf.endswith(b"\n"):
+            chunk = s.recv(65536)
+            if not chunk:
+                break
+            buf += chunk
+        s.close()
+        if not buf:
+            return None
+        d = json.loads(buf.decode())
+        return d.get("texts", []), d.get("err")
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def cmd_daemon(argv: list[str]):
+    sub = argv[0] if argv else "status"
+
+    if sub == "run":
+        _daemon_serve()
+        return
+
+    if sub == "start":
+        if _daemon_send_cmd("ping"):
+            print("daemon already running")
+            return
+        if os.path.exists(DAEMON_SOCK):
+            os.unlink(DAEMON_SOCK)   # stale socket
+        log = open(DAEMON_LOG, "a")
+        subprocess.Popen(
+            [sys.executable, os.path.abspath(__file__), "daemon", "run"],
+            stdout=log, stderr=log, start_new_session=True,
+        )
+        # Wait for the socket to appear.
+        for _ in range(20):
+            time.sleep(0.25)
+            r = _daemon_send_cmd("ping")
+            if r:
+                print(r[0][0])
+                return
+        sys.exit(f"daemon failed to start — see {DAEMON_LOG}")
+
+    if sub == "stop":
+        r = _daemon_send_cmd("stop")
+        if r:
+            print(r[0][0])
+        else:
+            # Socket gone or unresponsive — try the pidfile.
+            if os.path.exists(DAEMON_PID):
+                try:
+                    with open(DAEMON_PID) as f:
+                        os.kill(int(f.read().strip()), 15)
+                    print("daemon killed via pidfile")
+                except (OSError, ValueError):
+                    print("daemon not running")
+                for p in (DAEMON_SOCK, DAEMON_PID):
+                    if os.path.exists(p):
+                        os.unlink(p)
+            else:
+                print("daemon not running")
+        return
+
+    if sub == "status":
+        r = _daemon_send_cmd("ping")
+        print(r[0][0] if r else "daemon not running")
+        return
+
+    print("Usage: mcp.py daemon start|stop|status", file=sys.stderr)
+    sys.exit(1)
+
+
 def cmd_raw(tool: str, argv: list[str]):
     args = {}
     if argv:
@@ -893,6 +1189,7 @@ _COMMANDS = {
     "gen":      cmd_gen,
     "store":    cmd_store,
     "addrig":   cmd_addrig,
+    "daemon":   cmd_daemon,
 }
 
 def main():

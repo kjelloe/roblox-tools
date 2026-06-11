@@ -90,7 +90,19 @@ mcp gen mesh "desc" [--size x,y,z] [--tris N]   # AI-generate textured mesh
 mcp gen material "desc" [--base Rock]      # AI-generate material variant
 mcp store "query" [--insert] [--name X]    # Creator Store search / insert
 mcp addrig [name]                          # clone Rig1 → next free RigN
+mcp daemon start|stop|status               # persistent proxy — ~100x faster calls
 ```
+
+## Hot Reload (devsync)
+
+```bash
+python3 devsync.py install     # one-time; restart Studio once after
+python3 devsync.py             # watch: every .lua save hot-reloads the plugin (~0.4s)
+python3 devsync.py push        # one-shot push
+python3 devsync.py uninstall   # restore the normal build.py workflow
+```
+
+Run `mcp daemon start` first for fast pushes. See `DEV_TOOLS.md` for the mechanism.
 
 ## Common MCP Calls
 

@@ -13,6 +13,19 @@
 -- editor / plugin context where this code actually belongs.
 if game:GetService("RunService"):IsRunning() then return end
 
+-- devsync hot-reload: tear down the previous instance before booting this one.
+-- _G is per plugin VM, so this is a no-op for a normally installed plugin and
+-- only fires when the dev loader re-runs this source in the same VM.
+if _G.__MultiAnimTeardown then
+    pcall(_G.__MultiAnimTeardown)
+    _G.__MultiAnimTeardown = nil
+end
+
+-- Boot counter for this plugin VM — used to derive fallback IDs when a
+-- toolbar/button/widget ID is still registered from an earlier hot-reload.
+_G.__MultiAnimBootCount = (_G.__MultiAnimBootCount or 0) + 1
+local BOOT_N = _G.__MultiAnimBootCount
+
 local RunService           = game:GetService("RunService")
 local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local HttpService          = game:GetService("HttpService")
@@ -28,29 +41,66 @@ local Exporter     = require(script.core.Exporter)
 local Panel        = require(script.ui.Panel)
 -- PropCapture required for its apply path (called via PoseApplier); Recorder requires it directly.
 
+-- DataModel-level connections (everything not parented under the widget) must
+-- be disconnected on devsync hot-reload or they accumulate across boots.
+local devConns = {}
+local function track(conn)
+    table.insert(devConns, conn)
+    return conn
+end
+
 -- ── Toolbar & widget ──────────────────────────────────────────────────────────
 
-local toolbar = plugin:CreateToolbar("MultiAnimation")
-local toggleButton = toolbar:CreateButton(
-    "MultiAnimation",
-    "Open / close the MultiAnimation panel",
-    ""
-)
+-- Toolbar and button IDs stay registered in the plugin VM even after
+-- toolbar:Destroy(), so re-creating them on a devsync hot-reload errors
+-- ("Cannot create more than one button with id ..."). Cache and reuse them
+-- across boots; if the cache is empty but the ID is burned (e.g. an older
+-- plugin version booted first in this VM), fall back to a suffixed ID.
+local toolbar = _G.__MultiAnimToolbar
+if not toolbar then
+    local ok, tb = pcall(function() return plugin:CreateToolbar("MultiAnimation") end)
+    toolbar = ok and tb or plugin:CreateToolbar("MultiAnimation " .. BOOT_N)
+    _G.__MultiAnimToolbar = toolbar
+end
+
+local toggleButton = _G.__MultiAnimToggleButton
+if not toggleButton then
+    local ok, btn = pcall(function()
+        return toolbar:CreateButton("MultiAnimation", "Open / close the MultiAnimation panel", "")
+    end)
+    toggleButton = ok and btn or toolbar:CreateButton(
+        "MultiAnimation " .. BOOT_N, "Open / close the MultiAnimation panel", "")
+    _G.__MultiAnimToggleButton = toggleButton
+end
 
 local widgetInfo = DockWidgetPluginGuiInfo.new(
     Enum.InitialDockState.Bottom,
     false, false, 300, 200, 220, 140
 )
-local widget = plugin:CreateDockWidgetPluginGui("MultiAnimation", widgetInfo)
+-- The widget ID may still be registered from a previous hot-reload boot in the
+-- same plugin VM; fall back to a suffixed ID so re-creation never hard-fails.
+local widget
+do
+    local ok, w = pcall(function()
+        return plugin:CreateDockWidgetPluginGui("MultiAnimation", widgetInfo)
+    end)
+    if ok then
+        widget = w
+    else
+        widget = plugin:CreateDockWidgetPluginGui("MultiAnimation_dev" .. BOOT_N, widgetInfo)
+    end
+end
 widget.Title = "MultiAnimation"
 widget.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 widget:GetPropertyChangedSignal("Enabled"):Connect(function()
     toggleButton:SetActive(widget.Enabled)
 end)
-toggleButton.Click:Connect(function()
+-- toggleButton persists across hot-reloads — its Click connection must be
+-- tracked or each boot would stack another handler on the same button.
+track(toggleButton.Click:Connect(function()
     widget.Enabled = not widget.Enabled
-end)
+end))
 
 -- ── Core state ────────────────────────────────────────────────────────────────
 
@@ -463,13 +513,13 @@ local function doStepFrame(direction)
 end
 
 -- Keyboard shortcuts (fire when viewport is focused; ignored when a TextBox has focus).
-game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+track(game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if      input.KeyCode == Enum.KeyCode.K  then doAddKeyframe()
     elseif  input.KeyCode == Enum.KeyCode.L  then doStepFrame( 1)   -- L = step forward
     elseif  input.KeyCode == Enum.KeyCode.J  then doStepFrame(-1)   -- J = step back
     end
-end)
+end))
 
 panel.onFrameChanged:Connect(function(newFrame)
     local f = timeline:setCurrent(newFrame)
@@ -676,7 +726,7 @@ local function findRigForInstance(instance)
     return nil
 end
 
-Selection.SelectionChanged:Connect(function()
+track(Selection.SelectionChanged:Connect(function()
     if isPlaying then return end
     local selected = Selection:Get()
     local foundRigs = {}
@@ -687,16 +737,16 @@ Selection.SelectionChanged:Connect(function()
     if next(foundRigs) then
         panel:setActiveRigs(foundRigs)
     end
-end)
+end))
 
 -- ── Clean up on unload ────────────────────────────────────────────────────────
 -- Reconnect all Motor6D joints so the rig is in a clean state when the plugin
 -- is disabled or Studio is closed.
 
-plugin.Unloading:Connect(function()
+track(plugin.Unloading:Connect(function()
     stopPlayback()
     reconnectAllRigs()
-end)
+end))
 
 -- ── FIGURES auto-detect (ChildAdded / ChildRemoved) ──────────────────────────
 
@@ -712,7 +762,7 @@ end
 
 local figuresFolder = workspace:FindFirstChild("FIGURES")
 if figuresFolder then
-    figuresFolder.ChildAdded:Connect(function(child)
+    track(figuresFolder.ChildAdded:Connect(function(child)
         -- Defer one frame so the model is fully parented/loaded.
         task.defer(function()
             if not child or not child.Parent then return end
@@ -727,18 +777,34 @@ if figuresFolder then
                 print("[MultiAnimation] Auto-detected rig: " .. child.Name)
             end
         end)
-    end)
+    end))
 
-    figuresFolder.ChildRemoved:Connect(function(child)
+    track(figuresFolder.ChildRemoved:Connect(function(child)
         if allRigs[child.Name] then
             allRigs[child.Name] = nil
             motorStates[child.Name] = nil   -- can't reconnect a removed model
             rebuildRigUI()
             print("[MultiAnimation] Rig removed from scene: " .. child.Name)
         end
-    end)
+    end))
 end
 
 -- ── Initial load ──────────────────────────────────────────────────────────────
 
 scanAndSetup()
+
+-- ── devsync teardown registration ─────────────────────────────────────────────
+-- The dev loader (devsync.py + MultiAnimationDevLoader) re-runs this source in
+-- the same plugin VM on every push; this closure lets the next boot cleanly
+-- dismantle this one (see the matching _G.__MultiAnimTeardown call at the top).
+
+_G.__MultiAnimTeardown = function()
+    pcall(stopPlayback)
+    pcall(reconnectAllRigs)
+    for _, c in ipairs(devConns) do
+        pcall(function() c:Disconnect() end)
+    end
+    -- Toolbar/button are reused across boots (IDs can't be re-created in
+    -- this plugin VM) — only the widget is destroyed and rebuilt.
+    pcall(function() widget:Destroy() end)
+end
