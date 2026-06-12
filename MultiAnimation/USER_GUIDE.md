@@ -40,7 +40,7 @@ while the panel is open.
 
 | Section | What's in it |
 |---|---|
-| **RIGS IN SCENE** | One button per detected rig (exclusive select — exactly one active), plus `↺ Refresh`, `Save As`, `Load`, `New` |
+| **RIGS IN SCENE** | One button per detected rig (exclusive select — exactly one active), plus `↺ Refresh`, `+ Rig`, `Save As`, `Load`, `New` |
 | **PROPS IN SCENE** | `Track Part` button + one toggle per tracked prop (multi-select), each with a `×` to untrack |
 | **TIMELINE** | One keyframe lane per rig (yellow dots), the Camera lane (orange/red dots), and one lane per prop (teal dots) |
 | **CONTROLS** | Frame navigation, step size, the scrubber, scene name, action buttons, and the camera row |
@@ -59,6 +59,22 @@ while the panel is open.
    the scrubber, or type a frame number. Pose again, keyframe again.
 5. **Watch it** — **▶ Preview** plays the timeline live in the viewport;
    **■ Stop** halts and leaves you at the current frame.
+
+**Adding rigs:** click **`+ Rig`** to clone Rig1 into FIGURES as the next free
+`RigN`, placed beside the existing rigs. It's detected and ready to animate
+immediately. (Dropping any R6 model into FIGURES by hand works too.)
+
+**Copying poses between rigs and frames:** the **Copy KF / Paste KF / Paste
+Mirrored** row at the bottom of CONTROLS is a keyframe clipboard:
+
+1. Select the source rig, go to the keyframe you want, click **Copy KF**
+   (the label shows what's held, e.g. `Rig1 @ 12`).
+2. Select the target rig and/or move to another frame, then click
+   **Paste KF** — the pose (joints + sizes) is written there. The target rig
+   keeps its own position in the world; only the pose transfers.
+3. **Paste Mirrored** flips the pose left↔right — a right-arm wave becomes a
+   left-arm wave. Perfect for symmetric walk cycles and mirrored reaction
+   shots between two characters.
 
 **Useful behaviours:**
 - Scrubbing **interpolates** between keyframes live, so you can inspect any
@@ -140,6 +156,10 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 | Where | Action | Result |
 |---|---|---|
 | Rig button (panel) | Click | Exclusive-select that rig |
+| `+ Rig` | Click | Clone Rig1 → next free RigN, auto-detected and ready |
+| `Copy KF` | Click | Copy the active rig's keyframe at the current frame |
+| `Paste KF` | Click | Paste the copied pose onto the active rig at the current frame |
+| `Paste Mirrored` | Click | Paste with left↔right swapped and reflected |
 | Rig part (viewport) | Click | Exclusive-select that rig in the panel |
 | Prop button (panel) | Click | Toggle that prop active/inactive (multi-select) |
 | Prop button `×` | Click | Untrack prop (data kept) |

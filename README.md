@@ -11,7 +11,8 @@ commands to work.
 
 > **Using the plugin itself?** See **`MultiAnimation/USER_GUIDE.md`** — the
 > animator-facing guide with the full workflow, every mouse interaction, and
-> all shortcut keys (`K` / `J` / `L` / `C`).
+> all shortcut keys (`K` / `J` / `L` / `C`). Prefer a browser? Open
+> **`MultiAnimation/USER_GUIDE.html`** for the styled version.
 
 ---
 
@@ -61,7 +62,7 @@ python3 watch.py               # or: auto-build on every save
 ## Testing
 
 ```bash
-mcp test                 # full suite — 164 cases, ~0.7s
+mcp test                 # full suite — 214 cases, ~1s
 mcp test prop            # only tests matching *prop*
 mcp test ui -v           # UI integration tests, verbose
 mcp playtest             # play-mode test: deploys, presses F5, watches the
@@ -200,7 +201,7 @@ MCP_NO_DAEMON=1 mcp state        # bypass it for one command
 |---|---|
 | `mcp.py` | The `mcp` CLI — every subcommand listed above (`mcp --help`) |
 | `MultiAnimation/` | The animation plugin: source, tests, build & dev scripts |
-| `MultiAnimation/USER_GUIDE.md` | **How to use the plugin** — full workflow, every interaction, all shortcut keys |
+|  `MultiAnimation/USER_GUIDE.md` (+ `.html`) | **How to use the plugin** — full workflow, every interaction, all shortcut keys |
 | `MultiAnimation/DEV_TOOLS.md` | Full documentation for every dev tool |
 | `MultiAnimation/SPEC.md` / `ARCHITECTURE.md` / `DATA_FORMAT.md` / `PHASES.md` | Plugin spec, design, data formats, roadmap |
 | `MultiAnimation/scenes/` | Version-controlled animation data (`mcp scene`) |

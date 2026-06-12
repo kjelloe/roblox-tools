@@ -493,6 +493,150 @@ function rebuildCameraUI()
     end
 end
 
+-- ── ADD RIG (Phase 9) ─────────────────────────────────────────────────────────
+-- Clones Rig1 (or the first tracked rig) into FIGURES under the next free
+-- RigN name, offset sideways so it doesn't overlap. The clone gets canonical
+-- Motor6D connections (the source's are nil'd by this plugin session); the
+-- FIGURES auto-detect then picks it up and manages it like any other rig.
+
+local ADDRIG_JOINT_PARENT = {
+    RootJoint = "HumanoidRootPart", Neck = "Torso",
+    ["Right Shoulder"] = "Torso", ["Left Shoulder"] = "Torso",
+    ["Right Hip"] = "Torso", ["Left Hip"] = "Torso",
+}
+
+local function doAddRig()
+    local fig = workspace:FindFirstChild("FIGURES")
+    if not fig then
+        warn("[MultiAnimation] No Workspace.FIGURES folder — nothing to clone into")
+        return nil
+    end
+
+    local src = fig:FindFirstChild("Rig1")
+    if not src then
+        local names = {}
+        for n in pairs(allRigs) do table.insert(names, n) end
+        table.sort(names)
+        src = names[1] and fig:FindFirstChild(names[1])
+    end
+    if not src then
+        warn("[MultiAnimation] No source rig found to clone")
+        return nil
+    end
+
+    local n = 2
+    while fig:FindFirstChild("Rig" .. n) do n += 1 end
+    local name = "Rig" .. n
+
+    local rigCount = 0
+    for _, c in ipairs(fig:GetChildren()) do
+        if c:FindFirstChildOfClass("Humanoid") then rigCount += 1 end
+    end
+
+    local clone = src:Clone()
+    clone.Name = name
+    for jName, pName in pairs(ADDRIG_JOINT_PARENT) do
+        local container = clone:FindFirstChild(pName)
+        local motor = container and container:FindFirstChild(jName)
+        if motor and motor:IsA("Motor6D") then
+            motor.Part0 = container
+        end
+    end
+    clone.Parent = fig
+    clone:PivotTo(src:GetPivot() * CFrame.new(5 * rigCount, 0, 0))
+    print(string.format("[MultiAnimation] Added rig '%s' (offset +%d studs)", name, 5 * rigCount))
+    return name
+end
+
+-- ── KEYFRAME CLIPBOARD (Phase 9) ──────────────────────────────────────────────
+-- Copy the active rig's keyframe at the current frame; paste it onto the
+-- active rig at the current frame — optionally mirrored left↔right.
+-- Pose only (joints + scales); the target rig keeps its own world position.
+
+local MIRROR_JOINT = {
+    ["Right Shoulder"] = "Left Shoulder", ["Left Shoulder"] = "Right Shoulder",
+    ["Right Hip"] = "Left Hip", ["Left Hip"] = "Right Hip",
+    RootJoint = "RootJoint", Neck = "Neck",
+}
+local MIRROR_PART = {
+    ["Right Arm"] = "Left Arm", ["Left Arm"] = "Right Arm",
+    ["Right Leg"] = "Left Leg", ["Left Leg"] = "Right Leg",
+    Head = "Head", Torso = "Torso", HumanoidRootPart = "HumanoidRootPart",
+}
+
+-- Mirror a joint transform across the rig's left-right (YZ) plane:
+-- conjugation by diag(-1,1,1) — negate x and the xy/xz/yx/zx rotation terms.
+-- Determinant stays +1, so the result is a valid rotation.
+local function mirrorCF(cf)
+    local x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22 = cf:GetComponents()
+    return CFrame.new(-x, y, z, r00, -r01, -r02, -r10, r11, r12, -r20, r21, r22)
+end
+
+local kfClipboard = nil   -- { rig, frame, joints = {name=CFrame}, scales = {name=Vector3} }
+
+local function activeRigName()
+    for n in pairs(panel:getActiveRigs()) do return n end
+    return nil
+end
+
+local function doCopyKeyframe()
+    local rigName = activeRigName()
+    if not rigName then
+        warn("[MultiAnimation] No active rig to copy from")
+        return false
+    end
+    local frame = timeline:getCurrent()
+    local jd = recorder:getJointData(rigName, frame)
+    if not jd then
+        warn(string.format("[MultiAnimation] %s has no keyframe at frame %d", rigName, frame))
+        return false
+    end
+    local joints, scales = {}, {}
+    for k, v in pairs(jd) do joints[k] = v end
+    for k, v in pairs(recorder:getScaleData(rigName, frame) or {}) do scales[k] = v end
+    kfClipboard = { rig = rigName, frame = frame, joints = joints, scales = scales }
+    panel:setClipboardDisplay(string.format("%s @ %d", rigName, frame))
+    print(string.format("[MultiAnimation] Copied %s keyframe @ %d", rigName, frame))
+    return true
+end
+
+local function doPasteKeyframe(mirrored)
+    if not kfClipboard then
+        warn("[MultiAnimation] Clipboard empty — Copy KF first")
+        return false
+    end
+    local rigName = activeRigName()
+    if not rigName then
+        warn("[MultiAnimation] No active rig to paste onto")
+        return false
+    end
+    local frame = timeline:getCurrent()
+
+    local joints, scales = {}, {}
+    if mirrored then
+        for jName, cf in pairs(kfClipboard.joints) do
+            joints[MIRROR_JOINT[jName] or jName] = mirrorCF(cf)
+        end
+        for pName, size in pairs(kfClipboard.scales) do
+            scales[MIRROR_PART[pName] or pName] = size
+        end
+    else
+        for k, v in pairs(kfClipboard.joints) do joints[k] = v end
+        for k, v in pairs(kfClipboard.scales) do scales[k] = v end
+    end
+
+    recorder:setJointData(rigName, frame, joints)
+    if next(scales) then
+        recorder:setScaleData(rigName, frame, scales)
+    end
+    panel:addKeyframeMarker(rigName, frame)
+    applyPosesAt(frame, false)
+    scheduleAutoSave()
+    print(string.format("[MultiAnimation] Pasted %s%s @ %d onto %s",
+        kfClipboard.rig, mirrored and " (mirrored)" or "", frame, rigName))
+    return true
+end
+
 local function doCameraCapture()
     if camPreviewOn then
         warn("[MultiAnimation] Turn Cam Preview OFF before capturing — the viewport is showing the track, not a new shot")
@@ -674,6 +818,18 @@ track(game:GetService("UserInputService").InputBegan:Connect(function(input, gam
     elseif  input.KeyCode == Enum.KeyCode.C  then doCameraCapture() -- C = camera keyframe
     end
 end))
+
+-- ── Add Rig / keyframe clipboard handlers ─────────────────────────────────────
+
+panel.onAddRigRequested:Connect(function()
+    doAddRig()
+end)
+
+panel.onCopyKeyframeRequested:Connect(doCopyKeyframe)
+
+panel.onPasteKeyframeRequested:Connect(function(mirrored)
+    doPasteKeyframe(mirrored)
+end)
 
 -- ── Camera track handlers ─────────────────────────────────────────────────────
 
@@ -1128,6 +1284,42 @@ local testBridge = TestBridge.start({
             savedCamState = nil
         end
         return camPreviewOn
+    end,
+
+    -- Add Rig / keyframe clipboard (Phase 9)
+    addRig = function()
+        return doAddRig()
+    end,
+
+    copyKeyframe = function()
+        return doCopyKeyframe()
+    end,
+
+    pasteKeyframe = function(a)
+        return doPasteKeyframe(a.mirrored == true)
+    end,
+
+    getClipboard = function()
+        if not kfClipboard then return nil end
+        return { rig = kfClipboard.rig, frame = kfClipboard.frame }
+    end,
+
+    getJointCF = function(a)
+        local jd = recorder:getJointData(a.rig, a.frame)
+        local cf = jd and jd[a.joint]
+        return cf and { cf:GetComponents() } or nil
+    end,
+
+    setJointCF = function(a)
+        local jd = recorder:getJointData(a.rig, a.frame)
+        if not jd then return false end
+        jd[a.joint] = CFrame.new(
+            a.cf[1],  a.cf[2],  a.cf[3],
+            a.cf[4],  a.cf[5],  a.cf[6],
+            a.cf[7],  a.cf[8],  a.cf[9],
+            a.cf[10], a.cf[11], a.cf[12]
+        )
+        return true
     end,
 })
 

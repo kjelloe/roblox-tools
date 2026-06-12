@@ -170,6 +170,8 @@ See `PHASES.md` for full task lists.
 | Interaction | Action |
 |---|---|
 | Click rig button in panel | Exclusive select — deactivates all others |
+| `+ Rig` button | Clone Rig1 → next free RigN (canonical motors, +5 studs offset, auto-detected) |
+| `Copy KF` / `Paste KF` / `Paste Mirrored` | Keyframe clipboard: copy active rig's pose at current frame; paste plain or left↔right mirrored |
 | Click rig part in viewport | Exclusive select that rig in panel |
 | Click prop button in panel | Multi-select toggle (independent of rig selection) |
 | Click "Track Part" button | Adds currently viewport-selected BasePart as a tracked prop |

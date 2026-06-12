@@ -12,7 +12,7 @@
 | 6 | Polish | ✅ Complete |
 | 7 | Prop Animation | ✅ Complete |
 | 8 | Camera Track & Cutscenes | ✅ Complete |
-| 9 | Future | ⬜ Backlog |
+| 9 | Quality of Life | 🔄 In Progress |
 
 ---
 
@@ -293,16 +293,38 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
 
 ---
 
-## Phase 9 — Future Backlog
+## Phase 9 — Quality of Life 🔄
+
+### Completed
+
+- [x] **"+ Rig" panel button** — clones Rig1 (or the first tracked rig) into
+      FIGURES under the next free `RigN` name, offset +5 studs per existing
+      rig, with canonical Motor6D connections restored on the clone (the
+      source's are nil'd by the plugin session); FIGURES auto-detect takes it
+      from there. Also exposed as the `addRig` TestBridge command.
+- [x] **Keyframe clipboard (copy / paste / paste-mirrored)** — CONTROLS row:
+      `Copy KF` copies the active rig's keyframe (joints + scales) at the
+      current frame; `Paste KF` writes it onto the active rig at the current
+      frame; `Paste Mirrored` swaps left↔right joints/parts and reflects each
+      transform across the rig's YZ plane
+      (`CFrame.new(-x,y,z, r00,-r01,-r02, -r10,r11,r12, -r20,r21,r22)` —
+      determinant stays +1). Pose only: the target rig keeps its own world
+      position (rootTrack is not copied). A label shows the clipboard source
+      (`Rig1 @ 12`). Bridge commands: `copyKeyframe`, `pasteKeyframe`,
+      `getClipboard`, `getJointCF`, `setJointCF`.
+- [x] Tests — `test_mirror_core.lua` (17: reflection math, involution,
+      determinant, name-map round-trips) and `test_ui_rigtools.lua` (19: live
+      add-rig + auto-detect, copy/paste/mirror through the bridge, full part-
+      CFrame snapshot/restore hygiene). Suite total: **250 cases**.
+
+### Backlog
 
 - Multiple named cameras + switcher track (authoring sugar over Phase 8 cuts)
 - Effect track — trigger ParticleEmitters / sounds at keyframes ("Add effect" TODO)
-- "+ Add Rig" panel button (logic already proven by `mcp addrig`)
 - Auto-capture on transform change
 - Per-keyframe easing curve selector
 - R15 rig support
 - Audio track sync
 - Upload to Roblox asset catalogue
 - Onion-skin ghost rendering
-- Copy/paste keyframe between rigs (mirror pose)
 - Prop property animation (emitter rate, transparency, colour)

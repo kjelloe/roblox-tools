@@ -292,6 +292,15 @@ function Panel.new(widget)
     self._eCamDbl = eCamDbl
     table.insert(evts, eCamDbl)
 
+    -- Phase 9: + Add Rig button and keyframe clipboard
+    local eAddRig = mkEvent("onAddRigRequested")
+    local eCopyKF = mkEvent("onCopyKeyframeRequested")
+
+    local ePasteKF = Instance.new("BindableEvent")
+    self.onPasteKeyframeRequested = ePasteKF.Event   -- fires (mirrored: bool)
+    self._ePasteKF = ePasteKF
+    table.insert(evts, ePasteKF)
+
     self._evts = evts
     self._lastSaveName = nil
 
@@ -318,10 +327,14 @@ function Panel.new(widget)
     divider(rigsSec, 5)
     local sessionRow = hrow(rigsSec, 6, 4)
     local refreshBtn = btn(sessionRow, "↺  Refresh", 1)
-    local saveAsBtn  = btn(sessionRow, "Save As",    2)
-    local loadBtn    = btn(sessionRow, "Load",        3)
-    local newBtn     = btn(sessionRow, "New",         4)
+    local addRigBtn  = btn(sessionRow, "+ Rig",      2)
+    local saveAsBtn  = btn(sessionRow, "Save As",    3)
+    local loadBtn    = btn(sessionRow, "Load",        4)
+    local newBtn     = btn(sessionRow, "New",         5)
     refreshBtn.MouseButton1Click:Connect(function() eRefresh:Fire() end)
+    addRigBtn.MouseButton1Click:Connect(function()
+        if not self._isPlaying then eAddRig:Fire() end
+    end)
     saveAsBtn.MouseButton1Click:Connect(function() self:_showSaveOverlay() end)
     loadBtn.MouseButton1Click:Connect(function() eReload:Fire() end)
     newBtn.MouseButton1Click:Connect(function() self:_showNewOverlay() end)
@@ -440,6 +453,24 @@ function Panel.new(widget)
     end)
     camModeBtn.MouseButton1Click:Connect(function()
         if not self._isPlaying then eCamMode:Fire() end
+    end)
+
+    -- Row 7: keyframe clipboard (copy a rig's pose to another rig / frame)
+    local clipRow = hrow(ctrlSec, 7, 4)
+    local copyKFBtn   = btn(clipRow, "Copy KF",        1)
+    local pasteKFBtn  = btn(clipRow, "Paste KF",       2)
+    local pasteMirBtn = btn(clipRow, "Paste Mirrored", 3)
+    local clipLbl     = lbl(clipRow, "", 110, 4)
+    self._clipLbl = clipLbl
+
+    copyKFBtn.MouseButton1Click:Connect(function()
+        if not self._isPlaying then eCopyKF:Fire() end
+    end)
+    pasteKFBtn.MouseButton1Click:Connect(function()
+        if not self._isPlaying then ePasteKF:Fire(false) end
+    end)
+    pasteMirBtn.MouseButton1Click:Connect(function()
+        if not self._isPlaying then ePasteKF:Fire(true) end
     end)
 
     -- ── Wire controls ─────────────────────────────────────────────────────────
@@ -836,6 +867,13 @@ end
 function Panel:setCameraModeDisplay(mode)
     if self._camModeBtn then
         self._camModeBtn.Text = "Cam KF: " .. (mode or "—")
+    end
+end
+
+-- Shows the keyframe-clipboard source, e.g. "Rig1 @ 12" (empty = nothing copied).
+function Panel:setClipboardDisplay(text)
+    if self._clipLbl then
+        self._clipLbl.Text = text or ""
     end
 end
 
