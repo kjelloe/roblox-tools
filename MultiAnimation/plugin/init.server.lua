@@ -31,14 +31,15 @@ local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local HttpService          = game:GetService("HttpService")
 local Selection            = game:GetService("Selection")
 
-local RigScanner   = require(script.core.RigScanner)
-local JointCapture = require(script.core.JointCapture)
-local Recorder     = require(script.core.Recorder)
-local Timeline     = require(script.core.Timeline)
-local Interpolator = require(script.core.Interpolator)
-local PoseApplier  = require(script.core.PoseApplier)
-local Exporter     = require(script.core.Exporter)
-local Panel        = require(script.ui.Panel)
+local RigScanner    = require(script.core.RigScanner)
+local JointCapture  = require(script.core.JointCapture)
+local Recorder      = require(script.core.Recorder)
+local Timeline      = require(script.core.Timeline)
+local Interpolator  = require(script.core.Interpolator)
+local PoseApplier   = require(script.core.PoseApplier)
+local Exporter      = require(script.core.Exporter)
+local CameraCapture = require(script.core.CameraCapture)
+local Panel         = require(script.ui.Panel)
 -- PropCapture required for its apply path (called via PoseApplier); Recorder requires it directly.
 
 -- DataModel-level connections (everything not parented under the widget) must
@@ -114,6 +115,14 @@ local motorStates  = {}   -- { [rigName] = disconnectAll() state } for cleanup
 local isPlaying    = false
 local playConn     = nil
 
+-- Camera track state (Phase 8). Vars live up here so applyPosesAt (defined
+-- early) sees them as upvalues; the helper functions are defined further down.
+local CAM_GIZMO_FOLDER = "__MultiAnimCameraGizmos"
+local camPreviewOn   = false
+local savedCamState  = nil    -- viewport camera snapshot while preview is on
+local camGizmos      = {}     -- { [frame] = Part }
+local gizmoSyncing   = false  -- guards the gizmo CFrame-changed feedback loop
+
 -- ── Motor management ──────────────────────────────────────────────────────────
 
 local function disconnectRig(rigName, model)
@@ -167,6 +176,17 @@ local function applyPosesAt(queryFrame, immediate)
             PoseApplier.applyPropRecorded(allProps, propCFrames)
         end
     end
+
+    -- Camera Preview: slave the Studio viewport to the interpolated camera track.
+    if camPreviewOn then
+        local camData = Interpolator.getCameraData(recorder, queryFrame)
+        if camData then
+            CameraCapture.apply(camData.cf, camData.fov)
+        end
+    end
+    -- Keep the "Cam KF: move/cut/—" button reflecting the current frame.
+    local camKF = recorder:getCameraData(math.floor(queryFrame + 0.5))
+    panel:setCameraModeDisplay(camKF and camKF.mode or nil)
 end
 
 local function allKeyframesSorted()
@@ -189,6 +209,10 @@ end
 local INDEX_KEY   = "MultiAnim_Index_v2"
 local DATA_PREFIX = "MultiAnim_Data_v2_"
 local MAX_SAVES   = 30
+
+-- Forward declarations — defined in the CAMERA TRACK section below.
+-- applySessionData needs them but is defined first.
+local updateCameraGizmo, clearCameraGizmos, rebuildCameraUI
 
 local function serializeSession()
     local session = recorder:getSession()
@@ -222,6 +246,14 @@ local function serializeSession()
             pOut[tostring(frame)] = { cf:GetComponents() }
         end
         out.props[propName] = pOut
+    end
+    out.camera = {}
+    for frame, kf in pairs((session.camera and session.camera.track) or {}) do
+        out.camera[tostring(frame)] = {
+            cf   = { kf.cf:GetComponents() },
+            fov  = kf.fov,
+            mode = kf.mode,
+        }
     end
     return out
 end
@@ -258,6 +290,12 @@ local function applySessionData(data)
         panel:removeProp(propName)
     end
     allProps = {}
+
+    -- Clear camera UI (markers + gizmos) before the recorder data goes away.
+    for _, f in ipairs(recorder:getSortedCameraFrames()) do
+        panel:removeCameraKeyframeMarker(f)
+    end
+    if clearCameraGizmos then clearCameraGizmos() end
 
     recorder:clearSession()
     local fps        = data.fps        or 24
@@ -326,12 +364,26 @@ local function applySessionData(data)
             panel:addPropKeyframeMarker(propName, frame)
         end
     end
+    -- Restore camera track keyframes.
+    for frameStr, kf in pairs(data.camera or {}) do
+        local frame = tonumber(frameStr)
+        if frame and kf.cf then
+            recorder:addCameraKeyframe(frame, CFrame.new(
+                kf.cf[1],  kf.cf[2],  kf.cf[3],
+                kf.cf[4],  kf.cf[5],  kf.cf[6],
+                kf.cf[7],  kf.cf[8],  kf.cf[9],
+                kf.cf[10], kf.cf[11], kf.cf[12]
+            ), kf.fov, kf.mode)
+        end
+    end
+
     panel:setRigs(allRigs)
     for rigName in pairs(allRigs) do
         for _, frame in ipairs(recorder:getSortedFrames(rigName)) do
             panel:addKeyframeMarker(rigName, frame)
         end
     end
+    if rebuildCameraUI then rebuildCameraUI() end
     panel:setFrameCount(frameCount)
     panel:setFrameDisplay(timeline:getCurrent(), frameCount)
 end
@@ -357,6 +409,107 @@ local function scheduleAutoSave()
         _autoSavePending = false
         saveNamed("_autosave")
     end)
+end
+
+-- ── CAMERA TRACK (Phase 8) ────────────────────────────────────────────────────
+-- One camera track on the shared timeline. Keyframes are captured from the
+-- Studio viewport camera; gizmo parts visualize each shot in the scene.
+-- Gizmos are Archivable = false so they never save into the place file.
+
+local CAM_GIZMO_MOVE_COLOUR = Color3.fromRGB(255, 150, 40)
+local CAM_GIZMO_CUT_COLOUR  = Color3.fromRGB(255, 80, 80)
+
+local function getGizmoFolder()
+    local folder = workspace:FindFirstChild(CAM_GIZMO_FOLDER)
+    if not folder then
+        folder = Instance.new("Folder")
+        folder.Name = CAM_GIZMO_FOLDER
+        folder.Archivable = false
+        folder.Parent = workspace
+    end
+    return folder
+end
+
+-- Create/refresh (or remove, if the keyframe is gone) the gizmo for one frame.
+function updateCameraGizmo(frame)
+    local kf = recorder:getCameraData(frame)
+    if not kf then
+        if camGizmos[frame] then
+            camGizmos[frame]:Destroy()
+            camGizmos[frame] = nil
+        end
+        return
+    end
+
+    local gizmo = camGizmos[frame]
+    if not gizmo then
+        gizmo = Instance.new("Part")
+        gizmo.Name        = "CamKF_" .. frame
+        gizmo.Size        = Vector3.new(0.7, 0.7, 1.4)
+        gizmo.Anchored    = true
+        gizmo.CanCollide  = false
+        gizmo.CastShadow  = false
+        gizmo.Transparency = 0.25
+        gizmo.Archivable  = false
+        -- Hinge stud on the front face marks the look direction (-Z).
+        gizmo.FrontSurface  = Enum.SurfaceType.Hinge
+        gizmo.TopSurface    = Enum.SurfaceType.Smooth
+        gizmo.BottomSurface = Enum.SurfaceType.Smooth
+        gizmo.Parent = getGizmoFolder()
+
+        -- Dragging the gizmo with Studio tools re-aims that keyframe.
+        gizmo:GetPropertyChangedSignal("CFrame"):Connect(function()
+            if gizmoSyncing then return end
+            local current = recorder:getCameraData(frame)
+            if current then
+                recorder:addCameraKeyframe(frame, gizmo.CFrame, current.fov, current.mode)
+                scheduleAutoSave()
+            end
+        end)
+        camGizmos[frame] = gizmo
+    end
+
+    gizmoSyncing = true
+    gizmo.CFrame = kf.cf
+    gizmo.Color  = kf.mode == "cut" and CAM_GIZMO_CUT_COLOUR or CAM_GIZMO_MOVE_COLOUR
+    gizmoSyncing = false
+end
+
+function clearCameraGizmos()
+    for _, gizmo in pairs(camGizmos) do
+        gizmo:Destroy()
+    end
+    camGizmos = {}
+    local folder = workspace:FindFirstChild(CAM_GIZMO_FOLDER)
+    if folder then folder:Destroy() end
+end
+
+-- Rebuild markers + gizmos from recorder state (after load / new session).
+function rebuildCameraUI()
+    for _, frame in ipairs(recorder:getSortedCameraFrames()) do
+        local kf = recorder:getCameraData(frame)
+        panel:addCameraKeyframeMarker(frame, kf.mode)
+        updateCameraGizmo(frame)
+    end
+end
+
+local function doCameraCapture()
+    if camPreviewOn then
+        warn("[MultiAnimation] Turn Cam Preview OFF before capturing — the viewport is showing the track, not a new shot")
+        return
+    end
+    local frame = timeline:getCurrent()
+    local snap  = CameraCapture.capture()
+    local existing = recorder:getCameraData(frame)
+    local mode = existing and existing.mode or "move"
+
+    recorder:addCameraKeyframe(frame, snap.cf, snap.fov, mode)
+    panel:addCameraKeyframeMarker(frame, mode)
+    updateCameraGizmo(frame)
+    panel:setCameraModeDisplay(mode)
+    scheduleAutoSave()
+    print(string.format("[MultiAnimation] Camera keyframe at frame %d (fov %.0f, %s)",
+        frame, snap.fov, mode))
 end
 
 -- ── Playback ──────────────────────────────────────────────────────────────────
@@ -518,8 +671,57 @@ track(game:GetService("UserInputService").InputBegan:Connect(function(input, gam
     if      input.KeyCode == Enum.KeyCode.K  then doAddKeyframe()
     elseif  input.KeyCode == Enum.KeyCode.L  then doStepFrame( 1)   -- L = step forward
     elseif  input.KeyCode == Enum.KeyCode.J  then doStepFrame(-1)   -- J = step back
+    elseif  input.KeyCode == Enum.KeyCode.C  then doCameraCapture() -- C = camera keyframe
     end
 end))
+
+-- ── Camera track handlers ─────────────────────────────────────────────────────
+
+panel.onCameraCaptureRequested:Connect(doCameraCapture)
+
+panel.onCameraPreviewToggled:Connect(function(isOn)
+    camPreviewOn = isOn
+    if isOn then
+        savedCamState = CameraCapture.saveState()
+        applyPosesAt(timeline:getCurrent(), false)   -- snap viewport onto the track
+    else
+        CameraCapture.restoreState(savedCamState)
+        savedCamState = nil
+    end
+end)
+
+panel.onCameraModeToggleRequested:Connect(function()
+    local frame = timeline:getCurrent()
+    local kf = recorder:getCameraData(frame)
+    if not kf then return end
+    local newMode = (kf.mode == "cut") and "move" or "cut"
+    recorder:setCameraMode(frame, newMode)
+    panel:setCameraMarkerMode(frame, newMode)
+    panel:setCameraModeDisplay(newMode)
+    updateCameraGizmo(frame)
+    scheduleAutoSave()
+end)
+
+panel.onCameraMarkerClicked:Connect(function(frame)
+    local f = timeline:setCurrent(frame)
+    panel:setFrameDisplay(f, timeline:getFrameCount())
+    applyPosesAt(f, false)
+end)
+
+panel.onCameraMarkerDeleteRequested:Connect(function(frame)
+    recorder:deleteCameraKeyframe(frame)
+    panel:removeCameraKeyframeMarker(frame)
+    updateCameraGizmo(frame)   -- keyframe gone → gizmo removed
+    panel:setCameraModeDisplay(nil)
+    scheduleAutoSave()
+end)
+
+panel.onCameraLaneDoubleClicked:Connect(function(frame)
+    local f = timeline:setCurrent(frame)
+    panel:setFrameDisplay(f, timeline:getFrameCount())
+    applyPosesAt(f, false)
+    doCameraCapture()
+end)
 
 panel.onFrameChanged:Connect(function(newFrame)
     local f = timeline:setCurrent(newFrame)
@@ -686,6 +888,12 @@ panel.onNewSessionConfirmed:Connect(function()
         panel:removeProp(propName)
     end
     allProps = {}
+    -- Clear camera UI (markers + gizmos) before the data goes away.
+    for _, f in ipairs(recorder:getSortedCameraFrames()) do
+        panel:removeCameraKeyframeMarker(f)
+    end
+    clearCameraGizmos()
+    panel:setCameraModeDisplay(nil)
     recorder:clearSession()
     timeline:setCurrent(1)
     scanAndSetup()
@@ -729,6 +937,18 @@ end
 track(Selection.SelectionChanged:Connect(function()
     if isPlaying then return end
     local selected = Selection:Get()
+
+    -- Clicking a camera gizmo jumps the timeline to its keyframe.
+    for _, inst in ipairs(selected) do
+        local frameStr = inst.Name:match("^CamKF_(%d+)$")
+        if frameStr and inst.Parent and inst.Parent.Name == CAM_GIZMO_FOLDER then
+            local f = timeline:setCurrent(tonumber(frameStr))
+            panel:setFrameDisplay(f, timeline:getFrameCount())
+            applyPosesAt(f, false)
+            return
+        end
+    end
+
     local foundRigs = {}
     for _, inst in ipairs(selected) do
         local rigName = findRigForInstance(inst)
@@ -746,6 +966,10 @@ end))
 track(plugin.Unloading:Connect(function()
     stopPlayback()
     reconnectAllRigs()
+    if camPreviewOn then
+        CameraCapture.restoreState(savedCamState)
+    end
+    clearCameraGizmos()
     -- testBridge is declared below; guard for the unload-before-init edge.
     local bridge = game:GetService("CoreGui"):FindFirstChild("__MultiAnimTestBridge")
     if bridge then bridge:Destroy() end
@@ -853,6 +1077,58 @@ local testBridge = TestBridge.start({
         panel:removeKeyframeMarker(a.rig, a.frame)
         return true
     end,
+
+    -- Camera track (Phase 8)
+    captureCamera = function()
+        doCameraCapture()
+        local kf = recorder:getCameraData(timeline:getCurrent())
+        return kf and { frame = timeline:getCurrent(), fov = kf.fov, mode = kf.mode } or nil
+    end,
+
+    getCameraFrames = function()
+        return recorder:getSortedCameraFrames()
+    end,
+
+    getCameraKeyframe = function(a)
+        local kf = recorder:getCameraData(a.frame)
+        if not kf then return nil end
+        return { fov = kf.fov, mode = kf.mode, cf = { kf.cf:GetComponents() } }
+    end,
+
+    setCameraMode = function(a)
+        local ok = recorder:setCameraMode(a.frame, a.mode)
+        if ok then
+            panel:setCameraMarkerMode(a.frame, a.mode)
+            updateCameraGizmo(a.frame)
+        end
+        return ok
+    end,
+
+    deleteCameraKeyframe = function(a)
+        recorder:deleteCameraKeyframe(a.frame)
+        panel:removeCameraKeyframeMarker(a.frame)
+        updateCameraGizmo(a.frame)
+        return true
+    end,
+
+    getInterpolatedCamera = function(a)
+        local cam = Interpolator.getCameraData(recorder, a.frame)
+        if not cam then return nil end
+        return { fov = cam.fov, cf = { cam.cf:GetComponents() } }
+    end,
+
+    setCameraPreview = function(a)
+        panel:setCameraPreviewState(a.on and true or false)
+        camPreviewOn = a.on and true or false
+        if camPreviewOn then
+            savedCamState = savedCamState or CameraCapture.saveState()
+            applyPosesAt(timeline:getCurrent(), false)
+        else
+            CameraCapture.restoreState(savedCamState)
+            savedCamState = nil
+        end
+        return camPreviewOn
+    end,
 })
 
 -- ── devsync teardown registration ─────────────────────────────────────────────
@@ -863,6 +1139,10 @@ local testBridge = TestBridge.start({
 _G.__MultiAnimTeardown = function()
     pcall(stopPlayback)
     pcall(reconnectAllRigs)
+    if camPreviewOn then
+        pcall(function() CameraCapture.restoreState(savedCamState) end)
+    end
+    pcall(clearCameraGizmos)
     for _, c in ipairs(devConns) do
         pcall(function() c:Disconnect() end)
     end

@@ -49,8 +49,19 @@ session = {
             },
         },
     },
+    camera = {                  -- Phase 8 — one camera track per session
+        track = {
+            -- key = frame number
+            [1]  = { cf = CFrame, fov = 70, mode = "move" },
+            [40] = { cf = CFrame, fov = 35, mode = "cut"  },
+        },
+    },
 }
 ```
+
+`camera.track` keyframes: `cf` is the world-space viewport-camera CFrame, `fov`
+the FieldOfView, `mode` either `"move"` (interpolate from the previous keyframe)
+or `"cut"` (the previous shot holds until this frame, then jumps).
 
 `props` is absent in sessions saved before Phase 7; consumers treat absence as `{}`.
 
@@ -192,6 +203,27 @@ return {
 
 ---
 
+## Exported: CameraTrack ModuleScript (Phase 8)
+
+Written when any camera keyframes were recorded; omitted otherwise.
+
+```lua
+-- CameraTrack (ModuleScript source)
+return {
+    fps = 24,
+    frames = {
+        -- [frameNumber] = { cf = {x,y,z, r00..r22}, fov = number, cut = bool }
+        [1]  = {cf = {3,12,-7, 1,0,0, 0,1,0, 0,0,1}, fov = 70, cut = false},
+        [40] = {cf = {0,8,20,  ...},                 fov = 35, cut = true},
+    },
+}
+```
+
+`cut = true` means the previous shot holds until this frame, then jumps
+(no interpolation toward a cut keyframe). Keyframe time = `(frame - 1) / fps`.
+
+---
+
 ## ServerStorage Layout
 
 ```
@@ -201,14 +233,39 @@ ServerStorage
     │   ├── Rig1_Joints   (KeyframeSequence)
     │   ├── Rig2_Joints   (KeyframeSequence)
     │   ├── ScaleTracks   (ModuleScript)
-    │   └── PropTracks    (ModuleScript — absent if no props in scene)
+    │   ├── RootTracks    (ModuleScript — absent if no whole-model movement)
+    │   ├── PropTracks    (ModuleScript — absent if no props in scene)
+    │   └── CameraTrack   (ModuleScript — absent if no camera keyframes)
     ├── Scene_002
     │   └── ...
-    └── MultiAnimPlayer   (ModuleScript — game playback API)
+    ├── MultiAnimPlayer   (ModuleScript — game playback API)
+    ├── CutsceneServer    (ModuleScript — synchronized cutscene start, server)
+    └── CutsceneCamera    (ModuleScript — client camera driver; a copy is
+                           published to ReplicatedStorage on first play)
 ```
 
 `MultiAnimPlayer` is placed here so any `Script` or `LocalScript` in the game
 can `require` it without a plugin dependency.
+
+## Cutscene API (Phase 8)
+
+```lua
+-- Server Script:
+local Cutscene = require(game.ServerStorage.MultiAnimationData.CutsceneServer)
+Cutscene.play("Scene_001", { Rig1 = workspace.FIGURES.Rig1 }, propMap)  -- broadcasts start
+Cutscene.stop()
+Cutscene.onFinished(function(sceneName) end)
+
+-- LocalScript (e.g. StarterPlayerScripts):
+require(game.ReplicatedStorage:WaitForChild("CutsceneCamera")).start()
+```
+
+`CutsceneServer.play` fires a RemoteEvent with the scene name, a shared
+`workspace:GetServerTimeNow()` start timestamp (+0.35 s lead), and the
+CameraTrack data (clients cannot read ServerStorage). Each client sets its
+camera to `Scriptable` and drives CFrame + FOV per RenderStepped against the
+shared clock; the player camera is restored when the track ends or on stop.
+Known caveat: rig motion replicates ~50–100 ms behind the locally-driven camera.
 
 ---
 

@@ -123,12 +123,14 @@ function TrackLane:_markerXOffset(frame)
 end
 
 -- Add or overwrite a keyframe marker at the given frame.
-function TrackLane:addMarker(frame)
+-- colourOverride lets one marker differ from the lane colour
+-- (used by the camera lane: cut keyframes are red, move keyframes orange).
+function TrackLane:addMarker(frame, colourOverride)
     if self._markers[frame] then
         self._markers[frame]:destroy()
     end
 
-    local marker = KeyframeMarker.new(self._track, frame, self._colour)
+    local marker = KeyframeMarker.new(self._track, frame, colourOverride or self._colour)
     marker:setXOffset(self:_markerXOffset(frame))
 
     marker.onClicked:Connect(function(f)
@@ -146,6 +148,11 @@ function TrackLane:removeMarker(frame)
         self._markers[frame]:destroy()
         self._markers[frame] = nil
     end
+end
+
+function TrackLane:setMarkerColour(frame, colour)
+    local marker = self._markers[frame]
+    if marker then marker:setColour(colour) end
 end
 
 function TrackLane:clearMarkers()

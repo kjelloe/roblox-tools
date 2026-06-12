@@ -9,6 +9,10 @@ Everything talks to a running Roblox Studio through the Studio MCP server
 (`StudioMCP.exe`), so **Studio must be open with the place loaded** for most
 commands to work.
 
+> **Using the plugin itself?** See **`MultiAnimation/USER_GUIDE.md`** — the
+> animator-facing guide with the full workflow, every mouse interaction, and
+> all shortcut keys (`K` / `J` / `L` / `C`).
+
 ---
 
 ## One-Time Setup
@@ -119,6 +123,32 @@ is lossless.
 
 ---
 
+## Cutscenes (Camera Track)
+
+Authoring happens entirely in edit mode:
+
+1. Fly the Studio viewport to the shot you want and press **`C`** — that view
+   becomes a camera keyframe at the current frame (orange dot on the Camera
+   lane, plus a gizmo part in the scene showing the shot).
+2. Keyframes default to **move** (smooth glide from the previous shot). Press
+   the **Cam KF** button to flip one to **cut** (hard jump — dot turns red).
+3. Toggle **Cam Preview** and scrub: your viewport becomes the cutscene camera.
+   Toggle off to get your normal view back.
+4. Export the scene — a `CameraTrack` rides along with the animation data.
+
+In-game synchronized playback (all players see the same cutscene):
+
+```lua
+-- Server Script:
+local Cutscene = require(game.ServerStorage.MultiAnimationData.CutsceneServer)
+Cutscene.play("Scene_001", { Rig1 = workspace.FIGURES.Rig1, Rig2 = workspace.FIGURES.Rig2 })
+
+-- LocalScript in StarterPlayerScripts:
+require(game.ReplicatedStorage:WaitForChild("CutsceneCamera")).start()
+```
+
+---
+
 ## Creating Assets
 
 ```bash
@@ -170,6 +200,7 @@ MCP_NO_DAEMON=1 mcp state        # bypass it for one command
 |---|---|
 | `mcp.py` | The `mcp` CLI — every subcommand listed above (`mcp --help`) |
 | `MultiAnimation/` | The animation plugin: source, tests, build & dev scripts |
+| `MultiAnimation/USER_GUIDE.md` | **How to use the plugin** — full workflow, every interaction, all shortcut keys |
 | `MultiAnimation/DEV_TOOLS.md` | Full documentation for every dev tool |
 | `MultiAnimation/SPEC.md` / `ARCHITECTURE.md` / `DATA_FORMAT.md` / `PHASES.md` | Plugin spec, design, data formats, roadmap |
 | `MultiAnimation/scenes/` | Version-controlled animation data (`mcp scene`) |

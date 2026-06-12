@@ -32,19 +32,24 @@ MultiAnimation/
 │   │   ├── TrackLane.lua
 │   │   ├── KeyframeMarker.lua
 │   │   └── Scrubber.lua
-│   └── core/
-│       ├── RigScanner.lua
-│       ├── Recorder.lua
-│       ├── JointCapture.lua
-│       ├── ScaleCapture.lua
-│       ├── PropCapture.lua
-│       ├── Timeline.lua
-│       ├── Interpolator.lua
-│       ├── PoseApplier.lua
-│       └── Exporter.lua
+│   ├── core/
+│   │   ├── RigScanner.lua
+│   │   ├── Recorder.lua
+│   │   ├── JointCapture.lua
+│   │   ├── ScaleCapture.lua
+│   │   ├── PropCapture.lua
+│   │   ├── CameraCapture.lua   ← viewport camera capture/preview (Phase 8)
+│   │   ├── Timeline.lua
+│   │   ├── Interpolator.lua
+│   │   ├── PoseApplier.lua
+│   │   ├── TestBridge.lua      ← CoreGui BindableFunction for UI tests
+│   │   └── Exporter.lua
+│   └── devloader.lua           ← devsync hot-reload stub (NOT in normal build)
 │
-└── game/
-    └── MultiAnimPlayer.lua ← in-game playback ModuleScript (no plugin dep)
+└── game/                       ← in-game ModuleScripts (no plugin dep)
+    ├── MultiAnimPlayer.lua     ← animation playback
+    ├── CutsceneServer.lua      ← synchronized cutscene start (server)
+    └── CutsceneCamera.lua      ← client camera driver
 ```
 
 ---
@@ -193,6 +198,11 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 | `test_rig_root_motion.lua` | rootTrack capture/apply/interpolate; whole-model lift on real Rig1 (15 cases) |
 | `test_exporter.lua` | `Pose.CFrame` API; KFS structure; RootTracks whole-model positions (23 cases) |
 | `test_ui_bridge.lua` | UI integration via CoreGui TestBridge — rig selection, frame nav, KF round-trip (18 cases) |
+| `test_camera_core.lua` | Camera keyframe CRUD; cut-vs-move interpolation; FOV lerp (17 cases) |
+| `test_camera_exporter.lua` | CameraTrack source builder; cut flags; omit-if-empty (16 cases) |
+| `test_ui_camera.lua` | Live camera capture, gizmo lifecycle, preview restore via TestBridge (17 cases) |
+
+Suite total: **214 cases** across 15 files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive).
 
 All tests inline their module logic (no `require()` to plugin modules) and return a PASS/FAIL string for `execute_luau`. Run with:
 

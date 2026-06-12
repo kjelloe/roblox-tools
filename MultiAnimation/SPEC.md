@@ -94,6 +94,21 @@ architectural changes.
 | O-10 | As an animator, Preview playback moves props in the viewport at the configured FPS, interpolated between keyframes. |
 | O-11 | As an animator, prop tracks are included in Save As / Load so my prop keyframes persist across sessions. |
 
+### Camera track & cutscenes
+
+| ID | Story |
+|----|-------|
+| C-01 | As an animator, I can press `C` (or the 📷 button) to capture the current Studio viewport camera (position, rotation, FOV) as a camera keyframe at the current frame. |
+| C-02 | As an animator, camera keyframes appear as orange dots on a dedicated Camera track lane; cut keyframes are red. |
+| C-03 | As an animator, each camera keyframe is either "move" (smooth interpolation from the previous shot) or "cut" (the previous shot holds, then jumps); I can toggle the mode of the keyframe at the current frame with one button. |
+| C-04 | As an animator, every camera keyframe renders a gizmo part in the scene showing the shot's position and direction; gizmos are never saved with the place. |
+| C-05 | As an animator, clicking a camera gizmo in the viewport jumps the timeline to its frame; dragging a gizmo with Studio tools re-aims that keyframe. |
+| C-06 | As an animator, I can toggle "Cam Preview" so the Studio viewport follows the interpolated camera track while I scrub or preview — and get my exact previous view back when I toggle it off. |
+| C-07 | As an animator, FOV is captured per keyframe and interpolated on moves (enabling zoom shots), jumping on cuts. |
+| C-08 | As an animator, exporting a scene writes a `CameraTrack` ModuleScript alongside the animation data (omitted when no camera keyframes exist). |
+| C-09 | As a developer, calling `CutsceneServer.play(scene, rigMap)` plays the animation and synchronizes every connected player's camera to the camera track via a shared server timestamp. |
+| C-10 | As a player, my camera is restored to normal when the cutscene ends or is stopped. |
+
 ### In-game playback
 
 | ID | Story |
@@ -155,6 +170,13 @@ A Model in `Workspace.FIGURES` is recognised as an R6 rig if it contains:
 - Sub-parts (`MeshPart`, `SpecialMesh`, `ParticleEmitter`) follow the parent part's CFrame automatically — their own properties are not animated.
 - Props are identified by `Name` for session persistence. If a prop is not found by name on session load, that prop's tracks are skipped with a warning.
 
+## Camera Constraints (Phase 8)
+
+- One camera track per session (multiple named cameras + switcher = Phase 9).
+- Camera gizmos live in `workspace.__MultiAnimCameraGizmos` with `Archivable = false` — they never persist into the saved place and are removed on plugin unload.
+- Synchronized playback: the server broadcasts the camera track data in the RemoteEvent payload (clients cannot read ServerStorage) plus a `GetServerTimeNow()` start timestamp with a 0.35 s lead.
+- Known caveat: rig motion reaches clients via replication ~50–100 ms behind the locally-computed camera; acceptable for v1 (full client-side playback is the v2 fix).
+
 ## Out of Scope (v1)
 
 - Auto-capture on transform change (future Phase 6)
@@ -163,3 +185,4 @@ A Model in `Workspace.FIGURES` is recognised as an R6 rig if it contains:
 - Audio sync
 - Uploading animations to Roblox asset catalogue
 - Rig FK/IK controls
+- Multiple named cameras with a switcher track (Phase 9)

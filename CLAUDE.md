@@ -85,4 +85,5 @@ The daemon auto-starts and makes calls ~100x faster.
 MultiAnimation-specific scripts in `MultiAnimation/`: `build.py`, `watch.py`,
 `devsync.py` (hot-reload without Studio restart), `run_tests.py`, `hotpatch.py`.
 
-Human guide: `README.md`. Full tool docs: `MultiAnimation/DEV_TOOLS.md`.
+Human guides: `README.md` (tooling), `MultiAnimation/USER_GUIDE.md` (plugin usage
++ all shortcuts). Full tool docs: `MultiAnimation/DEV_TOOLS.md`.

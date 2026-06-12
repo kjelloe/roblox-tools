@@ -58,6 +58,7 @@
 | `core/ScaleCapture` | Core | Reads/writes Part.Size |
 | `core/PropCapture` | Core | Reads/writes BasePart.CFrame (world space) |
 | `core/TestBridge` | Core | CoreGui BindableFunction — lets execute_luau drive the live panel (UI tests) |
+| `core/CameraCapture` | Core | Reads/writes the Studio viewport camera (capture keyframes, Camera Preview) |
 | `core/Timeline` | Core | Frame counter, fps, prev/next KF helpers |
 | `core/Interpolator` | Core | Linear lerp between keyframes (joints, scale, props) |
 | `core/PoseApplier` | Core | Applies poses; manages ChangeHistoryService |
@@ -69,6 +70,8 @@
 | `ui/KeyframeMarker` | UI | Individual dot on a TrackLane; left-click jumps, right-click deletes |
 | `ui/Scrubber` | UI | Horizontal drag slider for frame position |
 | `game/MultiAnimPlayer` | Game | In-game simultaneous playback — direct Motor6D.Transform Heartbeat loop |
+| `game/CutsceneServer` | Game | Synchronized cutscene start: plays anims, broadcasts camera track + timestamp |
+| `game/CutsceneCamera` | Game | Client camera driver: Scriptable camera follows CameraTrack on a shared clock |
 
 ---
 
@@ -113,6 +116,9 @@ init.server.lua
     ├── TestBridge.lua      BindableFunction in CoreGui (JSON protocol) so
     │                       execute_luau can drive the panel — UI integration tests
     │
+    ├── CameraCapture.lua   Reads/writes workspace.CurrentCamera (CFrame + FOV)
+    │                       capture keyframes; Camera Preview save/apply/restore
+    │
     ├── Timeline.lua        Tracks currentFrame, frameCount, fps
     │                       Interpolation helpers (lerp between keyframes)
     │
@@ -134,9 +140,18 @@ init.server.lua
 ```
 MultiAnimPlayer.lua     ModuleScript — no plugin dependency
                         API:
-                          .play(sceneName, rigMap, options?)
+                          .play(sceneName, rigMap, propMap?)
                           .stop()
                           .onFinished(callback)
+
+CutsceneServer.lua      ModuleScript — server side of synchronized cutscenes
+                        .play(sceneName, rigMap, propMap?) — plays anims via
+                        MultiAnimPlayer + broadcasts camera track & timestamp
+                        .stop() / .onFinished(callback)
+
+CutsceneCamera.lua      ModuleScript — client camera driver
+                        .start() — listens for the MultiAnimCutscene RemoteEvent
+                        and drives a Scriptable camera against the shared clock
 ```
 
 ---
@@ -422,6 +437,33 @@ Roblox renamed `Pose.Transform` → `Pose.CFrame` in a Studio update. The Export
 - Interpolates joint transforms with `CFrame:Lerp()` between keyframes
 - Applies scale (via `Part.Size`) and root motion (via `HumanoidRootPart.CFrame`) in the same loop
 
+### Camera Track & Cutscenes (Phase 8)
+
+One camera track per session. Keyframes (`{cf, fov, mode}`) are captured from
+`workspace.CurrentCamera` (the `C` shortcut or the 📷 button); each keyframe is
+either `"move"` (interpolated from the previous shot — CFrame:Lerp + linear FOV)
+or `"cut"` (the previous shot holds until the cut frame, then jumps).
+
+**Edit-mode preview:** plugins may drive `workspace.CurrentCamera` in edit mode.
+The "Cam Preview" toggle saves the viewport camera state, then `applyPosesAt`
+slaves the viewport to the interpolated track during scrub/preview; toggling
+off restores the saved state exactly.
+
+**Gizmos:** every camera keyframe renders an orange (move) or red (cut) part in
+`workspace.__MultiAnimCameraGizmos`, `Archivable = false` so they never save
+with the place. The Hinge stud on the front face marks the look direction.
+Clicking a gizmo jumps the timeline to its frame (Selection handler); dragging
+it with Studio tools rewrites that keyframe's CFrame (guarded against the
+programmatic-update feedback loop with a `gizmoSyncing` flag).
+
+**Synchronized playback:** `CutsceneServer.play` fires a RemoteEvent carrying
+the scene name, a `GetServerTimeNow()+0.35s` start timestamp, and the
+CameraTrack data (clients cannot read ServerStorage). The server starts the rig
+animation on the same clock; each client's `CutsceneCamera` drives a
+`Scriptable` camera per RenderStepped against the shared timestamp and restores
+the player camera afterwards. Rig motion replicates ~50–100 ms behind the
+locally-computed camera — accepted v1 trade-off.
+
 ### Plugin Play-Mode Guard
 
 `init.server.lua` begins with `if game:GetService("RunService"):IsRunning() then return end`. The root element of the plugin `.rbxmx` is a `Script` class, which Roblox also executes as a server script when play mode starts. This guard prevents the plugin from disconnecting Motor6D joints or interfering with runtime animation.
@@ -435,7 +477,7 @@ Roblox renamed `Pose.Transform` → `Pose.CFrame` in a Studio update. The Export
 | `build.py` | Assembles `.rbxmx` from source files and copies to Plugins folder |
 | `watch.py` | Auto-build on save, with Studio compile-check first |
 | `devsync.py` + `plugin/devloader.lua` | Hot-reload the plugin on save — no Studio restart |
-| `run_tests.py` | Runs the full `tests/` suite (164 cases) against live Studio |
+| `run_tests.py` | Runs the full `tests/` suite (214 cases) against live Studio |
 | `hotpatch.py` | Push a single `game/` module without reload |
 | `mcp.py` (`mcp` alias) | CLI for everything: luau, console/tail, tree/inspect/read/grep, check, drift, test, deploy, playtest, gen, store, addrig, scene, daemon |
 | MCP daemon | Persistent StudioMCP proxy (auto-starts) — 0.07s/call vs ~7s |

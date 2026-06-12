@@ -32,7 +32,9 @@ local PropSelector = require(script.Parent.PropSelector)
 local TrackLane    = require(script.Parent.TrackLane)
 local Scrubber     = require(script.Parent.Scrubber)
 
-local PROP_COLOUR = Color3.fromRGB(0, 207, 207)  -- teal for prop keyframe dots
+local PROP_COLOUR       = Color3.fromRGB(0, 207, 207)   -- teal for prop keyframe dots
+local CAMERA_COLOUR     = Color3.fromRGB(255, 150, 40)   -- orange: camera "move" keyframes
+local CAMERA_CUT_COLOUR = Color3.fromRGB(255, 80, 80)    -- red: camera "cut" keyframes
 
 local C = {
     bg        = Color3.fromRGB(46,  46,  46),
@@ -264,11 +266,39 @@ function Panel.new(widget)
     self._ePropMarkerDel = ePropMarkerDel
     table.insert(evts, ePropMarkerDel)
 
+    -- Camera track events (Phase 8)
+    local eCamCapture = mkEvent("onCameraCaptureRequested")
+    local eCamMode    = mkEvent("onCameraModeToggleRequested")
+    self._eCamCapture = eCamCapture
+    self._eCamMode    = eCamMode
+
+    local eCamPreview = Instance.new("BindableEvent")
+    self.onCameraPreviewToggled = eCamPreview.Event
+    self._eCamPreview = eCamPreview
+    table.insert(evts, eCamPreview)
+
+    local eCamMarker = Instance.new("BindableEvent")
+    self.onCameraMarkerClicked = eCamMarker.Event
+    self._eCamMarker = eCamMarker
+    table.insert(evts, eCamMarker)
+
+    local eCamDel = Instance.new("BindableEvent")
+    self.onCameraMarkerDeleteRequested = eCamDel.Event
+    self._eCamDel = eCamDel
+    table.insert(evts, eCamDel)
+
+    local eCamDbl = Instance.new("BindableEvent")
+    self.onCameraLaneDoubleClicked = eCamDbl.Event
+    self._eCamDbl = eCamDbl
+    table.insert(evts, eCamDbl)
+
     self._evts = evts
     self._lastSaveName = nil
 
     self._trackLanes     = {}
     self._propTrackLanes = {}
+    self._cameraLane     = nil     -- created lazily on first camera keyframe
+    self._camPreviewOn   = false
     self._frameCount   = 120
     self._currentFrame = 1
     self._isPlaying    = false
@@ -391,6 +421,26 @@ function Panel.new(widget)
     self._addKFBtn   = addKFBtn
     self._previewBtn = previewBtn
     self._stopBtn    = stopBtn
+
+    -- Row 6: camera track controls
+    local camRow = hrow(ctrlSec, 6, 4)
+    local camCaptureBtn = btn(camRow, "📷 Cam KF (C)", 1)
+    local camPreviewBtn = btn(camRow, "Cam Preview: OFF", 2)
+    local camModeBtn    = btn(camRow, "Cam KF: —", 3)
+    self._camPreviewBtn = camPreviewBtn
+    self._camModeBtn    = camModeBtn
+
+    camCaptureBtn.MouseButton1Click:Connect(function()
+        if not self._isPlaying then eCamCapture:Fire() end
+    end)
+    camPreviewBtn.MouseButton1Click:Connect(function()
+        self._camPreviewOn = not self._camPreviewOn
+        self:setCameraPreviewState(self._camPreviewOn)
+        eCamPreview:Fire(self._camPreviewOn)
+    end)
+    camModeBtn.MouseButton1Click:Connect(function()
+        if not self._isPlaying then eCamMode:Fire() end
+    end)
 
     -- ── Wire controls ─────────────────────────────────────────────────────────
 
@@ -614,7 +664,7 @@ function Panel.new(widget)
     shortcutHint.BackgroundColor3   = Color3.fromRGB(30, 30, 30)
     shortcutHint.BorderSizePixel    = 0
     shortcutHint.TextColor3         = C.muted
-    shortcutHint.Text               = "K  add/update KF     J  step ←     L  step →"
+    shortcutHint.Text               = "K  add/update KF     J  step ←     L  step →     C  camera KF"
     shortcutHint.TextSize           = 10
     shortcutHint.Font               = Enum.Font.Gotham
     shortcutHint.TextXAlignment     = Enum.TextXAlignment.Center
@@ -737,6 +787,58 @@ function Panel:addKeyframeMarker(rigName, frame)
     if lane then lane:addMarker(frame) end
 end
 
+-- ── Camera lane ───────────────────────────────────────────────────────────────
+-- One lane for the whole session, created on the first camera keyframe.
+-- Move keyframes are orange, cut keyframes red.
+
+function Panel:_ensureCameraLane()
+    if self._cameraLane then return self._cameraLane end
+    -- Order 50: below the rig lanes (1..n), above the prop lanes (100+).
+    local lane = TrackLane.new(self._tlSec, "Camera", self._frameCount, 50, CAMERA_COLOUR)
+    lane.onMarkerClicked:Connect(function(frame)
+        self._eCamMarker:Fire(frame)
+    end)
+    lane.onMarkerDeleteRequested:Connect(function(frame)
+        self._eCamDel:Fire(frame)
+    end)
+    lane.onDoubleClicked:Connect(function(frame)
+        self._eCamDbl:Fire(frame)
+    end)
+    self._cameraLane = lane
+    return lane
+end
+
+function Panel:addCameraKeyframeMarker(frame, mode)
+    local lane = self:_ensureCameraLane()
+    lane:addMarker(frame, mode == "cut" and CAMERA_CUT_COLOUR or CAMERA_COLOUR)
+end
+
+function Panel:removeCameraKeyframeMarker(frame)
+    if self._cameraLane then self._cameraLane:removeMarker(frame) end
+end
+
+function Panel:setCameraMarkerMode(frame, mode)
+    if self._cameraLane then
+        self._cameraLane:setMarkerColour(frame,
+            mode == "cut" and CAMERA_CUT_COLOUR or CAMERA_COLOUR)
+    end
+end
+
+function Panel:setCameraPreviewState(isOn)
+    self._camPreviewOn = isOn
+    if self._camPreviewBtn then
+        self._camPreviewBtn.Text = isOn and "Cam Preview: ON" or "Cam Preview: OFF"
+    end
+end
+
+-- Shows the mode of the camera keyframe at the current frame ("move"/"cut"),
+-- or "—" when the current frame has no camera keyframe.
+function Panel:setCameraModeDisplay(mode)
+    if self._camModeBtn then
+        self._camModeBtn.Text = "Cam KF: " .. (mode or "—")
+    end
+end
+
 function Panel:removeKeyframeMarker(rigName, frame)
     local lane = self._trackLanes[rigName]
     if lane then lane:removeMarker(frame) end
@@ -754,6 +856,9 @@ function Panel:setFrameDisplay(current, total)
     for _, lane in pairs(self._propTrackLanes) do
         lane:setActiveFrame(current)
     end
+    if self._cameraLane then
+        self._cameraLane:setActiveFrame(current)
+    end
 end
 
 function Panel:setFrameCount(n)
@@ -765,6 +870,9 @@ function Panel:setFrameCount(n)
     end
     for _, lane in pairs(self._propTrackLanes) do
         lane:setFrameCount(n)
+    end
+    if self._cameraLane then
+        self._cameraLane:setFrameCount(n)
     end
 end
 

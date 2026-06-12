@@ -11,7 +11,7 @@
 | 5 | In-game Playback | ✅ Complete |
 | 6 | Polish | ✅ Complete |
 | 7 | Prop Animation | ✅ Complete |
-| 8 | Camera Track & Cutscenes | ⬜ Planned |
+| 8 | Camera Track & Cutscenes | ✅ Complete |
 | 9 | Future | ⬜ Backlog |
 
 ---
@@ -225,7 +225,7 @@ All 57 cases pass against live Studio via `mcp__Roblox_Studio__execute_luau`:
 
 ---
 
-## Phase 8 — Camera Track & Cutscenes ⬜
+## Phase 8 — Camera Track & Cutscenes ✅
 
 One camera track on the shared timeline; keyframes captured from the Studio
 viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
@@ -251,33 +251,33 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
 
 ### Tasks
 
-- [ ] `core/CameraCapture.lua` — `capture()` → `{cf, fov}` from viewport camera;
+- [x] `core/CameraCapture.lua` — `capture()` → `{cf, fov}` from viewport camera;
       `apply(cf, fov)` → write viewport camera (preview); save/restore camera state
-- [ ] `core/Recorder` — `session.camera.track[frame] = {cf, fov, mode}`;
+- [x] `core/Recorder` — `session.camera.track[frame] = {cf, fov, mode}`;
       add/delete/get sorted frames; included in save/load serialization
-- [ ] `core/Interpolator` — `getCameraData(recorder, frame)` → `{cf, fov}` honouring
+- [x] `core/Interpolator` — `getCameraData(recorder, frame)` → `{cf, fov}` honouring
       cut (no interpolation across a cut keyframe) vs move (CFrame:Lerp + fov lerp)
-- [ ] `ui/Panel` — CAMERA section: "Camera Preview" toggle, "📷 Capture" button,
+- [x] `ui/Panel` — CAMERA section: "Camera Preview" toggle, "📷 Capture" button,
       per-keyframe cut/move toggle; camera track lane (orange dots)
-- [ ] `C` keyboard shortcut — capture camera keyframe at current frame
-- [ ] Gizmos — cone part per camera keyframe in `workspace.__MultiAnimCameraGizmos`
+- [x] `C` keyboard shortcut — capture camera keyframe at current frame
+- [x] Gizmos — cone part per camera keyframe in `workspace.__MultiAnimCameraGizmos`
       (`Archivable = false` so they never save with the place; removed on unload);
       click gizmo → jump timeline to its frame; drag gizmo → update keyframe
-- [ ] `core/Exporter` — `CameraTrack` ModuleScript
+- [x] `core/Exporter` — `CameraTrack` ModuleScript
       `{fps, frames = {[n] = {cf = {12 numbers}, fov = 70, cut = false}}}`;
       omitted when no camera keyframes
-- [ ] `game/CutsceneServer.lua` — `playCutscene(sceneName, rigMap, propMap?)`:
+- [x] `game/CutsceneServer.lua` — `playCutscene(sceneName, rigMap, propMap?)`:
       plays anims via MultiAnimPlayer, fires `MultiAnimCutscene` RemoteEvent
       with `(sceneName, startServerTime)`
-- [ ] `game/CutsceneCamera.lua` — client module: on RemoteEvent, waits for the
+- [x] `game/CutsceneCamera.lua` — client module: on RemoteEvent, waits for the
       server timestamp, sets `CameraType.Scriptable`, drives CFrame+FOV per
       Heartbeat from CameraTrack, restores the player camera on finish/stop
-- [ ] TestBridge — camera commands (`captureCamera`, `getCameraFrames`,
+- [x] TestBridge — camera commands (`captureCamera`, `getCameraFrames`,
       `setCameraMode`, `deleteCameraKeyframe`, `setCameraPreview`)
-- [ ] Tests — `test_camera_core.lua` (capture/apply/interpolate, cut vs move,
+- [x] Tests — `test_camera_core.lua` (capture/apply/interpolate, cut vs move,
       FOV lerp), `test_camera_exporter.lua` (CameraTrack structure, omit-if-empty),
       `test_ui_camera.lua` (bridge-driven UI round-trip)
-- [ ] `mcp scene` — CameraTrack rides along automatically (it's a ModuleScript)
+- [x] `mcp scene` — CameraTrack rides along automatically (it's a ModuleScript)
 
 ### Acceptance Criteria
 

@@ -203,6 +203,38 @@ end
 
 -- Exports session data to ServerStorage.MultiAnimationData/<sceneName>/.
 -- Returns (true, sceneName) on success or (false, errorMsg) on failure.
+-- ── CameraTrack source builder ────────────────────────────────────────────────
+-- One camera track per scene: {fps, frames = {[n] = {cf={12 numbers}, fov, cut}}}.
+-- cut = true means the camera jumps to this keyframe instead of interpolating.
+
+local function buildCameraTrackSource(session)
+    local lines = {}
+    local function add(s) table.insert(lines, s) end
+
+    add("return {")
+    add(string.format("    fps = %d,", session.fps or 24))
+    add("    frames = {")
+
+    local track = (session.camera and session.camera.track) or {}
+    local sortedFrames = {}
+    for f in pairs(track) do table.insert(sortedFrames, f) end
+    table.sort(sortedFrames)
+
+    for _, frame in ipairs(sortedFrames) do
+        local kf = track[frame]
+        local x,y,z,r00,r01,r02,r10,r11,r12,r20,r21,r22 = kf.cf:GetComponents()
+        add(string.format(
+            "        [%d] = {cf = {%g,%g,%g, %g,%g,%g, %g,%g,%g, %g,%g,%g}, fov = %g, cut = %s},",
+            frame, x,y,z, r00,r01,r02, r10,r11,r12, r20,r21,r22,
+            kf.fov or 70, tostring(kf.mode == "cut")
+        ))
+    end
+
+    add("    },")
+    add("}")
+    return table.concat(lines, "\n")
+end
+
 function Exporter.export(session, sceneName)
     if not session or not session.rigs or not next(session.rigs) then
         warn("[Exporter] Nothing to export — record some keyframes first")
@@ -269,14 +301,25 @@ function Exporter.export(session, sceneName)
         propModule.Parent       = sceneFolder
     end
 
-    -- Deploy MultiAnimPlayer alongside the scene data so game scripts can require it
+    -- CameraTrack — only written when camera keyframes were recorded
+    if session.camera and session.camera.track and next(session.camera.track) then
+        local camModule        = Instance.new("ModuleScript")
+        camModule.Name         = "CameraTrack"
+        camModule.Source       = buildCameraTrackSource(session)
+        camModule.Parent       = sceneFolder
+    end
+
+    -- Deploy game-side modules alongside the scene data so game scripts can
+    -- require them (MultiAnimPlayer + the cutscene pair).
     local gameFolder = script.Parent.Parent:FindFirstChild("game")
     if gameFolder then
-        local playerSrc = gameFolder:FindFirstChild("MultiAnimPlayer")
-        if playerSrc then
-            local prev = mad:FindFirstChild("MultiAnimPlayer")
-            if prev then prev:Destroy() end
-            playerSrc:Clone().Parent = mad
+        for _, modName in ipairs({ "MultiAnimPlayer", "CutsceneServer", "CutsceneCamera" }) do
+            local src = gameFolder:FindFirstChild(modName)
+            if src then
+                local prev = mad:FindFirstChild(modName)
+                if prev then prev:Destroy() end
+                src:Clone().Parent = mad
+            end
         end
     end
 

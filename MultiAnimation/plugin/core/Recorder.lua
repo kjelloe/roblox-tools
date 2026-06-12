@@ -26,6 +26,7 @@ function Recorder.new()
         frameCount = 120,
         rigs       = {},
         props      = {},
+        camera     = { track = {} },   -- [frame] = {cf=CFrame, fov=number, mode="move"|"cut"}
     }
 
     self._restPoses = {}   -- { [rigName] = jointData } captured at session start
@@ -185,10 +186,48 @@ function Recorder:deletePropKeyframe(propName, frame)
     if prop then prop.propTrack[frame] = nil end
 end
 
+-- Camera track accessors. One track for the whole session;
+-- each keyframe = {cf, fov, mode} where mode is "move" (interpolate from the
+-- previous keyframe) or "cut" (hard jump at this frame).
+function Recorder:addCameraKeyframe(frame, cf, fov, mode)
+    self._session.camera = self._session.camera or { track = {} }
+    self._session.camera.track[frame] = {
+        cf   = cf,
+        fov  = fov or 70,
+        mode = mode or "move",
+    }
+end
+
+function Recorder:getCameraData(frame)
+    local cam = self._session.camera
+    return cam and cam.track[frame]
+end
+
+function Recorder:getSortedCameraFrames()
+    local cam = self._session.camera
+    if not cam then return {} end
+    local frames = {}
+    for f in pairs(cam.track) do table.insert(frames, f) end
+    table.sort(frames)
+    return frames
+end
+
+function Recorder:setCameraMode(frame, mode)
+    local kf = self:getCameraData(frame)
+    if kf then kf.mode = mode end
+    return kf ~= nil
+end
+
+function Recorder:deleteCameraKeyframe(frame)
+    local cam = self._session.camera
+    if cam then cam.track[frame] = nil end
+end
+
 function Recorder:clearSession()
-    self._session.rigs  = {}
-    self._session.props = {}
-    self._restPoses     = {}
+    self._session.rigs   = {}
+    self._session.props  = {}
+    self._session.camera = { track = {} }
+    self._restPoses      = {}
 end
 
 function Recorder:setJointData(rigName, frame, jointData)

@@ -126,6 +126,39 @@ function Interpolator.getPropData(recorder, propName, queryFrame)
     return cfA:Lerp(cfB, alpha)
 end
 
+-- Returns interpolated camera {cf, fov} at queryFrame, or nil if no camera
+-- keyframes exist.  A keyframe with mode == "cut" is not interpolated toward:
+-- the previous shot holds until the cut frame itself, then jumps.
+function Interpolator.getCameraData(recorder, queryFrame)
+    local sorted = recorder:getSortedCameraFrames()
+    if #sorted == 0 then return nil end
+
+    local fA, fB, alpha = surrounding(sorted, queryFrame)
+    if not fA then return nil end
+
+    local dataA = recorder:getCameraData(fA)
+    if fA == fB or alpha == 0 then
+        return { cf = dataA.cf, fov = dataA.fov }
+    end
+
+    local dataB = recorder:getCameraData(fB)
+    if not dataB then
+        return { cf = dataA.cf, fov = dataA.fov }
+    end
+
+    if dataB.mode == "cut" then
+        if alpha >= 1 then
+            return { cf = dataB.cf, fov = dataB.fov }
+        end
+        return { cf = dataA.cf, fov = dataA.fov }
+    end
+
+    return {
+        cf  = dataA.cf:Lerp(dataB.cf, alpha),
+        fov = dataA.fov + (dataB.fov - dataA.fov) * alpha,
+    }
+end
+
 -- Merge all props' sorted frame lists into one deduped sorted list.
 function Interpolator.getAllPropFrames(recorder, propNames)
     local seen = {}

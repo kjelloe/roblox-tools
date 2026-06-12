@@ -39,12 +39,26 @@ HumanoidRootPart  (RootJoint.Transform)
 ```
 ServerStorage.MultiAnimationData
 ├── MultiAnimPlayer   ModuleScript (deployed by Exporter)
+├── CutsceneServer    ModuleScript (synchronized cutscene start — server)
+├── CutsceneCamera    ModuleScript (client camera driver; copied to ReplicatedStorage on play)
 └── Scene_001
     ├── Rig1_Joints   KeyframeSequence
     ├── Rig2_Joints   KeyframeSequence
     ├── ScaleTracks   ModuleScript
     ├── RootTracks    ModuleScript  (absent if no whole-model movement)
-    └── PropTracks    ModuleScript  (absent if no props tracked)
+    ├── PropTracks    ModuleScript  (absent if no props tracked)
+    └── CameraTrack   ModuleScript  (absent if no camera keyframes)
+```
+
+## Cutscene API
+
+```lua
+-- Server Script:
+local Cutscene = require(game.ServerStorage.MultiAnimationData.CutsceneServer)
+Cutscene.play("Scene_001", { Rig1 = workspace.FIGURES.Rig1, Rig2 = workspace.FIGURES.Rig2 })
+
+-- LocalScript (StarterPlayerScripts):
+require(game.ReplicatedStorage:WaitForChild("CutsceneCamera")).start()
 ```
 
 ## MultiAnimPlayer API
@@ -164,6 +178,12 @@ See `PHASES.md` for full task lists.
 | Left-click keyframe dot | Jump timeline to that frame |
 | Right-click keyframe dot | Delete that object's keyframe at that frame |
 | Drag scrubber | Scrub timeline; auto-updates existing KF at departure frame |
+| 📷 Cam KF button (or `C`) | Capture viewport camera as a camera keyframe at current frame |
+| Cam Preview toggle | Viewport follows the camera track while scrubbing/previewing; OFF restores your view |
+| Cam KF mode button | Toggle the camera keyframe at the current frame between move and cut |
+| Double-click Camera lane | Jump to that frame + capture a camera keyframe |
+| Click camera gizmo in viewport | Jump timeline to that camera keyframe |
+| Drag camera gizmo | Re-aim that camera keyframe |
 
 ## Keyboard Shortcuts
 
@@ -172,6 +192,7 @@ See `PHASES.md` for full task lists.
 | `K` | Add / update keyframe for all active rigs & props at current frame |
 | `L` | Step timeline forward by Step frames (default 2) |
 | `J` | Step timeline back by Step frames (default 2) |
+| `C` | Capture viewport camera as a camera keyframe at current frame |
 
 All shortcuts are ignored when a TextBox has keyboard focus.  
 Shortcut legend is shown at the bottom of the plugin panel.
@@ -182,3 +203,5 @@ Shortcut legend is shown at the bottom of the plugin panel.
 |---|---|
 | Yellow `Color3.fromRGB(255, 200, 60)` | Rig keyframe |
 | Teal `Color3.fromRGB(0, 207, 207)` | Prop keyframe |
+| Orange `Color3.fromRGB(255, 150, 40)` | Camera keyframe (move) |
+| Red `Color3.fromRGB(255, 80, 80)` | Camera keyframe (cut) |

@@ -16,7 +16,6 @@ function KeyframeMarker.new(parent, frame, colour)
     self.frame = frame
 
     local baseColor  = colour or COLOR_DEFAULT
-    local hoverColor = baseColor:Lerp(Color3.new(1, 1, 1), 0.35)
     self._baseColor  = baseColor
 
     local clicked = Instance.new("BindableEvent")
@@ -45,7 +44,7 @@ function KeyframeMarker.new(parent, frame, colour)
     corner.Parent       = btn
 
     btn.MouseEnter:Connect(function()
-        btn.BackgroundColor3 = hoverColor
+        btn.BackgroundColor3 = self._baseColor:Lerp(Color3.new(1, 1, 1), 0.35)
     end)
     btn.MouseLeave:Connect(function()
         btn.BackgroundColor3 = self._baseColor
@@ -74,6 +73,11 @@ end
 
 function KeyframeMarker:setActive(isActive)
     self._btn.BackgroundColor3 = isActive and COLOR_ACTIVE or self._baseColor
+end
+
+function KeyframeMarker:setColour(colour)
+    self._baseColor = colour
+    self._btn.BackgroundColor3 = colour
 end
 
 function KeyframeMarker:destroy()
