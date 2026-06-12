@@ -11,7 +11,8 @@
 | 5 | In-game Playback | ✅ Complete |
 | 6 | Polish | ✅ Complete |
 | 7 | Prop Animation | ✅ Complete |
-| 8 | Future | ⬜ Backlog |
+| 8 | Camera Track & Cutscenes | ⬜ Planned |
+| 9 | Future | ⬜ Backlog |
 
 ---
 
@@ -224,8 +225,79 @@ All 57 cases pass against live Studio via `mcp__Roblox_Studio__execute_luau`:
 
 ---
 
-## Phase 8 — Future Backlog
+## Phase 8 — Camera Track & Cutscenes ⬜
 
+One camera track on the shared timeline; keyframes captured from the Studio
+viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
+
+**Design decisions (agreed 2026-06-11):**
+- **Authoring — both methods:** primary flow is viewport capture (`C` shortcut
+  records `workspace.CurrentCamera` CFrame + FOV at the current frame); a cone
+  gizmo is also rendered per camera keyframe so shots are visible and grabbable
+  in the scene (dragging a gizmo updates its keyframe).
+- **Cut model:** single camera track. Each keyframe has `mode = "move" | "cut"`
+  — move interpolates CFrame+FOV from the previous keyframe, cut jumps both.
+- **FOV:** stored per keyframe, lerped on move, jumped on cut.
+- **Playback:** all players synchronized. Server plays rig/prop animation
+  (authoritative, replicates) and fires a RemoteEvent with the scene name and a
+  `workspace:GetServerTimeNow()` start timestamp; each client drives its own
+  `Scriptable` camera from the CameraTrack aligned to that timestamp.
+  (Known caveat: rig motion reaches clients via replication ~50–100 ms behind
+  the locally-computed camera — acceptable for v1.)
+- **Edit-mode preview:** "Camera Preview" toggle slaves the Studio viewport
+  camera (`workspace.CurrentCamera`) to the interpolated track during scrub and
+  preview playback — author and review entire cutscenes without play mode.
+  Viewport camera state is saved on toggle-on and restored on toggle-off.
+
+### Tasks
+
+- [ ] `core/CameraCapture.lua` — `capture()` → `{cf, fov}` from viewport camera;
+      `apply(cf, fov)` → write viewport camera (preview); save/restore camera state
+- [ ] `core/Recorder` — `session.camera.track[frame] = {cf, fov, mode}`;
+      add/delete/get sorted frames; included in save/load serialization
+- [ ] `core/Interpolator` — `getCameraData(recorder, frame)` → `{cf, fov}` honouring
+      cut (no interpolation across a cut keyframe) vs move (CFrame:Lerp + fov lerp)
+- [ ] `ui/Panel` — CAMERA section: "Camera Preview" toggle, "📷 Capture" button,
+      per-keyframe cut/move toggle; camera track lane (orange dots)
+- [ ] `C` keyboard shortcut — capture camera keyframe at current frame
+- [ ] Gizmos — cone part per camera keyframe in `workspace.__MultiAnimCameraGizmos`
+      (`Archivable = false` so they never save with the place; removed on unload);
+      click gizmo → jump timeline to its frame; drag gizmo → update keyframe
+- [ ] `core/Exporter` — `CameraTrack` ModuleScript
+      `{fps, frames = {[n] = {cf = {12 numbers}, fov = 70, cut = false}}}`;
+      omitted when no camera keyframes
+- [ ] `game/CutsceneServer.lua` — `playCutscene(sceneName, rigMap, propMap?)`:
+      plays anims via MultiAnimPlayer, fires `MultiAnimCutscene` RemoteEvent
+      with `(sceneName, startServerTime)`
+- [ ] `game/CutsceneCamera.lua` — client module: on RemoteEvent, waits for the
+      server timestamp, sets `CameraType.Scriptable`, drives CFrame+FOV per
+      Heartbeat from CameraTrack, restores the player camera on finish/stop
+- [ ] TestBridge — camera commands (`captureCamera`, `getCameraFrames`,
+      `setCameraMode`, `deleteCameraKeyframe`, `setCameraPreview`)
+- [ ] Tests — `test_camera_core.lua` (capture/apply/interpolate, cut vs move,
+      FOV lerp), `test_camera_exporter.lua` (CameraTrack structure, omit-if-empty),
+      `test_ui_camera.lua` (bridge-driven UI round-trip)
+- [ ] `mcp scene` — CameraTrack rides along automatically (it's a ModuleScript)
+
+### Acceptance Criteria
+
+- `C` captures the current viewport as a camera keyframe; orange dot + gizmo appear
+- Scrubbing with Camera Preview ON flies the viewport through the track;
+  cut keyframes jump, move keyframes glide; FOV animates
+- Toggling Camera Preview OFF restores the exact pre-toggle viewport camera
+- Dragging a gizmo updates that keyframe; right-click dot deletes it (gizmo too)
+- Export writes `CameraTrack` (omitted when empty); `mcp scene pull` captures it
+- In play mode, every connected client's camera plays the track in sync and is
+  restored when the cutscene ends
+- Gizmos never persist into the saved place and vanish on plugin unload
+
+---
+
+## Phase 9 — Future Backlog
+
+- Multiple named cameras + switcher track (authoring sugar over Phase 8 cuts)
+- Effect track — trigger ParticleEmitters / sounds at keyframes ("Add effect" TODO)
+- "+ Add Rig" panel button (logic already proven by `mcp addrig`)
 - Auto-capture on transform change
 - Per-keyframe easing curve selector
 - R15 rig support
