@@ -147,9 +147,12 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap)
     local propTracks  = propModule  and require(propModule)  or nil
     local rootModule  = sceneFolder:FindFirstChild("RootTracks")
     local rootTracks  = rootModule  and require(rootModule)  or nil
+    local fxModule    = sceneFolder:FindFirstChild("EffectTracks")
+    local fxTracks    = fxModule    and require(fxModule)    or nil
     local fps = (scaleTracks and scaleTracks.fps)
              or (propTracks  and propTracks.fps)
              or (rootTracks  and rootTracks.fps)
+             or (fxTracks    and fxTracks.fps)
              or 24
 
     -- ── Per-rig data ──────────────────────────────────────────────────────────
@@ -243,6 +246,51 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap)
         end
     end
 
+    -- ── Effect events (one-shots, fired when playback crosses their time) ────
+
+    local effectEvents = {}   -- sorted { {time, inst, action, count} }
+    if fxTracks and fxTracks.effects then
+        for fxName, fx in pairs(fxTracks.effects) do
+            -- Resolve the live instance from its exported full path.
+            local inst = game
+            for seg in string.gmatch(fx.target or "", "[^.]+") do
+                if inst == game and seg == "game" then continue end
+                inst = inst and inst:FindFirstChild(seg)
+            end
+            if inst and inst ~= game then
+                for frame, ev in pairs(fx.events or {}) do
+                    table.insert(effectEvents, {
+                        time   = (frame - 1) / fps,
+                        inst   = inst,
+                        action = ev.action,
+                        count  = ev.count,
+                    })
+                    totalLength = math.max(totalLength, (frame - 1) / fps)
+                end
+            else
+                warn("[MultiAnimPlayer] Effect target not found: " .. tostring(fx.target)
+                    .. " ('" .. fxName .. "')")
+            end
+        end
+        table.sort(effectEvents, function(a, b) return a.time < b.time end)
+    end
+
+    local function fireEffect(ev)
+        local inst = ev.inst
+        if not (inst and inst.Parent) then return end
+        if ev.action == "emit" and inst:IsA("ParticleEmitter") then
+            inst:Emit(ev.count or 15)
+        elseif ev.action == "play" and inst:IsA("Sound") then
+            inst:Play()
+        elseif ev.action == "stop" and inst:IsA("Sound") then
+            inst:Stop()
+        elseif ev.action == "on" then
+            inst.Enabled = true
+        elseif ev.action == "off" then
+            inst.Enabled = false
+        end
+    end
+
     if totalLength <= 0 then
         warn("[MultiAnimPlayer] Scene '" .. sceneName .. "' has no keyframes")
         return
@@ -253,10 +301,18 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap)
     _sceneName = sceneName
     local startTime = tick()
     local done = false
+    local nextEffectIdx = 1
 
     _heartbeat = RunService.Heartbeat:Connect(function()
         if done then return end
         local elapsed = tick() - startTime
+
+        -- Fire effect events whose time we have crossed.
+        while nextEffectIdx <= #effectEvents
+              and effectEvents[nextEffectIdx].time <= elapsed do
+            fireEffect(effectEvents[nextEffectIdx])
+            nextEffectIdx += 1
+        end
 
         for _, state in pairs(rigStates) do
             -- Joint poses via Motor6D.Transform

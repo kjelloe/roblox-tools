@@ -116,7 +116,7 @@ python3 devsync.py uninstall   # back to build.py + manual reload
 ### Other dev scripts
 
 ```bash
-python3 run_tests.py [pattern] [-v]   # full suite (164 cases), or `mcp test`
+python3 run_tests.py [pattern] [-v]   # full suite (306 cases), or `mcp test`
 python3 watch.py                      # auto-build on save (when not using devsync)
 python3 hotpatch.py game/MultiAnimPlayer.lua   # push one game/ module, or `mcp deploy`
 mcp check <file.lua>                  # compile-check in Studio without executing
@@ -201,8 +201,13 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 | `test_camera_core.lua` | Camera keyframe CRUD; cut-vs-move interpolation; FOV lerp (17 cases) |
 | `test_camera_exporter.lua` | CameraTrack source builder; cut flags; omit-if-empty (16 cases) |
 | `test_ui_camera.lua` | Live camera capture, gizmo lifecycle, preview restore via TestBridge (17 cases) |
+| `test_mirror_core.lua` | Keyframe mirror reflection math; involution; determinant; name-map round-trips (17 cases) |
+| `test_ui_rigtools.lua` | Live add-rig + auto-detect; copy/paste/mirror through TestBridge (20 cases) |
+| `test_effect_core.lua` | EffectRunner: classify, cycleAction, live fire, crossing-pointer playback (24 cases) |
+| `test_effect_exporter.lua` | EffectTracks source builder; loadstring round-trip; omit-if-empty (13 cases) |
+| `test_ui_effects.lua` | Effect track bridge integration: track, cycle, add/delete events, fire, untrack (18 cases) |
 
-Suite total: **214 cases** across 15 files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive).
+Suite total: **306 cases** across 18 files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive).
 
 All tests inline their module logic (no `require()` to plugin modules) and return a PASS/FAIL string for `execute_luau`. Run with:
 

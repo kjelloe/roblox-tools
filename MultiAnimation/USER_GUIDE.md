@@ -135,7 +135,46 @@ Gizmos are never saved into your place file and vanish when the plugin unloads.
 
 ---
 
-## 6. Keyboard Shortcuts
+## 6. The Effect Track (Particle / Sound / Light Events)
+
+Trigger one-shot effects — particle bursts, sound cues, light flashes — exactly on the frame you choose, without any manual scripting at runtime.
+
+**Supported effect types**
+
+| Type | Detected class | Actions |
+|------|---------------|---------|
+| Particle | `ParticleEmitter` | `emit` (burst) · `on` (enable continuous) · `off` |
+| Sound | `Sound` | `play` · `stop` |
+| Toggle | `PointLight`, `SpotLight`, `SurfaceLight`, `Beam`, `Trail`, `Highlight` | `on` · `off` |
+
+**Workflow**
+
+1. In the **PROPS** section click **Track Effect**.
+2. Click the part (or the effect instance itself) in the viewport. The plugin
+   walks the part's descendants to find the first compatible effect and adds a
+   **purple chip** with the effect's name and current action (`emit`, `on`, etc.).
+   A **purple lane** appears in the timeline.
+3. **Change the default action:** click the chip to cycle through that type's
+   actions (`emit → on → off → emit …`). The action shown is the default for
+   *new* events you place.
+4. **Place an event:** navigate to a frame, then **double-click** the purple lane.
+   An event is recorded at that frame using the current default action.
+   - `emit` events also store the burst count (default 15).
+5. **Right-click an event dot** to delete it.
+6. **Untrack:** click `×` on the purple chip. The live link is removed but all
+   events are preserved in the session (re-tracking the same effect restores them).
+7. **Export** works as normal — if any effect has events, an `EffectTracks`
+   `ModuleScript` is written alongside the scene.  `MultiAnimPlayer` loads it and
+   fires events in its Heartbeat loop using a crossing-pointer so each event fires
+   exactly once per playback.
+
+> **Tip:** effects are always one-shot — there is no interpolation between event
+> dots. To toggle a light on at frame 10 and off at frame 30, place an `on` event
+> at frame 10 and an `off` event at frame 30.
+
+---
+
+## 7. Keyboard Shortcuts
 
 All shortcuts work while the viewport has focus and are ignored while you're
 typing in a textbox. The legend at the bottom of the panel lists them too.
@@ -170,11 +209,16 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 | Camera lane | Double-click | Jump there + capture a camera keyframe |
 | Camera gizmo (viewport) | Click | Jump timeline to that camera keyframe |
 | Camera gizmo (viewport) | Drag / rotate | Re-aim that camera keyframe |
+| `Track Effect` | Click | Track the selected part/effect as an effect lane |
+| Effect chip | Click | Cycle default action (emit → on → off → …) |
+| Effect chip `×` | Click | Untrack effect (events kept) |
+| Effect lane | Double-click | Add an event at the current frame using the current default action |
+| Effect event dot | **Right-click** | **Delete** that event |
 | Scrubber | Drag | Scrub; auto-updates an existing keyframe at the departure frame |
 | `\|◄` / `►\|` | Click | Jump to first / last frame |
 | `◄` / `►` | Click | Step one frame back / forward |
 
-**Dot colours:** yellow = rig · teal = prop · orange = camera (move) · red = camera (cut).
+**Dot colours:** yellow = rig · teal = prop · orange = camera (move) · red = camera (cut) · purple = effect event.
 
 ---
 
@@ -182,7 +226,7 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 
 - Everything auto-saves to an `_autosave` slot one second after any change.
 - **Save As** stores a named snapshot (up to 30, newest first); **Load** brings
-  one back — including props (re-linked by name) and the camera track.
+  one back — including props (re-linked by name), the camera track, and all effect events.
 - **New** clears the whole session after a confirmation. Rigs are re-scanned;
   rest poses re-captured.
 - Sessions survive closing/reopening the panel within a Studio session.
@@ -201,6 +245,7 @@ Type a scene name (default `Scene_001`) and press **⬆ Export**. This writes to
 | `RootTracks` | Whole-rig world positions (if the rig moved) |
 | `PropTracks` | Prop CFrames (if props were tracked) |
 | `CameraTrack` | Camera CFrames + FOV + cut flags (if camera keyframes exist) |
+| `EffectTracks` | One-shot effect events: instance path + action + frame (if effects have events) |
 
 The playback modules (`MultiAnimPlayer`, `CutsceneServer`, `CutsceneCamera`)
 are deployed alongside automatically.

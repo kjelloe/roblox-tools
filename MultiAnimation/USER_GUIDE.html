@@ -165,11 +165,12 @@
   <a href="#rigs">3. Animating Rigs</a>
   <a href="#props">4. Animating Props</a>
   <a href="#camera">5. The Camera Track (Cutscenes)</a>
-  <a href="#keys">6. Keyboard Shortcuts</a>
-  <a href="#mouse">7. Mouse Interactions — Reference</a>
-  <a href="#sessions">8. Sessions: Save, Load, New</a>
-  <a href="#export">9. Export &amp; In-Game Playback</a>
-  <a href="#tips">10. Tips &amp; Troubleshooting</a>
+  <a href="#effects">6. The Effect Track (Particles / Sounds / Lights)</a>
+  <a href="#keys">7. Keyboard Shortcuts</a>
+  <a href="#mouse">8. Mouse Interactions — Reference</a>
+  <a href="#sessions">9. Sessions: Save, Load, New</a>
+  <a href="#export">10. Export &amp; In-Game Playback</a>
+  <a href="#tips">11. Tips &amp; Troubleshooting</a>
 </nav>
 
 <h2 id="start">1. Getting Started</h2>
@@ -323,7 +324,45 @@ unloads.</p>
 shows the track, so capturing would just re-record the existing shot (the
 plugin warns and skips if you try).</div>
 
-<h2 id="keys">6. Keyboard Shortcuts</h2>
+<h2 id="effects">6. The Effect Track (Particles / Sounds / Lights)</h2>
+
+<p>Trigger one-shot effects — particle bursts, sound cues, light flashes — exactly
+on the frame you choose, without any manual scripting at runtime.</p>
+
+<h3>Supported effect types</h3>
+<table>
+<tr><th>Type</th><th>Detected class</th><th>Actions</th></tr>
+<tr><td>Particle</td><td><code>ParticleEmitter</code></td><td><code>emit</code> (burst) · <code>on</code> (enable continuous) · <code>off</code></td></tr>
+<tr><td>Sound</td><td><code>Sound</code></td><td><code>play</code> · <code>stop</code></td></tr>
+<tr><td>Toggle</td><td><code>PointLight</code>, <code>SpotLight</code>, <code>SurfaceLight</code>, <code>Beam</code>, <code>Trail</code>, <code>Highlight</code></td><td><code>on</code> · <code>off</code></td></tr>
+</table>
+
+<h3>Workflow</h3>
+<ol>
+<li>In the <strong>PROPS</strong> section click <strong>Track Effect</strong>.</li>
+<li>Click the part (or the effect instance itself) in the viewport. The plugin
+walks the part's descendants to find the first compatible effect and adds a
+<strong>purple chip</strong> with the effect's name and current action.
+A <strong>purple lane</strong> appears in the timeline.</li>
+<li><strong>Change the default action:</strong> click the chip to cycle through
+that type's actions (<code>emit → on → off → emit …</code>). The action shown
+is the default for <em>new</em> events you place.</li>
+<li><strong>Place an event:</strong> navigate to a frame, then
+<strong>double-click</strong> the purple lane. An event dot is recorded at that
+frame using the current default action. <code>emit</code> events store a burst
+count (default 15).</li>
+<li><strong>Right-click an event dot</strong> to delete it.</li>
+<li><strong>Untrack:</strong> click <code>×</code> on the chip. The live link is
+removed but all events are preserved (re-tracking the same effect restores
+them).</li>
+</ol>
+
+<div class="tip"><strong>Tip:</strong> effects are always one-shot — no
+interpolation occurs between event dots.  To toggle a light on at frame 10 and
+off at frame 30, place an <code>on</code> event at frame 10 and an
+<code>off</code> event at frame 30.</div>
+
+<h2 id="keys">7. Keyboard Shortcuts</h2>
 
 <p>All shortcuts work while the viewport has focus and are ignored while
 you're typing in a textbox. The legend at the bottom of the panel lists them
@@ -344,7 +383,7 @@ frames (default 2)</td></tr>
 <p>The <strong>Step</strong> box in CONTROLS sets how far
 <kbd>J</kbd>/<kbd>L</kbd> jump.</p>
 
-<h2 id="mouse">7. Mouse Interactions — Complete Reference</h2>
+<h2 id="mouse">8. Mouse Interactions — Complete Reference</h2>
 
 <table>
 <tr><th>Where</th><th>Action</th><th>Result</th></tr>
@@ -363,6 +402,11 @@ frames (default 2)</td></tr>
 <tr><td>Camera lane</td><td>Double-click</td><td>Jump there + capture a camera keyframe</td></tr>
 <tr><td>Camera gizmo (viewport)</td><td>Click</td><td>Jump timeline to that camera keyframe</td></tr>
 <tr><td>Camera gizmo (viewport)</td><td>Drag / rotate</td><td>Re-aim that camera keyframe</td></tr>
+<tr><td><code>Track Effect</code></td><td>Click</td><td>Track the selected part/effect as an effect lane</td></tr>
+<tr><td>Effect chip</td><td>Click</td><td>Cycle default action (emit → on → off → …)</td></tr>
+<tr><td>Effect chip <code>×</code></td><td>Click</td><td>Untrack effect (events kept)</td></tr>
+<tr><td>Effect lane</td><td>Double-click</td><td>Add an event at the current frame using the current default action</td></tr>
+<tr><td>Effect event dot</td><td><strong>Right-click</strong></td><td><strong>Delete</strong> that event</td></tr>
 <tr><td>Scrubber</td><td>Drag</td><td>Scrub; auto-updates an existing keyframe at the departure frame</td></tr>
 <tr><td><code>|◄</code> / <code>►|</code></td><td>Click</td><td>Jump to first / last frame</td></tr>
 <tr><td><code>◄</code> / <code>►</code></td><td>Click</td><td>Step one frame back / forward</td></tr>
@@ -372,22 +416,23 @@ frames (default 2)</td></tr>
 <span class="dot rig"></span>rig &nbsp;·&nbsp;
 <span class="dot prop"></span>prop &nbsp;·&nbsp;
 <span class="dot move"></span>camera (move) &nbsp;·&nbsp;
-<span class="dot cut"></span>camera (cut)</p>
+<span class="dot cut"></span>camera (cut) &nbsp;·&nbsp;
+<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#BE78FF;vertical-align:middle;"></span>&nbsp;effect event</p>
 
-<h2 id="sessions">8. Sessions: Save, Load, New</h2>
+<h2 id="sessions">9. Sessions: Save, Load, New</h2>
 
 <ul>
 <li>Everything auto-saves to an <code>_autosave</code> slot one second after
     any change.</li>
 <li><strong>Save As</strong> stores a named snapshot (up to 30, newest first);
     <strong>Load</strong> brings one back — including props (re-linked by
-    name) and the camera track.</li>
+    name), the camera track, and all effect events.</li>
 <li><strong>New</strong> clears the whole session after a confirmation. Rigs
     are re-scanned; rest poses re-captured.</li>
 <li>Sessions survive closing/reopening the panel within a Studio session.</li>
 </ul>
 
-<h2 id="export">9. Export &amp; In-Game Playback</h2>
+<h2 id="export">10. Export &amp; In-Game Playback</h2>
 
 <p>Type a scene name (default <code>Scene_001</code>) and press
 <strong>⬆ Export</strong>. This writes to
@@ -400,6 +445,7 @@ frames (default 2)</td></tr>
 <tr><td><code>RootTracks</code></td><td>Whole-rig world positions (if the rig moved)</td></tr>
 <tr><td><code>PropTracks</code></td><td>Prop CFrames (if props were tracked)</td></tr>
 <tr><td><code>CameraTrack</code></td><td>Camera CFrames + FOV + cut flags (if camera keyframes exist)</td></tr>
+<tr><td><code>EffectTracks</code></td><td>One-shot effect events: instance path + action + frame (if effects have events)</td></tr>
 </table>
 
 <p>The playback modules (<code>MultiAnimPlayer</code>,
@@ -430,7 +476,7 @@ terminal, <code>mcp scene pull Scene_001</code> saves the exported scene as
 diffable text under <code>MultiAnimation/scenes/</code> — commit it with your
 code. <code>mcp scene push</code> restores it into Studio.</div>
 
-<h2 id="tips">10. Tips &amp; Troubleshooting</h2>
+<h2 id="tips">11. Tips &amp; Troubleshooting</h2>
 
 <table>
 <tr><th>Symptom</th><th>Explanation / fix</th></tr>

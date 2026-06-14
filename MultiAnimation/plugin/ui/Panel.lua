@@ -35,6 +35,7 @@ local Scrubber     = require(script.Parent.Scrubber)
 local PROP_COLOUR       = Color3.fromRGB(0, 207, 207)   -- teal for prop keyframe dots
 local CAMERA_COLOUR     = Color3.fromRGB(255, 150, 40)   -- orange: camera "move" keyframes
 local CAMERA_CUT_COLOUR = Color3.fromRGB(255, 80, 80)    -- red: camera "cut" keyframes
+local EFFECT_COLOUR     = Color3.fromRGB(190, 120, 255)  -- purple: effect event dots
 
 local C = {
     bg        = Color3.fromRGB(46,  46,  46),
@@ -301,12 +302,43 @@ function Panel.new(widget)
     self._ePasteKF = ePasteKF
     table.insert(evts, ePasteKF)
 
+    -- Phase 9: effect track
+    local eTrackFx = mkEvent("onTrackEffectRequested")
+    self._eTrackFx = eTrackFx
+
+    local eFxRemoved = Instance.new("BindableEvent")
+    self.onEffectRemoved = eFxRemoved.Event
+    self._eFxRemoved = eFxRemoved
+    table.insert(evts, eFxRemoved)
+
+    local eFxCycle = Instance.new("BindableEvent")
+    self.onEffectActionCycleRequested = eFxCycle.Event   -- fires (name)
+    self._eFxCycle = eFxCycle
+    table.insert(evts, eFxCycle)
+
+    local eFxDbl = Instance.new("BindableEvent")
+    self.onEffectDoubleClicked = eFxDbl.Event            -- fires (name, frame)
+    self._eFxDbl = eFxDbl
+    table.insert(evts, eFxDbl)
+
+    local eFxMarker = Instance.new("BindableEvent")
+    self.onEffectMarkerClicked = eFxMarker.Event         -- fires (name, frame)
+    self._eFxMarker = eFxMarker
+    table.insert(evts, eFxMarker)
+
+    local eFxDel = Instance.new("BindableEvent")
+    self.onEffectMarkerDeleteRequested = eFxDel.Event    -- fires (name, frame)
+    self._eFxDel = eFxDel
+    table.insert(evts, eFxDel)
+
     self._evts = evts
     self._lastSaveName = nil
 
-    self._trackLanes     = {}
-    self._propTrackLanes = {}
-    self._cameraLane     = nil     -- created lazily on first camera keyframe
+    self._trackLanes      = {}
+    self._propTrackLanes  = {}
+    self._effectLanes     = {}     -- { [effectName] = TrackLane }
+    self._effectChips     = {}     -- { [effectName] = chip container Frame }
+    self._cameraLane      = nil    -- created lazily on first camera keyframe
     self._camPreviewOn   = false
     self._frameCount   = 120
     self._currentFrame = 1
@@ -351,6 +383,17 @@ function Panel.new(widget)
         self:removeProp(propName)
         self._ePropRemoved:Fire(propName)
     end)
+
+    -- Effects row: tracked effect chips live here. Clicking a chip cycles the
+    -- effect's default action; × untracks it (data kept, like props).
+    divider(propsSec, 8)
+    local fxRow = hrow(propsSec, 9, 4)
+    lbl(fxRow, "FX:", 24, 1)
+    local trackFxBtn = btn(fxRow, "Track Effect", 2)
+    trackFxBtn.MouseButton1Click:Connect(function()
+        if not self._isPlaying then eTrackFx:Fire() end
+    end)
+    self._fxRow = fxRow
 
     divider(root, 4)
 
@@ -818,6 +861,115 @@ function Panel:addKeyframeMarker(rigName, frame)
     if lane then lane:addMarker(frame) end
 end
 
+-- ── Effects ───────────────────────────────────────────────────────────────────
+-- Each tracked effect gets a chip in the FX row (click = cycle action,
+-- × = untrack) and a purple track lane for its one-shot events.
+
+function Panel:addEffect(effectName, action)
+    if self._effectChips[effectName] then
+        self:setEffectAction(effectName, action)
+        return
+    end
+
+    local chip = Instance.new("Frame")
+    chip.Name = "Fx_" .. effectName
+    chip.Size = UDim2.new(0, 0, 0, 22)
+    chip.AutomaticSize = Enum.AutomaticSize.X
+    chip.BackgroundTransparency = 1
+    chip.LayoutOrder = 10
+    chip.Parent = self._fxRow
+
+    local chipLayout = Instance.new("UIListLayout")
+    chipLayout.FillDirection = Enum.FillDirection.Horizontal
+    chipLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    chipLayout.Padding = UDim.new(0, 2)
+    chipLayout.Parent = chip
+
+    local main = Instance.new("TextButton")
+    main.Name = "Cycle"
+    main.Size = UDim2.new(0, 0, 1, 0)
+    main.AutomaticSize = Enum.AutomaticSize.X
+    main.BackgroundColor3 = Color3.fromRGB(60, 45, 80)
+    main.BorderSizePixel = 0
+    main.TextColor3 = EFFECT_COLOUR
+    main.Font = Enum.Font.Gotham
+    main.TextSize = 11
+    main.Text = " " .. effectName .. ": " .. (action or "?") .. " "
+    main.LayoutOrder = 1
+    main.Parent = chip
+    main.MouseButton1Click:Connect(function()
+        if not self._isPlaying then self._eFxCycle:Fire(effectName) end
+    end)
+
+    local close = Instance.new("TextButton")
+    close.Name = "Remove"
+    close.Size = UDim2.new(0, 18, 1, 0)
+    close.BackgroundColor3 = Color3.fromRGB(60, 45, 80)
+    close.BorderSizePixel = 0
+    close.TextColor3 = Color3.fromRGB(220, 150, 150)
+    close.Font = Enum.Font.GothamBold
+    close.TextSize = 11
+    close.Text = "×"
+    close.LayoutOrder = 2
+    close.Parent = chip
+    close.MouseButton1Click:Connect(function()
+        self:removeEffect(effectName)
+        self._eFxRemoved:Fire(effectName)
+    end)
+
+    self._effectChips[effectName] = chip
+
+    if not self._effectLanes[effectName] then
+        local order = 200 + (function()
+            local n = 0
+            for _ in pairs(self._effectLanes) do n += 1 end
+            return n
+        end)()
+        local lane = TrackLane.new(self._tlSec, effectName, self._frameCount, order, EFFECT_COLOUR)
+        lane.onMarkerClicked:Connect(function(frame)
+            self._eFxMarker:Fire(effectName, frame)
+        end)
+        lane.onMarkerDeleteRequested:Connect(function(frame)
+            self._eFxDel:Fire(effectName, frame)
+        end)
+        lane.onDoubleClicked:Connect(function(frame)
+            self._eFxDbl:Fire(effectName, frame)
+        end)
+        self._effectLanes[effectName] = lane
+    end
+end
+
+function Panel:removeEffect(effectName)
+    local chip = self._effectChips[effectName]
+    if chip then
+        chip:Destroy()
+        self._effectChips[effectName] = nil
+    end
+    local lane = self._effectLanes[effectName]
+    if lane then
+        lane:destroy()
+        self._effectLanes[effectName] = nil
+    end
+end
+
+function Panel:setEffectAction(effectName, action)
+    local chip = self._effectChips[effectName]
+    local main = chip and chip:FindFirstChild("Cycle")
+    if main then
+        main.Text = " " .. effectName .. ": " .. action .. " "
+    end
+end
+
+function Panel:addEffectMarker(effectName, frame)
+    local lane = self._effectLanes[effectName]
+    if lane then lane:addMarker(frame) end
+end
+
+function Panel:removeEffectMarker(effectName, frame)
+    local lane = self._effectLanes[effectName]
+    if lane then lane:removeMarker(frame) end
+end
+
 -- ── Camera lane ───────────────────────────────────────────────────────────────
 -- One lane for the whole session, created on the first camera keyframe.
 -- Move keyframes are orange, cut keyframes red.
@@ -894,6 +1046,9 @@ function Panel:setFrameDisplay(current, total)
     for _, lane in pairs(self._propTrackLanes) do
         lane:setActiveFrame(current)
     end
+    for _, lane in pairs(self._effectLanes) do
+        lane:setActiveFrame(current)
+    end
     if self._cameraLane then
         self._cameraLane:setActiveFrame(current)
     end
@@ -907,6 +1062,9 @@ function Panel:setFrameCount(n)
         lane:setFrameCount(n)
     end
     for _, lane in pairs(self._propTrackLanes) do
+        lane:setFrameCount(n)
+    end
+    for _, lane in pairs(self._effectLanes) do
         lane:setFrameCount(n)
     end
     if self._cameraLane then

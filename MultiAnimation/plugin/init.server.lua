@@ -39,6 +39,7 @@ local Interpolator  = require(script.core.Interpolator)
 local PoseApplier   = require(script.core.PoseApplier)
 local Exporter      = require(script.core.Exporter)
 local CameraCapture = require(script.core.CameraCapture)
+local EffectRunner  = require(script.core.EffectRunner)
 local Panel         = require(script.ui.Panel)
 -- PropCapture required for its apply path (called via PoseApplier); Recorder requires it directly.
 
@@ -111,6 +112,7 @@ local panel    = Panel.new(widget)
 
 local allRigs      = {}   -- { [rigName] = Model }
 local allProps     = {}   -- { [propName] = BasePart }
+local allEffects   = {}   -- { [effectName] = effect Instance (emitter/sound/light…) }
 local motorStates  = {}   -- { [rigName] = disconnectAll() state } for cleanup
 local isPlaying    = false
 local playConn     = nil
@@ -255,6 +257,14 @@ local function serializeSession()
             mode = kf.mode,
         }
     end
+    out.effects = {}
+    for name, fx in pairs(session.effects or {}) do
+        local tOut = {}
+        for frame, ev in pairs(fx.track) do
+            tOut[tostring(frame)] = { action = ev.action, count = ev.count }
+        end
+        out.effects[name] = { kind = fx.kind, action = fx.action, path = fx.path, track = tOut }
+    end
     return out
 end
 
@@ -296,6 +306,12 @@ local function applySessionData(data)
         panel:removeCameraKeyframeMarker(f)
     end
     if clearCameraGizmos then clearCameraGizmos() end
+
+    -- Clear effect UI (chips + lanes).
+    for name in pairs(recorder:getSession().effects or {}) do
+        panel:removeEffect(name)
+    end
+    allEffects = {}
 
     recorder:clearSession()
     local fps        = data.fps        or 24
@@ -374,6 +390,25 @@ local function applySessionData(data)
                 kf.cf[7],  kf.cf[8],  kf.cf[9],
                 kf.cf[10], kf.cf[11], kf.cf[12]
             ), kf.fov, kf.mode)
+        end
+    end
+
+    -- Restore effect tracks; re-link live instances by name.
+    for name, fxData in pairs(data.effects or {}) do
+        local fx = recorder:registerEffect(name, fxData.kind, fxData.action, fxData.path)
+        for frameStr, ev in pairs(fxData.track or {}) do
+            local frame = tonumber(frameStr)
+            if frame then
+                fx.track[frame] = { action = ev.action, count = ev.count }
+            end
+        end
+        local inst = workspace:FindFirstChild(name, true)
+        if inst and EffectRunner.classify(inst) then
+            allEffects[name] = inst
+        end
+        panel:addEffect(name, fx.action)
+        for _, f in ipairs(recorder:getSortedEffectFrames(name)) do
+            panel:addEffectMarker(name, f)
         end
     end
 
@@ -699,12 +734,26 @@ local function startPlayback()
     local fps        = timeline:getFps()
     local lastFrame  = timeline:getFrameCount()
 
+    -- Effect events fire once when playback crosses their frame.
+    local lastEventFrame = startFrame - 1
+
     playConn = RunService.Heartbeat:Connect(function()
         local elapsed  = tick() - startTick
         local rawFrame = startFrame + elapsed * fps
         local intFrame = math.min(math.floor(rawFrame), lastFrame)
 
         applyPosesAt(rawFrame, true)
+
+        if intFrame > lastEventFrame then
+            for name, inst in pairs(allEffects) do
+                for _, f in ipairs(recorder:getSortedEffectFrames(name)) do
+                    if f > lastEventFrame and f <= intFrame then
+                        EffectRunner.fire(inst, recorder:getEffectEvent(name, f))
+                    end
+                end
+            end
+            lastEventFrame = intFrame
+        end
 
         local clamped = timeline:setCurrent(intFrame)
         panel:setFrameDisplay(clamped, lastFrame)
@@ -829,6 +878,83 @@ panel.onCopyKeyframeRequested:Connect(doCopyKeyframe)
 
 panel.onPasteKeyframeRequested:Connect(function(mirrored)
     doPasteKeyframe(mirrored)
+end)
+
+-- ── Effect track handlers ─────────────────────────────────────────────────────
+
+local function trackEffectInstance(effect)
+    local name = effect.Name
+    if allRigs[name] or allProps[name] or allEffects[name] then
+        warn("[MultiAnimation] Name '" .. name .. "' already in use — rename the effect instance")
+        return nil
+    end
+    local kind = EffectRunner.classify(effect)
+    if not kind then return nil end
+
+    allEffects[name] = effect
+    -- registerEffect keeps existing data, so re-tracking after × restores events.
+    local fx = recorder:registerEffect(name, kind, EffectRunner.defaultAction(kind), effect:GetFullName())
+    panel:addEffect(name, fx.action)
+    for _, f in ipairs(recorder:getSortedEffectFrames(name)) do
+        panel:addEffectMarker(name, f)
+    end
+    print(string.format("[MultiAnimation] Tracking effect '%s' (%s, default: %s)", name, kind, fx.action))
+    return name
+end
+
+panel.onTrackEffectRequested:Connect(function()
+    local effect = nil
+    for _, inst in ipairs(Selection:Get()) do
+        effect = EffectRunner.findEffect(inst)
+        if effect then break end
+    end
+    if not effect then
+        warn("[MultiAnimation] Select an effect (ParticleEmitter, Sound, light, Beam, Trail) or a part containing one")
+        return
+    end
+    trackEffectInstance(effect)
+end)
+
+panel.onEffectActionCycleRequested:Connect(function(name)
+    local fx = recorder:getEffect(name)
+    if not fx then return end
+    local nextAction = EffectRunner.cycleAction(fx.kind, fx.action)
+    recorder:setEffectAction(name, nextAction)
+    panel:setEffectAction(name, nextAction)
+    scheduleAutoSave()
+end)
+
+panel.onEffectDoubleClicked:Connect(function(name, frame)
+    local fx = recorder:getEffect(name)
+    if not fx then return end
+    local f = timeline:setCurrent(frame)
+    panel:setFrameDisplay(f, timeline:getFrameCount())
+    applyPosesAt(f, false)
+
+    local event = { action = fx.action }
+    if fx.action == "emit" then
+        event.count = EffectRunner.DEFAULT_EMIT_COUNT
+    end
+    recorder:setEffectEvent(name, f, event)
+    panel:addEffectMarker(name, f)
+    scheduleAutoSave()
+    print(string.format("[MultiAnimation] Effect event '%s' (%s) at frame %d", name, fx.action, f))
+end)
+
+panel.onEffectMarkerClicked:Connect(function(_name, frame)
+    local f = timeline:setCurrent(frame)
+    panel:setFrameDisplay(f, timeline:getFrameCount())
+    applyPosesAt(f, false)
+end)
+
+panel.onEffectMarkerDeleteRequested:Connect(function(name, frame)
+    recorder:deleteEffectEvent(name, frame)
+    panel:removeEffectMarker(name, frame)
+    scheduleAutoSave()
+end)
+
+panel.onEffectRemoved:Connect(function(name)
+    allEffects[name] = nil   -- recorded events stay in the session (like props)
 end)
 
 -- ── Camera track handlers ─────────────────────────────────────────────────────
@@ -1050,6 +1176,11 @@ panel.onNewSessionConfirmed:Connect(function()
     end
     clearCameraGizmos()
     panel:setCameraModeDisplay(nil)
+    -- Clear effect UI
+    for name in pairs(recorder:getSession().effects or {}) do
+        panel:removeEffect(name)
+    end
+    allEffects = {}
     recorder:clearSession()
     timeline:setCurrent(1)
     scanAndSetup()
@@ -1319,6 +1450,80 @@ local testBridge = TestBridge.start({
             a.cf[7],  a.cf[8],  a.cf[9],
             a.cf[10], a.cf[11], a.cf[12]
         )
+        return true
+    end,
+
+    -- Effect track (Phase 9)
+    trackEffect = function(a)
+        -- a.path: dot path from game, e.g. "Workspace.FXPart.Spark"
+        local inst = game
+        for part in string.gmatch(a.path, "[^.]+") do
+            inst = inst:FindFirstChild(part) or (inst == game and game:GetService(part))
+            if not inst then return nil end
+        end
+        local effect = EffectRunner.findEffect(inst)
+        if not effect then return nil end
+        return trackEffectInstance(effect)
+    end,
+
+    getEffects = function()
+        local names = {}
+        for n in pairs(recorder:getSession().effects or {}) do table.insert(names, n) end
+        table.sort(names)
+        return names
+    end,
+
+    getEffectInfo = function(a)
+        local fx = recorder:getEffect(a.name)
+        if not fx then return nil end
+        return { kind = fx.kind, action = fx.action, linked = allEffects[a.name] ~= nil }
+    end,
+
+    cycleEffectAction = function(a)
+        local fx = recorder:getEffect(a.name)
+        if not fx then return nil end
+        local nextAction = EffectRunner.cycleAction(fx.kind, fx.action)
+        recorder:setEffectAction(a.name, nextAction)
+        panel:setEffectAction(a.name, nextAction)
+        return nextAction
+    end,
+
+    addEffectEvent = function(a)
+        local fx = recorder:getEffect(a.name)
+        if not fx then return false end
+        local event = { action = fx.action }
+        if fx.action == "emit" then event.count = EffectRunner.DEFAULT_EMIT_COUNT end
+        recorder:setEffectEvent(a.name, a.frame, event)
+        panel:addEffectMarker(a.name, a.frame)
+        return true
+    end,
+
+    getEffectFrames = function(a)
+        return recorder:getSortedEffectFrames(a.name)
+    end,
+
+    getEffectEvent = function(a)
+        local ev = recorder:getEffectEvent(a.name, a.frame)
+        return ev and { action = ev.action, count = ev.count } or nil
+    end,
+
+    deleteEffectEvent = function(a)
+        recorder:deleteEffectEvent(a.name, a.frame)
+        panel:removeEffectMarker(a.name, a.frame)
+        return true
+    end,
+
+    untrackEffect = function(a)
+        panel:removeEffect(a.name)
+        allEffects[a.name] = nil
+        return true
+    end,
+
+    fireEffect = function(a)
+        local inst = allEffects[a.name]
+        local ev = recorder:getEffectEvent(a.name, a.frame)
+        if not (inst and ev) then return false end
+        EffectRunner.fire(inst, ev)
         return true
     end,
 })

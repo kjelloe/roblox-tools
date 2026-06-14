@@ -313,14 +313,32 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
       (`Rig1 @ 12`). Bridge commands: `copyKeyframe`, `pasteKeyframe`,
       `getClipboard`, `getJointCF`, `setJointCF`.
 - [x] Tests — `test_mirror_core.lua` (17: reflection math, involution,
-      determinant, name-map round-trips) and `test_ui_rigtools.lua` (19: live
+      determinant, name-map round-trips) and `test_ui_rigtools.lua` (20: live
       add-rig + auto-detect, copy/paste/mirror through the bridge, full part-
       CFrame snapshot/restore hygiene). Suite total: **250 cases**.
+- [x] **Effect track** — one-shot events (ParticleEmitter emit/on/off, Sound
+      play/stop, Light/Beam/Trail/Highlight on/off) placed at any keyframe and
+      fired when playback crosses that frame.  Action is cycled per-effect with
+      the `Track Effect` button → purple chip (click=cycle, ×=untrack) + purple
+      lane in the timeline.  Exported as `EffectTracks` ModuleScript alongside
+      the scene; loaded and fired by `MultiAnimPlayer` in the Heartbeat loop via
+      a crossing-pointer so events fire exactly once.  Instance path resolved
+      from `fx.target` dotted string at runtime (walks from `game`).  New
+      modules: `EffectRunner` (classify / fire / cycleAction), extended
+      `Recorder` (effect CRUD), extended `Panel` (FX row + purple lanes),
+      extended `Exporter` (EffectTracks builder), extended `MultiAnimPlayer`
+      (load + fire).  Bridge commands: `trackEffect`, `getEffects`,
+      `getEffectInfo`, `cycleEffectAction`, `addEffectEvent`, `getEffectFrames`,
+      `getEffectEvent`, `deleteEffectEvent`, `untrackEffect`, `fireEffect`.
+- [x] Tests — `test_effect_core.lua` (24: classify, cycleAction, live fire,
+      crossing-pointer), `test_effect_exporter.lua` (13: source builder, loadstring
+      round-trip, omit-if-empty), `test_ui_effects.lua` (18: full bridge
+      integration — track, cycle, add/read/delete events, live fire, untrack).
+      Suite total: **306 cases** across 18 files.
 
 ### Backlog
 
 - Multiple named cameras + switcher track (authoring sugar over Phase 8 cuts)
-- Effect track — trigger ParticleEmitters / sounds at keyframes ("Add effect" TODO)
 - Auto-capture on transform change
 - Per-keyframe easing curve selector
 - R15 rig support

@@ -27,6 +27,7 @@ function Recorder.new()
         rigs       = {},
         props      = {},
         camera     = { track = {} },   -- [frame] = {cf=CFrame, fov=number, mode="move"|"cut"}
+        effects    = {},               -- [name] = {kind, action, path, track={[frame]={action,count}}}
     }
 
     self._restPoses = {}   -- { [rigName] = jointData } captured at session start
@@ -223,11 +224,61 @@ function Recorder:deleteCameraKeyframe(frame)
     if cam then cam.track[frame] = nil end
 end
 
+-- Effect track accessors. Each effect is a named instance (ParticleEmitter,
+-- Sound, light, …) with one-shot events keyed by frame.
+function Recorder:registerEffect(name, kind, action, path)
+    self._session.effects = self._session.effects or {}
+    local existing = self._session.effects[name]
+    if existing then
+        existing.kind = kind; existing.action = action; existing.path = path
+    else
+        self._session.effects[name] = { kind = kind, action = action, path = path, track = {} }
+    end
+    return self._session.effects[name]
+end
+
+function Recorder:getEffect(name)
+    return self._session.effects and self._session.effects[name]
+end
+
+function Recorder:setEffectAction(name, action)
+    local fx = self:getEffect(name)
+    if fx then fx.action = action end
+    return fx ~= nil
+end
+
+function Recorder:setEffectEvent(name, frame, event)
+    local fx = self:getEffect(name)
+    if not fx then return false end
+    fx.track[frame] = event
+    return true
+end
+
+function Recorder:getEffectEvent(name, frame)
+    local fx = self:getEffect(name)
+    return fx and fx.track[frame]
+end
+
+function Recorder:getSortedEffectFrames(name)
+    local fx = self:getEffect(name)
+    if not fx then return {} end
+    local frames = {}
+    for f in pairs(fx.track) do table.insert(frames, f) end
+    table.sort(frames)
+    return frames
+end
+
+function Recorder:deleteEffectEvent(name, frame)
+    local fx = self:getEffect(name)
+    if fx then fx.track[frame] = nil end
+end
+
 function Recorder:clearSession()
-    self._session.rigs   = {}
-    self._session.props  = {}
-    self._session.camera = { track = {} }
-    self._restPoses      = {}
+    self._session.rigs    = {}
+    self._session.props   = {}
+    self._session.camera  = { track = {} }
+    self._session.effects = {}
+    self._restPoses       = {}
 end
 
 function Recorder:setJointData(rigName, frame, jointData)

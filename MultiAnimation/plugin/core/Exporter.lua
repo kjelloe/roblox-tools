@@ -235,6 +235,51 @@ local function buildCameraTrackSource(session)
     return table.concat(lines, "\n")
 end
 
+-- ── EffectTracks source builder ───────────────────────────────────────────────
+-- One-shot events: {fps, effects = {name = {target = "full.path", events =
+-- {[frame] = {action = "emit", count = 15}}}}}. Fired when playback crosses
+-- the frame; never interpolated.
+
+local function buildEffectTracksSource(session)
+    local lines = {}
+    local function add(s) table.insert(lines, s) end
+
+    add("return {")
+    add(string.format("    fps = %d,", session.fps or 24))
+    add("    effects = {")
+
+    local names = {}
+    for name in pairs(session.effects or {}) do table.insert(names, name) end
+    table.sort(names)
+
+    for _, name in ipairs(names) do
+        local fx = session.effects[name]
+        if next(fx.track) then
+            add(string.format("        [%q] = {", name))
+            add(string.format("            target = %q,", fx.path or ""))
+            add("            events = {")
+            local sortedFrames = {}
+            for f in pairs(fx.track) do table.insert(sortedFrames, f) end
+            table.sort(sortedFrames)
+            for _, frame in ipairs(sortedFrames) do
+                local ev = fx.track[frame]
+                if ev.count then
+                    add(string.format("                [%d] = {action = %q, count = %d},",
+                        frame, ev.action, ev.count))
+                else
+                    add(string.format("                [%d] = {action = %q},", frame, ev.action))
+                end
+            end
+            add("            },")
+            add("        },")
+        end
+    end
+
+    add("    },")
+    add("}")
+    return table.concat(lines, "\n")
+end
+
 function Exporter.export(session, sceneName)
     if not session or not session.rigs or not next(session.rigs) then
         warn("[Exporter] Nothing to export — record some keyframes first")
@@ -307,6 +352,18 @@ function Exporter.export(session, sceneName)
         camModule.Name         = "CameraTrack"
         camModule.Source       = buildCameraTrackSource(session)
         camModule.Parent       = sceneFolder
+    end
+
+    -- EffectTracks — only written when any effect has events
+    local hasEffectData = false
+    for _, fx in pairs(session.effects or {}) do
+        if next(fx.track) then hasEffectData = true; break end
+    end
+    if hasEffectData then
+        local fxModule        = Instance.new("ModuleScript")
+        fxModule.Name         = "EffectTracks"
+        fxModule.Source       = buildEffectTracksSource(session)
+        fxModule.Parent       = sceneFolder
     end
 
     -- Deploy game-side modules alongside the scene data so game scripts can
