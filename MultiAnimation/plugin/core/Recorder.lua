@@ -187,6 +187,12 @@ function Recorder:deletePropKeyframe(propName, frame)
     if prop then prop.propTrack[frame] = nil end
 end
 
+function Recorder:deleteProp(propName)
+    if self._session.props then
+        self._session.props[propName] = nil
+    end
+end
+
 -- Camera track accessors. One track for the whole session;
 -- each keyframe = {cf, fov, mode} where mode is "move" (interpolate from the
 -- previous keyframe) or "cut" (hard jump at this frame).

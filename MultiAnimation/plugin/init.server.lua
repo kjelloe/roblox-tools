@@ -1140,8 +1140,8 @@ end)
 
 panel.onPropRemoved:Connect(function(propName)
     allProps[propName] = nil
-    -- Recorder data is intentionally kept so export still works
-    print("[MultiAnimation] Stopped tracking prop: " .. propName)
+    recorder:deleteProp(propName)
+    print("[MultiAnimation] Removed prop: " .. propName)
 end)
 
 panel.onPropDoubleClicked:Connect(function(propName, frame)

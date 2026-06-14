@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MultiAnimation — Camera &amp; Effect Track How-To</title>
+<style>
+  :root {
+    --bg:       #1a1a2e;
+    --card:     #16213e;
+    --accent:   #e94560;
+    --orange:   #ff9628;
+    --purple:   #be78ff;
+    --teal:     #00cfcf;
+    --muted:    #8892a4;
+    --text:     #dde3ef;
+    --code-bg:  #0f172a;
+    --border:   #2a3352;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    padding: 0 0 60px;
+  }
+  header {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    border-bottom: 2px solid var(--accent);
+    padding: 32px 40px 28px;
+  }
+  header h1 { font-size: 26px; color: #fff; }
+  header p  { color: var(--muted); margin-top: 6px; font-size: 14px; }
+  nav {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 40px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  nav a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    transition: all .15s;
+  }
+  nav a:hover { color: var(--text); border-color: var(--orange); }
+  .content { max-width: 900px; margin: 0 auto; padding: 0 40px; }
+  h2 {
+    font-size: 20px;
+    color: #fff;
+    margin: 44px 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  h2 .tag {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: 10px;
+    vertical-align: middle;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .tag-cam  { background: #7a3800; color: var(--orange); }
+  .tag-fx   { background: #3a1a6e; color: var(--purple); }
+  h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--orange);
+    margin: 28px 0 10px;
+  }
+  h3.purple { color: var(--purple); }
+  p { margin-bottom: 12px; }
+  ul, ol { margin: 8px 0 14px 22px; }
+  li { margin-bottom: 5px; }
+  code {
+    background: var(--code-bg);
+    color: #93c5fd;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: 'Consolas', 'Fira Code', monospace;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    overflow-x: auto;
+    font-size: 13px;
+    font-family: 'Consolas', 'Fira Code', monospace;
+    color: #93c5fd;
+    margin: 12px 0 18px;
+    line-height: 1.55;
+  }
+  pre .cm { color: #64748b; }
+  pre .str { color: #86efac; }
+  pre .kw  { color: #c4b5fd; }
+  .tip {
+    background: #0c2a1a;
+    border-left: 3px solid #22c55e;
+    padding: 12px 16px;
+    border-radius: 0 6px 6px 0;
+    margin: 14px 0;
+    font-size: 14px;
+  }
+  .warn {
+    background: #2a1800;
+    border-left: 3px solid var(--orange);
+    padding: 12px 16px;
+    border-radius: 0 6px 6px 0;
+    margin: 14px 0;
+    font-size: 14px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0 20px;
+    font-size: 14px;
+  }
+  th {
+    background: #0f172a;
+    color: var(--muted);
+    font-weight: 600;
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+  td {
+    padding: 9px 12px;
+    border-bottom: 1px solid #1e2a3a;
+    vertical-align: top;
+  }
+  tr:hover td { background: #1a2234; }
+  .btn-chip {
+    display: inline-block;
+    background: #2a1e00;
+    border: 1px solid var(--orange);
+    color: var(--orange);
+    border-radius: 4px;
+    padding: 1px 8px;
+    font-size: 12px;
+    font-family: 'Consolas', monospace;
+    white-space: nowrap;
+  }
+  .btn-chip.purple {
+    background: #1e0a3a;
+    border-color: var(--purple);
+    color: var(--purple);
+  }
+  .btn-chip.green {
+    background: #0a2a10;
+    border-color: #22c55e;
+    color: #22c55e;
+  }
+  .step-grid {
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    gap: 6px 14px;
+    margin: 12px 0 18px;
+    align-items: start;
+  }
+  .step-num {
+    background: var(--orange);
+    color: #000;
+    font-weight: 700;
+    font-size: 12px;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 3px;
+    flex-shrink: 0;
+  }
+  .step-num.purple { background: var(--purple); }
+  .step-body { padding-top: 2px; }
+  .dot {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    vertical-align: middle;
+    margin-right: 4px;
+  }
+  .dot-orange { background: var(--orange); }
+  .dot-red    { background: #ff5050; }
+  .dot-purple { background: var(--purple); }
+  .panel-mock {
+    background: #1e2a3a;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-size: 13px;
+    font-family: 'Consolas', monospace;
+    color: #a0b4cc;
+    margin: 14px 0 18px;
+    line-height: 1.9;
+  }
+  .panel-mock .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .pm-btn {
+    background: #2d3a4e;
+    border: 1px solid #3a4a64;
+    border-radius: 3px;
+    padding: 2px 8px;
+    color: #c8d6e8;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .pm-btn.accent { background: #1a3a3a; border-color: var(--teal); color: var(--teal); }
+  .pm-btn.orange { background: #2a1a00; border-color: var(--orange); color: var(--orange); }
+  .pm-btn.purple-b{ background: #1e0a3a; border-color: var(--purple); color: var(--purple); }
+  .pm-label { color: #5a6a7a; font-size: 11px; margin-right: 2px; }
+  .pm-input { background: #0f1a28; border: 1px solid #3a4a64; border-radius: 3px; padding: 2px 8px; color: #c8d6e8; font-size: 12px; }
+  .timeline-mock {
+    background: #111a28;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 12px;
+    font-family: 'Consolas', monospace;
+    margin: 12px 0 18px;
+    overflow-x: auto;
+  }
+  .tl-row { display: flex; align-items: center; gap: 0; margin: 3px 0; }
+  .tl-label {
+    width: 52px;
+    color: #5a6a7a;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .tl-track {
+    flex: 1;
+    height: 18px;
+    background: #1a2234;
+    border-radius: 3px;
+    position: relative;
+    min-width: 200px;
+  }
+  .tl-dot {
+    position: absolute;
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    top: 50%; transform: translateY(-50%);
+  }
+  .divider-line {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 36px 0 0;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>MultiAnimation — Camera &amp; Effect Track How-To</h1>
+  <p>Step-by-step guide for the camera track controls and the Effect Track button.</p>
+</header>
+
+<nav>
+  <a href="#overview">Overview</a>
+  <a href="#cam-capture">📷 Cam KF</a>
+  <a href="#cam-preview">Cam:OFF / Cam:ON</a>
+  <a href="#cam-mode">KF:move / KF:cut</a>
+  <a href="#cam-delete">Delete a Shot</a>
+  <a href="#cam-reposition">Reposition a Shot</a>
+  <a href="#cam-double">Add via Double-click</a>
+  <a href="#cam-workflow">Full Cutscene Workflow</a>
+  <a href="#fx-track">Track Effect</a>
+  <a href="#fx-workflow">Effect Workflow</a>
+</nav>
+
+<div class="content">
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<h2 id="overview">Overview</h2>
+
+<p>The MultiAnimation plugin panel has a single compact row (next to Scene name
+and Export) that contains all camera controls.  Below the CONTROLS section, the
+PROPS IN SCENE area contains the <strong>Track Effect</strong> button.</p>
+
+<div class="panel-mock">
+  <div style="color:#5a6a7a;font-size:11px;margin-bottom:6px;">CONTROLS</div>
+  <div class="row" style="margin-bottom:6px;">
+    <span class="pm-label">Scene:</span>
+    <span class="pm-input">Scene_001</span>
+    <span class="pm-btn orange">⬆ Export</span>
+    <span class="pm-btn orange">📷 Cam KF</span>
+    <span class="pm-btn orange">Cam:OFF</span>
+    <span class="pm-btn orange">KF:—</span>
+  </div>
+  <div class="row">
+    <span class="pm-btn accent">+ Add Keyframe</span>
+    <span class="pm-btn">▶ Preview</span>
+    <span class="pm-btn">■ Stop</span>
+  </div>
+  <div style="color:#5a6a7a;font-size:11px;margin:10px 0 6px;">PROPS IN SCENE</div>
+  <div class="row">
+    <span class="pm-btn">+ Track Part</span>
+    &nbsp;<span style="color:#5a6a7a;">…</span>&nbsp;
+    <span class="pm-btn purple-b">Track Effect</span>
+  </div>
+</div>
+
+<table>
+<tr><th>Control</th><th>Location</th><th>What it does</th></tr>
+<tr><td><span class="btn-chip">📷 Cam KF</span></td><td>Scene row</td><td>Capture the current Studio viewport as a camera keyframe</td></tr>
+<tr><td><span class="btn-chip">Cam:OFF / Cam:ON</span></td><td>Scene row</td><td>Toggle camera preview — slaves the viewport to the camera track</td></tr>
+<tr><td><span class="btn-chip">KF:— / KF:move / KF:cut</span></td><td>Scene row</td><td>Show and toggle the mode of the keyframe at the current frame</td></tr>
+<tr><td><span class="btn-chip purple">Track Effect</span></td><td>PROPS section</td><td>Begin tracking a ParticleEmitter, Sound, or Light as an effect lane</td></tr>
+</table>
+
+<p>Camera keyboard shortcut: press <code>C</code> while the viewport is focused
+to capture a camera keyframe without clicking the button.</p>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<h2 id="cam-capture">Button 1 — <span class="btn-chip">📷 Cam KF</span> &nbsp;(Capture a Shot)
+  <span class="tag tag-cam">Camera</span></h2>
+
+<p>This is how you record a camera position into the timeline.  Each press
+saves the viewport's <strong>position, rotation, and field of view</strong> as
+a keyframe at the current frame number.</p>
+
+<h3>How to use it</h3>
+<div class="step-grid">
+  <div class="step-num">1</div>
+  <div class="step-body">Navigate to the frame where you want the shot.
+    Use the <code>◄ ►</code> frame-step buttons or type a frame number.</div>
+  <div class="step-num">2</div>
+  <div class="step-body">Fly the Studio viewport to the exact angle you want —
+    position, rotation, and zoom all matter.</div>
+  <div class="step-num">3</div>
+  <div class="step-body">Click <span class="btn-chip">📷 Cam KF</span> (or press <code>C</code>).
+    An <span class="dot dot-orange"></span><strong>orange dot</strong> appears
+    on the Camera lane in the timeline, and a small gizmo part appears in the
+    scene showing the look direction.</div>
+</div>
+
+<div class="timeline-mock">
+  <div class="tl-row">
+    <span class="tl-label">Camera</span>
+    <div class="tl-track">
+      <div class="tl-dot" style="left:15%;background:#ff9628;"></div>
+      <div class="tl-dot" style="left:50%;background:#ff9628;"></div>
+      <div class="tl-dot" style="left:80%;background:#ff9628;"></div>
+    </div>
+  </div>
+  <div style="color:#5a6a7a;font-size:11px;margin-top:6px;">
+    Three camera keyframes — orange = smooth move between them
+  </div>
+</div>
+
+<h3>Example: Establishing shot + close-up</h3>
+<ol>
+  <li>Go to frame 1 → fly back to show the whole scene → click <span class="btn-chip">📷 Cam KF</span></li>
+  <li>Go to frame 30 → fly in close to a character's face → click <span class="btn-chip">📷 Cam KF</span></li>
+  <li>Press <strong>▶ Preview</strong> — the camera glides smoothly from the wide
+    shot to the close-up over 30 frames.</li>
+</ol>
+
+<div class="tip"><strong>Tip:</strong> You can capture as many keyframes as you
+like.  The camera interpolates (glides) between consecutive keyframes
+automatically.  Add more keyframes for tighter control over the arc of the
+camera path.</div>
+
+<div class="warn"><strong>Note:</strong> You cannot capture a camera keyframe
+while <span class="btn-chip">Cam:ON</span> preview is active — the viewport
+is showing the track, so capturing would just re-record the same shot.
+The plugin will warn and skip.  Toggle preview <strong>off</strong> first,
+reframe, then capture.</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<h2 id="cam-preview">Button 2 — <span class="btn-chip">Cam:OFF</span> / <span class="btn-chip">Cam:ON</span>
+  &nbsp;(Preview the Track)
+  <span class="tag tag-cam">Camera</span></h2>
+
+<p>Toggles <em>camera preview mode</em>.  When ON, the Studio edit-mode
+viewport becomes your "virtual camera" — it moves exactly as the exported
+camera would move in-game.</p>
+
+<h3>How to use it</h3>
+<div class="step-grid">
+  <div class="step-num">1</div>
+  <div class="step-body">After adding some camera keyframes, click
+    <span class="btn-chip">Cam:OFF</span>. The button flips to
+    <span class="btn-chip">Cam:ON</span> and the viewport snaps to your first
+    camera keyframe.</div>
+  <div class="step-num">2</div>
+  <div class="step-body">Scrub the timeline or press <strong>▶ Preview</strong>.
+    Your viewport follows the camera track — you see exactly what players
+    would see.</div>
+  <div class="step-num">3</div>
+  <div class="step-body">Click <span class="btn-chip">Cam:ON</span> to toggle
+    preview off.  The viewport returns to exactly where it was before you
+    turned preview on.</div>
+</div>
+
+<h3>Example: Review your cutscene</h3>
+<ol>
+  <li>Record poses for your rigs across frames 1–90.</li>
+  <li>Add camera keyframes at frames 1, 30, 60, and 90.</li>
+  <li>Click <span class="btn-chip">Cam:OFF</span> to enable preview.</li>
+  <li>Press <strong>▶ Preview</strong> — watch the whole cutscene play back,
+    with both rig animation and camera movement, without entering play mode.</li>
+  <li>Click <span class="btn-chip">Cam:ON</span> to return to free-look mode
+    and adjust any shots you don't like.</li>
+</ol>
+
+<div class="tip"><strong>Tip:</strong> While in preview mode you can still
+scrub the timeline with the <code>◄ ►</code> buttons or drag the scrubber
+to step through the track frame-by-frame and judge every angle.</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<h2 id="cam-mode">Button 3 — <span class="btn-chip">KF:—</span> / <span class="btn-chip">KF:move</span> / <span class="btn-chip">KF:cut</span>
+  &nbsp;(Move or Hard Cut)
+  <span class="tag tag-cam">Camera</span></h2>
+
+<p>Each camera keyframe has a <strong>mode</strong>: either
+<strong>move</strong> (smooth interpolation from the previous shot) or
+<strong>cut</strong> (the previous shot freezes, then the camera jumps hard
+at this exact frame).</p>
+
+<ul>
+  <li><span class="dot dot-orange"></span><strong>Orange dot</strong> = <em>move</em> — camera glides to this shot</li>
+  <li><span class="dot dot-red"></span><strong>Red dot</strong> = <em>cut</em> — camera jumps here instantly</li>
+</ul>
+
+<p>The button shows <code>KF:—</code> when there is no keyframe at the
+current frame, <code>KF:move</code> or <code>KF:cut</code> when there is.</p>
+
+<h3>How to toggle a keyframe's mode</h3>
+<div class="step-grid">
+  <div class="step-num">1</div>
+  <div class="step-body">Navigate to the frame that has the keyframe you want
+    to change (the button shows <code>KF:move</code> or <code>KF:cut</code>).</div>
+  <div class="step-num">2</div>
+  <div class="step-body">Click the <span class="btn-chip">KF:move</span> /
+    <span class="btn-chip">KF:cut</span> button to flip the mode.
+    The dot on the timeline changes colour instantly.</div>
+</div>
+
+<div class="timeline-mock">
+  <div class="tl-row">
+    <span class="tl-label">Camera</span>
+    <div class="tl-track">
+      <div class="tl-dot" style="left:5%;background:#ff9628;" title="frame 1 - move"></div>
+      <div class="tl-dot" style="left:40%;background:#ff5050;" title="frame 50 - cut"></div>
+      <div class="tl-dot" style="left:75%;background:#ff9628;" title="frame 90 - move"></div>
+    </div>
+  </div>
+  <div style="color:#5a6a7a;font-size:11px;margin-top:6px;">
+    Frame 1 (orange=move) → Frame 50 (red=cut, instant jump) → Frame 90 (orange=move)
+  </div>
+</div>
+
+<h3>Example: Multi-angle action sequence</h3>
+<p>You want a wide shot, then a hard cut to a different angle, then a slow
+pull-back:</p>
+<ol>
+  <li>Frame 1 → wide establishing shot → <span class="btn-chip">📷 Cam KF</span>
+    → leave as <code>KF:move</code></li>
+  <li>Frame 30 → close-up on character A → <span class="btn-chip">📷 Cam KF</span>
+    → click <span class="btn-chip">KF:move</span> to flip it to
+    <span class="btn-chip">KF:cut</span> (red dot)</li>
+  <li>Frame 60 → character B reacts → <span class="btn-chip">📷 Cam KF</span>
+    → flip to <span class="btn-chip">KF:cut</span></li>
+  <li>Frame 90 → pull back to wide → <span class="btn-chip">📷 Cam KF</span>
+    → leave as <code>KF:move</code></li>
+</ol>
+<p>Result: wide shot holds until frame 30, hard cut to close-up of A,
+hard cut to B reacting, then the camera smoothly glides back to wide.</p>
+
+<div class="tip"><strong>Tip:</strong> The first keyframe (frame 1) is almost
+always a <em>move</em> — it just sets the starting position.  Use
+<em>cut</em> for dramatic angle changes and <em>move</em> for smooth
+transitions.</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<h2 id="cam-delete">Interaction 4 — Delete a Camera Shot
+  <span class="tag tag-cam">Camera</span></h2>
+
+<p>Right-click any orange or red dot on the Camera lane to delete that
+keyframe.  The gizmo part in the scene disappears at the same time.</p>
+
+<h3>How to delete</h3>
+<div class="step-grid">
+  <div class="step-num">1</div>
+  <div class="step-body">Find the dot on the Camera lane in the timeline.</div>
+  <div class="step-num">2</div>
+  <div class="step-body"><strong>Right-click</strong> the dot.  It disappears
+    immediately along with its viewport gizmo.</div>
+</div>
+
+<div class="warn"><strong>Undo:</strong> Camera keyframe deletion is not
+currently undoable with Ctrl+Z.  Re-capture the shot if you accidentally
+delete it.</div>
+
+<h3>Example: Remove a redundant shot</h3>
+<p>You placed keyframes at frames 1, 20, 40, and 60 but the frame-20 shot
+is too similar to frame-1.  Right-click the dot at frame 20 to remove it.
+The camera now glides from frame 1 directly to frame 40.</p>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<h2 id="cam-reposition">Interaction 5 — Reposition a Shot via Gizmo
+  <span class="tag tag-cam">Camera</span></h2>
+
+<p>Every camera keyframe has a small <strong>gizmo part</strong> in the
+scene (a box with a stud pointing in the look direction).  You can use the
+Studio move and rotate tools directly on the gizmo to re-aim the shot
+without recapturing.</p>
+
+<h3>How to reposition</h3>
+<div class="step-grid">
+  <div class="step-num">1</div>
+  <div class="step-body"><strong>Click</strong> a gizmo in the viewport.
+    The timeline jumps to that keyframe's frame.</div>
+  <div class="step-num">2</div>
+  <div class="step-body">Use the Studio <strong>Move tool</strong> (or
+    Rotate) to drag the gizmo to the new camera position and direction.
+    The keyframe updates in real time.</div>
+  <div class="step-num">3</div>
+  <div class="step-body">Enable <span class="btn-chip">Cam:OFF</span> →
+    <span class="btn-chip">Cam:ON</span> and scrub to verify the new
+    angle.</div>
+</div>
+
+<div class="tip"><strong>Tip:</strong> Gizmos are <em>never saved</em> with
+the place file and vanish when the plugin unloads.  They are a preview aid
+only — the actual keyframe data lives in the session.</div>
+
+<h3>Example: Fine-tune a close-up</h3>
+<p>Your close-up at frame 45 is slightly off-axis.  Click the gizmo for
+frame 45, rotate it a few degrees left, and the keyframe updates.
+Toggle preview on and play back to confirm the new angle.</p>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<h2 id="cam-double">Interaction 6 — Add a Shot by Double-clicking the Lane
+  <span class="tag tag-cam">Camera</span></h2>
+
+<p>Double-clicking anywhere on the Camera track lane is a shortcut that
+combines two steps: it jumps the timeline to that frame <em>and</em>
+immediately captures the current viewport as a camera keyframe.</p>
+
+<h3>How to use it</h3>
+<div class="step-grid">
+  <div class="step-num">1</div>
+  <div class="step-body">Make sure your Studio viewport is already framed the
+    way you want.</div>
+  <div class="step-num">2</div>
+  <div class="step-body"><strong>Double-click</strong> a blank spot on the
+    Camera lane at the target frame.  A dot appears immediately.</div>
+</div>
+
+<div class="tip"><strong>Tip:</strong> This is faster than: navigate frame →
+    fly camera → click button.  Use it when you want to quickly
+    rough-in a series of shots by framing each angle and
+    double-clicking the corresponding frame position.</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<h2 id="cam-workflow">Full Cutscene Workflow — End to End
+  <span class="tag tag-cam">Camera</span></h2>
+
+<p>Here is a complete example: a 5-second cutscene (120 frames at 24 fps)
+where two characters talk and the camera cuts between them.</p>
+
+<h3>Step 1 — Record character animation</h3>
+<ol>
+  <li>Open MultiAnimation, confirm Rig1 and Rig2 are detected in the RIGS
+    section.</li>
+  <li>Pose Rig1 for each key moment, pressing <strong>K</strong> (or
+    <strong>+ Add Keyframe</strong>) to record.  Do the same for Rig2.</li>
+  <li>Press <strong>▶ Preview</strong> to check the animation looks right.</li>
+</ol>
+
+<h3>Step 2 — Add camera keyframes</h3>
+
+<div class="step-grid">
+  <div class="step-num">1</div>
+  <div class="step-body">Go to <strong>frame 1</strong>.  Position the
+    viewport for an establishing wide shot showing both characters.
+    Press <strong>C</strong> to capture.</div>
+  <div class="step-num">2</div>
+  <div class="step-body">Go to <strong>frame 25</strong>.  Zoom in on Rig1's
+    face.  Press <strong>C</strong>.  Then click <span class="btn-chip">KF:move</span>
+    to make it a <span class="btn-chip">KF:cut</span>.</div>
+  <div class="step-num">3</div>
+  <div class="step-body">Go to <strong>frame 55</strong>.  Pivot to Rig2.
+    Press <strong>C</strong>.  Flip to <span class="btn-chip">KF:cut</span>.</div>
+  <div class="step-num">4</div>
+  <div class="step-body">Go to <strong>frame 90</strong>.  Wide shot again.
+    Press <strong>C</strong>.  Leave as <span class="btn-chip">KF:move</span>
+    (smooth pull-back).</div>
+  <div class="step-num">5</div>
+  <div class="step-body">Go to <strong>frame 120</strong>.  Slightly higher
+    angle.  Press <strong>C</strong>.  Leave as <span class="btn-chip">KF:move</span>.</div>
+</div>
+
+<div class="timeline-mock">
+  <div class="tl-row">
+    <span class="tl-label">Rig1</span>
+    <div class="tl-track">
+      <div class="tl-dot" style="left:0%;background:#e8c700;"></div>
+      <div class="tl-dot" style="left:25%;background:#e8c700;"></div>
+      <div class="tl-dot" style="left:60%;background:#e8c700;"></div>
+      <div class="tl-dot" style="left:100%;background:#e8c700;"></div>
+    </div>
+  </div>
+  <div class="tl-row">
+    <span class="tl-label">Rig2</span>
+    <div class="tl-track">
+      <div class="tl-dot" style="left:0%;background:#e8c700;"></div>
+      <div class="tl-dot" style="left:40%;background:#e8c700;"></div>
+      <div class="tl-dot" style="left:80%;background:#e8c700;"></div>
+    </div>
+  </div>
+  <div class="tl-row">
+    <span class="tl-label">Camera</span>
+    <div class="tl-track">
+      <div class="tl-dot" style="left:0%;background:#ff9628;" title="fr1 move"></div>
+      <div class="tl-dot" style="left:20%;background:#ff5050;" title="fr25 cut"></div>
+      <div class="tl-dot" style="left:45%;background:#ff5050;" title="fr55 cut"></div>
+      <div class="tl-dot" style="left:74%;background:#ff9628;" title="fr90 move"></div>
+      <div class="tl-dot" style="left:99%;background:#ff9628;" title="fr120 move"></div>
+    </div>
+  </div>
+  <div style="color:#5a6a7a;font-size:11px;margin-top:6px;">
+    fr1(wide·move) → fr25(Rig1 close·cut) → fr55(Rig2 cut) → fr90(wide·move) → fr120(high·move)
+  </div>
+</div>
+
+<h3>Step 3 — Preview and adjust</h3>
+<ol>
+  <li>Click <span class="btn-chip">Cam:OFF</span> to enter preview mode.</li>
+  <li>Press <strong>▶ Preview</strong> and watch the full cutscene.</li>
+  <li>To adjust a shot: toggle preview off, click the gizmo for that shot,
+    re-aim with the Move/Rotate tools, preview again.</li>
+  <li>To delete a bad shot: right-click its dot and recapture.</li>
+</ol>
+
+<h3>Step 4 — Export and play in-game</h3>
+<pre><code><span class="cm">-- In a Script inside ServerScriptService:</span>
+<span class="kw">local</span> Cutscene = require(game.ServerStorage.MultiAnimationData.CutsceneServer)
+Cutscene.play(<span class="str">"Scene_001"</span>, {
+    Rig1 = workspace.FIGURES.Rig1,
+    Rig2 = workspace.FIGURES.Rig2,
+})</code></pre>
+
+<p>This fires the cutscene for <em>all connected players</em> simultaneously.
+Their cameras are driven by the <code>CameraTrack</code> module that was
+exported alongside the scene.</p>
+
+<div class="tip"><strong>Animation only (no cutscene camera):</strong>
+If you just want the rig animation without the camera track, use
+<code>MultiAnimPlayer.play()</code> instead.  The camera track is only fired
+when you call <code>CutsceneServer.play()</code>.</div>
+
+<hr class="divider-line">
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<h2 id="fx-track">The <span class="btn-chip purple">Track Effect</span> Button
+  <span class="tag tag-fx">Effect Track</span></h2>
+
+<p>The <strong>Track Effect</strong> button (in the PROPS IN SCENE section,
+below the FX: label) lets you place <em>one-shot events</em> — particle
+bursts, sound cues, light flashes — at specific frames on the timeline.
+When the exported animation plays back, these events fire at exactly the
+right moment, no manual scripting required.</p>
+
+<h3>Supported effect types</h3>
+<table>
+<tr><th>Type</th><th>Roblox class</th><th>Available actions</th></tr>
+<tr>
+  <td>Particle burst</td>
+  <td><code>ParticleEmitter</code></td>
+  <td><code>emit</code> (burst of 15 particles) · <code>on</code> (enable continuous) · <code>off</code> (disable)</td>
+</tr>
+<tr>
+  <td>Sound cue</td>
+  <td><code>Sound</code></td>
+  <td><code>play</code> · <code>stop</code></td>
+</tr>
+<tr>
+  <td>Toggle</td>
+  <td><code>PointLight</code>, <code>SpotLight</code>,<br><code>SurfaceLight</code>, <code>Beam</code>,<br><code>Trail</code>, <code>Highlight</code></td>
+  <td><code>on</code> · <code>off</code></td>
+</tr>
+</table>
+
+<h3>How tracking works</h3>
+<p>You don't need to select the effect instance itself.  You can click
+<em>any part that contains the effect</em> — the plugin walks its descendants
+to find the first compatible instance automatically.</p>
+
+<table>
+<tr><th>UI element</th><th>What it is</th></tr>
+<tr>
+  <td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#be78ff;vertical-align:middle;margin-right:4px;"></span>Purple chip</td>
+  <td>The tracked effect.  Shows its name and current default action.  Click to cycle the action; click <code>×</code> to untrack.</td>
+</tr>
+<tr>
+  <td>Purple lane</td>
+  <td>The effect's timeline lane.  Double-click to place an event; right-click an event dot to delete it.</td>
+</tr>
+</table>
+
+<h3>Cycling the default action</h3>
+<p>The <em>default action</em> is what will be recorded when you
+double-click the purple lane to place an event.  Click the purple chip
+to cycle through the available actions for that effect type:</p>
+<ul>
+  <li><code>ParticleEmitter</code>: <code>emit</code> → <code>on</code> → <code>off</code> → <code>emit</code> …</li>
+  <li><code>Sound</code>: <code>play</code> → <code>stop</code> → <code>play</code> …</li>
+  <li>Lights / Beam / Trail: <code>on</code> → <code>off</code> → <code>on</code> …</li>
+</ul>
+<p>Cycling the default action does <strong>not</strong> change events already
+placed on the lane — only new events pick up the new default.</p>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<h2 id="fx-workflow">Effect Track Workflows — Examples
+  <span class="tag tag-fx">Effect Track</span></h2>
+
+<h3 class="purple">Example A — Particle burst on impact</h3>
+<p>You have a magic attack animation.  At frame 24 the fist makes contact.
+You want a spark burst to fire at exactly that moment.</p>
+
+<div class="step-grid">
+  <div class="step-num purple">1</div>
+  <div class="step-body">In the workspace, select the <code>BasePart</code>
+    that contains your <code>SparkEmitter</code> (ParticleEmitter).  Click
+    <span class="btn-chip purple">Track Effect</span>.  A purple chip
+    labelled <em>SparkEmitter</em> appears with action <code>emit</code>.</div>
+  <div class="step-num purple">2</div>
+  <div class="step-body">Navigate to <strong>frame 24</strong>.</div>
+  <div class="step-num purple">3</div>
+  <div class="step-body"><strong>Double-click</strong> the purple lane at
+    frame 24.  A purple dot appears — the event is recorded as
+    <code>emit (×15)</code>.</div>
+  <div class="step-num purple">4</div>
+  <div class="step-body">Export the scene.  At playback, when the animation
+    reaches frame 24 the emitter fires a burst of 15 particles.</div>
+</div>
+
+<div class="timeline-mock">
+  <div class="tl-row">
+    <span class="tl-label">Rig1</span>
+    <div class="tl-track">
+      <div class="tl-dot" style="left:0%;background:#e8c700;"></div>
+      <div class="tl-dot" style="left:30%;background:#e8c700;"></div>
+    </div>
+  </div>
+  <div class="tl-row">
+    <span class="tl-label">SparkEmitter</span>
+    <div class="tl-track">
+      <div class="tl-dot" style="left:30%;background:#be78ff;" title="emit ×15"></div>
+    </div>
+  </div>
+  <div style="color:#5a6a7a;font-size:11px;margin-top:6px;">
+    Purple dot at frame 24 = particle burst on impact
+  </div>
+</div>
+
+<h3 class="purple">Example B — Sound cue + light flash</h3>
+<p>An explosion at frame 40: you want a <code>BoomSound</code> to play and
+a <code>PointLight</code> to flash on then off.</p>
+
+<div class="step-grid">
+  <div class="step-num purple">1</div>
+  <div class="step-body">Select the part containing <code>BoomSound</code> →
+    click <span class="btn-chip purple">Track Effect</span>.  Chip shows
+    <code>BoomSound · play</code>.</div>
+  <div class="step-num purple">2</div>
+  <div class="step-body">Select the part containing the <code>PointLight</code>
+    → click <span class="btn-chip purple">Track Effect</span>.  Chip shows
+    <code>PointLight · on</code>.</div>
+  <div class="step-num purple">3</div>
+  <div class="step-body">Go to <strong>frame 40</strong>.  Double-click the
+    <em>BoomSound</em> lane → records <code>play</code>.  Double-click the
+    <em>PointLight</em> lane → records <code>on</code>.</div>
+  <div class="step-num purple">4</div>
+  <div class="step-body">Go to <strong>frame 46</strong>.  Click the
+    <em>PointLight</em> chip to cycle action to <code>off</code>.
+    Double-click the PointLight lane → records <code>off</code>.
+    Click the chip again to cycle back to <code>on</code> for future events.</div>
+  <div class="step-num purple">5</div>
+  <div class="step-body">Export.  At playback: frame 40 → boom plays + light
+    turns on; frame 46 → light turns off.  The flash lasts exactly 6
+    frames.</div>
+</div>
+
+<h3 class="purple">Example C — Continuous particle trail during a charge-up</h3>
+<p>A character charges a power-up from frame 10 to frame 50.
+You want the <code>AuraEmitter</code> on during the charge and off
+when it ends.</p>
+
+<div class="step-grid">
+  <div class="step-num purple">1</div>
+  <div class="step-body">Track the part containing <code>AuraEmitter</code>.
+    Chip shows <code>AuraEmitter · emit</code>.</div>
+  <div class="step-num purple">2</div>
+  <div class="step-body">Click the chip once: action cycles to <code>on</code>.</div>
+  <div class="step-num purple">3</div>
+  <div class="step-body">Go to <strong>frame 10</strong> → double-click the
+    lane → records <code>on</code>.</div>
+  <div class="step-num purple">4</div>
+  <div class="step-body">Click the chip again: action cycles to <code>off</code>.</div>
+  <div class="step-num purple">5</div>
+  <div class="step-body">Go to <strong>frame 50</strong> → double-click the
+    lane → records <code>off</code>.</div>
+  <div class="step-num purple">6</div>
+  <div class="step-body">Export.  At playback the aura effect runs
+    continuously from frame 10 to frame 50.</div>
+</div>
+
+<div class="tip"><strong>Tip:</strong> Effect events are one-shot — there is
+no interpolation or "duration" concept.  To turn something on for a period,
+you need two events: an <code>on</code> event at the start frame and an
+<code>off</code> event at the end frame.</div>
+
+<h3 class="purple">Example D — Multiple effects synchronized</h3>
+<p>A landing impact at frame 60: dust particles, a thud sound, and a
+shockwave highlight all trigger simultaneously.</p>
+<ol>
+  <li>Track <code>DustEmitter</code> → action <code>emit</code>.</li>
+  <li>Track <code>ThudSound</code> → action <code>play</code>.</li>
+  <li>Track <code>ShockwaveHighlight</code> → action <code>on</code>.</li>
+  <li>Go to frame 60 → double-click each of the three purple lanes.</li>
+  <li>Track <code>ShockwaveHighlight</code> chip → cycle to <code>off</code>
+    → go to frame 66 → double-click its lane.</li>
+  <li>Export → all three fire together on frame 60; the highlight clears at
+    frame 66.</li>
+</ol>
+
+<h3 class="purple">Removing a wrongly-tracked effect</h3>
+<p>Click <code>×</code> on the purple chip.  The lane and all its events are
+removed from the UI.  The session data (events) is preserved — if you
+re-track the same instance, the events reappear.</p>
+
+<p>To also clear the saved events, start a new session
+(<strong>New</strong> button with confirmation), or simply don't export —
+only effects with at least one event are included in the export.</p>
+
+
+<hr class="divider-line">
+<p style="color:var(--muted);font-size:13px;margin-top:28px;">
+  MultiAnimation Plugin · Camera &amp; Effect Track Guide ·
+  See <code>USER_GUIDE.md</code> for the full reference.
+</p>
+
+</div><!-- .content -->
+</body>
+</html>

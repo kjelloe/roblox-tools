@@ -460,29 +460,15 @@ function Panel.new(widget)
     self._scrubber.onDragBegan:Connect(function() eScrubBgn:Fire() end)
     self._scrubber.onDragEnded:Connect(function() eScrubEnd:Fire() end)
 
-    -- Row 4: scene name input
+    -- Row 4: scene name + export + camera controls (all in one compact row)
     local sceneRow     = hrow(ctrlSec, 4, 4)
     lbl(sceneRow, "Scene:", 42, 1)
-    local sceneNameBox = textBox(sceneRow, "Scene_001", 120, 2)
+    local sceneNameBox = textBox(sceneRow, "Scene_001", 80, 2)
     self._sceneNameBox = sceneNameBox
-
-    -- Row 5: action buttons
-    local actRow = hrow(ctrlSec, 5, 4)
-
-    local addKFBtn  = btn(actRow, "+ Add Keyframe", 1, true)
-    local previewBtn = btn(actRow, "▶  Preview",     2)
-    local stopBtn    = btn(actRow, "■  Stop",         3)
-    local exportBtn  = btn(actRow, "⬆  Export",       4)
-
-    self._addKFBtn   = addKFBtn
-    self._previewBtn = previewBtn
-    self._stopBtn    = stopBtn
-
-    -- Row 6: camera track controls
-    local camRow = hrow(ctrlSec, 6, 4)
-    local camCaptureBtn = btn(camRow, "📷 Cam KF (C)", 1)
-    local camPreviewBtn = btn(camRow, "Cam Preview: OFF", 2)
-    local camModeBtn    = btn(camRow, "Cam KF: —", 3)
+    local exportBtn  = btn(sceneRow, "⬆  Export",  3)
+    local camCaptureBtn = btn(sceneRow, "📷 Cam KF", 4)
+    local camPreviewBtn = btn(sceneRow, "Cam:OFF",   5)
+    local camModeBtn    = btn(sceneRow, "KF:—",      6)
     self._camPreviewBtn = camPreviewBtn
     self._camModeBtn    = camModeBtn
 
@@ -498,8 +484,19 @@ function Panel.new(widget)
         if not self._isPlaying then eCamMode:Fire() end
     end)
 
-    -- Row 7: keyframe clipboard (copy a rig's pose to another rig / frame)
-    local clipRow = hrow(ctrlSec, 7, 4)
+    -- Row 5: action buttons (Add KF / Preview / Stop)
+    local actRow = hrow(ctrlSec, 5, 4)
+
+    local addKFBtn  = btn(actRow, "+ Add Keyframe", 1, true)
+    local previewBtn = btn(actRow, "▶  Preview",     2)
+    local stopBtn    = btn(actRow, "■  Stop",         3)
+
+    self._addKFBtn   = addKFBtn
+    self._previewBtn = previewBtn
+    self._stopBtn    = stopBtn
+
+    -- Row 6: keyframe clipboard (copy a rig's pose to another rig / frame)
+    local clipRow = hrow(ctrlSec, 6, 4)
     local copyKFBtn   = btn(clipRow, "Copy KF",        1)
     local pasteKFBtn  = btn(clipRow, "Paste KF",       2)
     local pasteMirBtn = btn(clipRow, "Paste Mirrored", 3)
@@ -1010,7 +1007,7 @@ end
 function Panel:setCameraPreviewState(isOn)
     self._camPreviewOn = isOn
     if self._camPreviewBtn then
-        self._camPreviewBtn.Text = isOn and "Cam Preview: ON" or "Cam Preview: OFF"
+        self._camPreviewBtn.Text = isOn and "Cam:ON" or "Cam:OFF"
     end
 end
 
@@ -1018,7 +1015,7 @@ end
 -- or "—" when the current frame has no camera keyframe.
 function Panel:setCameraModeDisplay(mode)
     if self._camModeBtn then
-        self._camModeBtn.Text = "Cam KF: " .. (mode or "—")
+        self._camModeBtn.Text = "KF:" .. (mode or "—")
     end
 end
 
