@@ -88,7 +88,7 @@ local function addPadding(parent, h, v)
     p.Parent = parent
 end
 
-local function section(parent, title, order)
+local function section(parent, title, order, rightHint)
     local f = Instance.new("Frame")
     f.Name            = "Sec_" .. title:gsub("%W", "_")
     f.Size            = UDim2.new(1, 0, 0, 0)
@@ -99,16 +99,32 @@ local function section(parent, title, order)
     f.Parent          = parent
     listLayout(f, Enum.FillDirection.Vertical, 4)
     addPadding(f, 8, 6)
+    -- Header row: title on left, optional right-aligned hint on the same line.
+    local hdrFrame = Instance.new("Frame")
+    hdrFrame.Size             = UDim2.new(1, 0, 0, 13)
+    hdrFrame.BackgroundTransparency = 1
+    hdrFrame.LayoutOrder      = 0
+    hdrFrame.Parent           = f
     local hdr = Instance.new("TextLabel")
-    hdr.Size             = UDim2.new(1, 0, 0, 13)
+    hdr.Size             = UDim2.new(1, 0, 1, 0)
     hdr.BackgroundTransparency = 1
     hdr.TextColor3       = C.header
     hdr.Text             = title
     hdr.TextSize         = 10
     hdr.Font             = Enum.Font.GothamBold
     hdr.TextXAlignment   = Enum.TextXAlignment.Left
-    hdr.LayoutOrder      = 0
-    hdr.Parent           = f
+    hdr.Parent           = hdrFrame
+    if rightHint then
+        local hint = Instance.new("TextLabel")
+        hint.Size             = UDim2.new(1, 0, 1, 0)
+        hint.BackgroundTransparency = 1
+        hint.TextColor3       = C.muted
+        hint.Text             = rightHint
+        hint.TextSize         = 9
+        hint.Font             = Enum.Font.Gotham
+        hint.TextXAlignment   = Enum.TextXAlignment.Right
+        hint.Parent           = hdrFrame
+    end
     return f
 end
 
@@ -354,7 +370,7 @@ function Panel.new(widget)
     listLayout(root, Enum.FillDirection.Vertical, 2)
 
     -- ── RIGS ─────────────────────────────────────────────────────────────────
-    local rigsSec = section(root, "RIGS IN SCENE", 1)
+    local rigsSec = section(root, "RIGS IN SCENE", 1, "K:KF   J:←   L:→   C:📷")
     self.rigSelector = RigSelector.new(rigsSec)
     divider(rigsSec, 5)
     local sessionRow = hrow(rigsSec, 6, 4)
@@ -725,24 +741,6 @@ function Panel.new(widget)
 
     self._loadOverlay = loadOv
     self._loadScroll  = loadScroll
-
-    -- ── Shortcut legend ───────────────────────────────────────────────────────
-    -- Pinned to the bottom of the panel so new users can discover the hotkeys.
-    local shortcutHint = Instance.new("TextLabel")
-    shortcutHint.Name               = "ShortcutHint"
-    shortcutHint.Size               = UDim2.new(1, 0, 0, 0)
-    shortcutHint.AutomaticSize      = Enum.AutomaticSize.Y
-    shortcutHint.BackgroundColor3   = Color3.fromRGB(30, 30, 30)
-    shortcutHint.BorderSizePixel    = 0
-    shortcutHint.TextColor3         = C.muted
-    shortcutHint.Text               = "K  add/update KF     J  step ←     L  step →     C  camera KF"
-    shortcutHint.TextSize           = 10
-    shortcutHint.Font               = Enum.Font.Gotham
-    shortcutHint.TextXAlignment     = Enum.TextXAlignment.Center
-    shortcutHint.TextWrapped        = true
-    shortcutHint.LayoutOrder        = 9
-    shortcutHint.Parent             = root
-    addPadding(shortcutHint, 6, 4)
 
     self._root = root
     return self
