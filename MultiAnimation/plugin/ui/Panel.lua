@@ -322,6 +322,12 @@ function Panel.new(widget)
     local eTrackFx = mkEvent("onTrackEffectRequested")
     self._eTrackFx = eTrackFx
 
+    -- Simple Mode
+    local eMode        = mkEvent("onModeChanged")
+    local eSimpleStep  = mkEvent("onSimpleStepForward")
+    local eSimpleDelKF = mkEvent("onSimpleDeleteKFRequested")
+    local eSimpleCam   = mkEvent("onSimpleCameraToggled")
+
     local eFxRemoved = Instance.new("BindableEvent")
     self.onEffectRemoved = eFxRemoved.Event
     self._eFxRemoved = eFxRemoved
@@ -369,8 +375,66 @@ function Panel.new(widget)
     root.Parent           = widget
     listLayout(root, Enum.FillDirection.Vertical, 2)
 
+    -- ── Mode toggle (Simple / Advanced) — always visible, never hidden ────────
+    self._mode = "advanced"
+    local modeRow = hrow(root, 0, 4)
+
+    local function modeToggleBtn(text, order)
+        local b = Instance.new("TextButton")
+        b.Size             = UDim2.new(0, 0, 0, 24)
+        b.AutomaticSize    = Enum.AutomaticSize.X
+        b.BackgroundColor3 = C.btnBg
+        b.BorderSizePixel  = 0
+        b.TextColor3       = C.btnText
+        b.Text             = "  " .. text .. "  "
+        b.TextSize         = 12
+        b.Font             = Enum.Font.GothamBold
+        b.AutoButtonColor  = false
+        b.LayoutOrder      = order
+        b.Parent           = modeRow
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
+        return b
+    end
+
+    local modeSimpleBtn = modeToggleBtn("Simple", 1)
+    local modeAdvBtn    = modeToggleBtn("Advanced", 2)
+
+    local function refreshModeButtons()
+        modeSimpleBtn.BackgroundColor3 = (self._mode == "simple")   and C.btnAccent or C.btnBg
+        modeAdvBtn.BackgroundColor3    = (self._mode == "advanced") and C.btnAccent or C.btnBg
+    end
+    refreshModeButtons()
+    self._refreshModeButtons = refreshModeButtons
+
+    modeSimpleBtn.MouseButton1Click:Connect(function()
+        if self._isPlaying or self._mode == "simple" then return end
+        self._mode = "simple"
+        refreshModeButtons()
+        self:_applyModeVisibility()
+        eMode:Fire("simple")
+    end)
+    modeAdvBtn.MouseButton1Click:Connect(function()
+        if self._isPlaying or self._mode == "advanced" then return end
+        self._mode = "advanced"
+        refreshModeButtons()
+        self:_applyModeVisibility()
+        eMode:Fire("advanced")
+    end)
+
+    -- ── Advanced-mode wrapper — every Advanced section lives in here so the
+    -- whole set can be hidden/shown as one unit when the mode toggles. ──────
+    local advancedWrap = Instance.new("Frame")
+    advancedWrap.Name             = "AdvancedWrap"
+    advancedWrap.Size             = UDim2.new(1, 0, 0, 0)
+    advancedWrap.AutomaticSize    = Enum.AutomaticSize.Y
+    advancedWrap.BackgroundTransparency = 1
+    advancedWrap.LayoutOrder      = 1
+    advancedWrap.Parent           = root
+    listLayout(advancedWrap, Enum.FillDirection.Vertical, 2)
+    self._advancedWrap = advancedWrap
+
     -- ── RIGS ─────────────────────────────────────────────────────────────────
-    local rigsSec = section(root, "RIGS IN SCENE", 1, "K:KF   J:←   L:→   C:📷")
+    local rigsSec = section(advancedWrap, "RIGS IN SCENE", 1, "K:KF   J:←   L:→   C:📷")
     self.rigSelector = RigSelector.new(rigsSec)
     divider(rigsSec, 5)
     local sessionRow = hrow(rigsSec, 6, 4)
@@ -387,10 +451,10 @@ function Panel.new(widget)
     loadBtn.MouseButton1Click:Connect(function() eReload:Fire() end)
     newBtn.MouseButton1Click:Connect(function() self:_showNewOverlay() end)
 
-    divider(root, 2)
+    divider(advancedWrap, 2)
 
     -- ── PROPS ─────────────────────────────────────────────────────────────────
-    local propsSec = section(root, "PROPS IN SCENE", 3)
+    local propsSec = section(advancedWrap, "PROPS IN SCENE", 3)
     self.propSelector = PropSelector.new(propsSec)
     self.propSelector.onTrackPartRequested:Connect(function()
         self._eTrackPart:Fire()
@@ -411,16 +475,16 @@ function Panel.new(widget)
     end)
     self._fxRow = fxRow
 
-    divider(root, 4)
+    divider(advancedWrap, 4)
 
     -- ── TIMELINE ─────────────────────────────────────────────────────────────
-    local tlSec = section(root, "TIMELINE", 5)
+    local tlSec = section(advancedWrap, "TIMELINE", 5)
     self._tlSec = tlSec
 
-    divider(root, 6)
+    divider(advancedWrap, 6)
 
     -- ── CONTROLS ─────────────────────────────────────────────────────────────
-    local ctrlSec = section(root, "CONTROLS", 7)
+    local ctrlSec = section(advancedWrap, "CONTROLS", 7)
 
     -- Row 1: frame navigation
     local navRow = hrow(ctrlSec, 1, 4)
@@ -481,13 +545,17 @@ function Panel.new(widget)
     lbl(sceneRow, "Scene:", 42, 1)
     local sceneNameBox = textBox(sceneRow, "Scene_001", 80, 2)
     self._sceneNameBox = sceneNameBox
-    local exportBtn  = btn(sceneRow, "⬆  Export",  3)
-    local camCaptureBtn = btn(sceneRow, "📷 Cam KF", 4)
-    local camPreviewBtn = btn(sceneRow, "Cam:OFF",   5)
-    local camModeBtn    = btn(sceneRow, "KF:—",      6)
+    local saveBtn        = btn(sceneRow, "💾 Save",   3)
+    local exportBtn      = btn(sceneRow, "⬆  Export",  4)
+    local camCaptureBtn  = btn(sceneRow, "📷 Cam KF",  5)
+    local camPreviewBtn  = btn(sceneRow, "Cam:OFF",    6)
+    local camModeBtn     = btn(sceneRow, "KF:—",       7)
     self._camPreviewBtn = camPreviewBtn
     self._camModeBtn    = camModeBtn
 
+    saveBtn.MouseButton1Click:Connect(function()
+        if not self._isPlaying then eSave:Fire(sceneNameBox.Text) end
+    end)
     camCaptureBtn.MouseButton1Click:Connect(function()
         if not self._isPlaying then eCamCapture:Fire() end
     end)
@@ -576,6 +644,90 @@ function Panel.new(widget)
         else
             totalBox.Text = tostring(self._frameCount)
         end
+    end)
+
+    -- ── SIMPLE MODE ──────────────────────────────────────────────────────────
+    -- Self-contained controls: Delete Keyframe, scrubber, frame nav, Camera
+    -- View toggle, Scene name + Save + Export. No rig/prop selection UI —
+    -- everything in Workspace.FIGURES is auto-tracked (see init.server.lua).
+    local simpleSec = section(root, "SIMPLE MODE", 1)
+    simpleSec.Visible = false
+    self._simpleSec = simpleSec
+
+    local simpleDelRow = hrow(simpleSec, 1, 4)
+    local simpleDelBtn = btn(simpleDelRow, "🗑  Delete Keyframe", 1)
+    simpleDelBtn.MouseButton1Click:Connect(function()
+        if not self._isPlaying then eSimpleDelKF:Fire() end
+    end)
+
+    local simpleScrubRow = Instance.new("Frame")
+    simpleScrubRow.Name             = "SimpleScrubRow"
+    simpleScrubRow.Size             = UDim2.new(1, 0, 0, 0)
+    simpleScrubRow.AutomaticSize    = Enum.AutomaticSize.Y
+    simpleScrubRow.BackgroundTransparency = 1
+    simpleScrubRow.LayoutOrder      = 2
+    simpleScrubRow.Parent           = simpleSec
+
+    self._simpleScrubber = Scrubber.new(simpleScrubRow, 120, 1, widget, 0)
+    self._simpleScrubber.onFrameChanged:Connect(function(f)
+        self._currentFrame = f
+        if frameBox then frameBox.Text = tostring(f) end
+        if self._simpleFrameBox then self._simpleFrameBox.Text = tostring(f) end
+        eFrame:Fire(f)
+    end)
+    self._simpleScrubber.onDragBegan:Connect(function() eScrubBgn:Fire() end)
+    self._simpleScrubber.onDragEnded:Connect(function() eScrubEnd:Fire() end)
+
+    local simpleNavRow = hrow(simpleSec, 3, 4)
+    local simplePrevKFBtn = smallBtn(simpleNavRow, "|◄", 1)
+    local simplePrevBtn   = smallBtn(simpleNavRow, "◄",  2)
+    lbl(simpleNavRow, "Frame:", 38, 3)
+    local simpleFrameBox  = textBox(simpleNavRow, "1",   36, 4)
+    local simpleNextBtn   = smallBtn(simpleNavRow, "►",  5)
+    local simpleNextKFBtn = smallBtn(simpleNavRow, "►|", 6)
+    lbl(simpleNavRow, "/", 8, 7)
+    local simpleTotalBox  = textBox(simpleNavRow, "120", 36, 8)
+    self._simpleFrameBox = simpleFrameBox
+    self._simpleTotalBox = simpleTotalBox
+
+    simplePrevKFBtn.MouseButton1Click:Connect(function() eRewind:Fire() end)
+    simpleNextKFBtn.MouseButton1Click:Connect(function() eFF:Fire() end)
+    simplePrevBtn.MouseButton1Click:Connect(function()
+        local f = math.max(1, self._currentFrame - 1)
+        eFrame:Fire(f)
+    end)
+    simpleNextBtn.MouseButton1Click:Connect(function()
+        if not self._isPlaying then eSimpleStep:Fire() end
+    end)
+    simpleFrameBox.FocusLost:Connect(function()
+        local n = tonumber(simpleFrameBox.Text)
+        if n then
+            n = math.clamp(math.floor(n), 1, self._frameCount)
+            eFrame:Fire(n)
+        else
+            simpleFrameBox.Text = tostring(self._currentFrame)
+        end
+    end)
+
+    local simpleCamRow = hrow(simpleSec, 4, 4)
+    local simpleCamBtn = btn(simpleCamRow, "Camera View: OFF", 1)
+    self._simpleCamOn = false
+    simpleCamBtn.MouseButton1Click:Connect(function()
+        self._simpleCamOn = not self._simpleCamOn
+        simpleCamBtn.Text = "Camera View: " .. (self._simpleCamOn and "ON" or "OFF")
+        eSimpleCam:Fire(self._simpleCamOn)
+    end)
+
+    local simpleSceneRow = hrow(simpleSec, 5, 4)
+    lbl(simpleSceneRow, "Scene:", 42, 1)
+    local simpleSceneBox = textBox(simpleSceneRow, "Scene_001", 80, 2)
+    local simpleSaveBtn   = btn(simpleSceneRow, "💾 Save",   3)
+    local simpleExportBtn = btn(simpleSceneRow, "⬆  Export", 4, true)
+    simpleSaveBtn.MouseButton1Click:Connect(function()
+        if not self._isPlaying then eSave:Fire(simpleSceneBox.Text) end
+    end)
+    simpleExportBtn.MouseButton1Click:Connect(function()
+        if not self._isPlaying then eExport:Fire(simpleSceneBox.Text) end
     end)
 
     -- ── Save As overlay ───────────────────────────────────────────────────────
@@ -1035,6 +1187,9 @@ function Panel:setFrameDisplay(current, total)
     if self._frameBox then self._frameBox.Text = tostring(current) end
     if total and self._totalBox then self._totalBox.Text = tostring(total) end
     if self._scrubber then self._scrubber:setFrame(current) end
+    if self._simpleFrameBox then self._simpleFrameBox.Text = tostring(current) end
+    if total and self._simpleTotalBox then self._simpleTotalBox.Text = tostring(total) end
+    if self._simpleScrubber then self._simpleScrubber:setFrame(current) end
     for _, lane in pairs(self._trackLanes) do
         lane:setActiveFrame(current)
     end
@@ -1053,6 +1208,8 @@ function Panel:setFrameCount(n)
     self._frameCount = n
     if self._totalBox then self._totalBox.Text = tostring(n) end
     if self._scrubber then self._scrubber:setFrameCount(n) end
+    if self._simpleTotalBox then self._simpleTotalBox.Text = tostring(n) end
+    if self._simpleScrubber then self._simpleScrubber:setFrameCount(n) end
     for _, lane in pairs(self._trackLanes) do
         lane:setFrameCount(n)
     end
@@ -1078,6 +1235,25 @@ function Panel:setPlaybackState(isPlaying)
         self._previewBtn.BackgroundColor3 = isPlaying and C.btnDim or C.btnBg
         self._previewBtn.TextColor3 = isPlaying and C.btnDimTxt or C.btnText
     end
+end
+
+-- Programmatic mode switch (used by tests / external callers). Does not fire
+-- onModeChanged — callers that need init.server.lua's side effects (e.g. the
+-- FIGURES scan) should trigger those themselves, mirroring the button handler.
+function Panel:setMode(mode)
+    self._mode = mode
+    if self._refreshModeButtons then self._refreshModeButtons() end
+    self:_applyModeVisibility()
+end
+
+function Panel:getMode()
+    return self._mode
+end
+
+function Panel:_applyModeVisibility()
+    local isSimple = (self._mode == "simple")
+    self._advancedWrap.Visible = not isSimple
+    self._simpleSec.Visible    = isSimple
 end
 
 function Panel:_showNewOverlay()
@@ -1166,6 +1342,7 @@ end
 
 function Panel:destroy()
     if self._scrubber then self._scrubber:destroy() end
+    if self._simpleScrubber then self._simpleScrubber:destroy() end
     for _, e in ipairs(self._evts) do e:Destroy() end
     for _, lane in pairs(self._trackLanes) do lane:destroy() end
     for _, lane in pairs(self._propTrackLanes) do lane:destroy() end

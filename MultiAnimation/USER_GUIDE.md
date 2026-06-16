@@ -40,10 +40,15 @@ while the panel is open.
 
 | Section | What's in it |
 |---|---|
+| **Mode toggle** | `Simple` / `Advanced` buttons, always visible above RIGS IN SCENE — switches the whole panel layout without losing session data. See §11, Simple Mode. |
 | **RIGS IN SCENE** | One button per detected rig (exclusive select — exactly one active), plus `↺ Refresh`, `+ Rig`, `Save As`, `Load`, `New` |
 | **PROPS IN SCENE** | `Track Part` button + one toggle per tracked prop (multi-select), each with a `×` to untrack |
 | **TIMELINE** | One keyframe lane per rig (yellow dots), the Camera lane (orange/red dots), and one lane per prop (teal dots) |
-| **CONTROLS** | Frame navigation, step size, the scrubber, scene name, action buttons, and the camera row |
+| **CONTROLS** | Frame navigation, step size, the scrubber, scene name, action buttons (including `💾 Save`), and the camera row |
+
+These five are the **Advanced mode** sections. **Simple mode** (toggle above)
+replaces RIGS IN SCENE / PROPS IN SCENE / TIMELINE / CONTROLS with one compact
+section — see §11, Simple Mode.
 
 ---
 
@@ -190,10 +195,11 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 
 ---
 
-## 7. Mouse Interactions — Complete Reference
+## 8. Mouse Interactions — Complete Reference
 
 | Where | Action | Result |
 |---|---|---|
+| `Simple` / `Advanced` | Click | Switch panel mode (session data untouched) |
 | Rig button (panel) | Click | Exclusive-select that rig |
 | `+ Rig` | Click | Clone Rig1 → next free RigN, auto-detected and ready |
 | `Copy KF` | Click | Copy the active rig's keyframe at the current frame |
@@ -217,14 +223,21 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 | Scrubber | Drag | Scrub; auto-updates an existing keyframe at the departure frame |
 | `\|◄` / `►\|` | Click | Jump to first / last frame |
 | `◄` / `►` | Click | Step one frame back / forward |
+| **Simple mode** `►` | Click | Step forward; captures the departure frame first if it's still empty |
+| **Simple mode** `Delete Keyframe` | Click | Clear current frame's data, snap pose to the previous frame (cursor stays put) |
+| **Simple mode** `Camera View` | Click | Toggle camera capture-on-step alongside rig/prop poses |
+| `💾 Save` | Click | Quick-save the session under the current scene name (no dialog) |
 
 **Dot colours:** yellow = rig · teal = prop · orange = camera (move) · red = camera (cut) · purple = effect event.
 
 ---
 
-## 8. Sessions: Save, Load, New
+## 9. Sessions: Save, Load, New
 
 - Everything auto-saves to an `_autosave` slot one second after any change.
+- **💾 Save** writes a quick-save to whatever name is in the scene box right
+  now — no dialog, no overwrite confirmation. Use it for "save my progress"
+  without committing to a new named snapshot.
 - **Save As** stores a named snapshot (up to 30, newest first); **Load** brings
   one back — including props (re-linked by name), the camera track, and all effect events.
 - **New** clears the whole session after a confirmation. Rigs are re-scanned;
@@ -233,7 +246,7 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 
 ---
 
-## 9. Export & In-Game Playback
+## 10. Export & In-Game Playback
 
 Type a scene name (default `Scene_001`) and press **⬆ Export**. This writes to
 `ServerStorage.MultiAnimationData.<SceneName>`:
@@ -278,7 +291,52 @@ commit it with your code. `mcp scene push` restores it into Studio.
 
 ---
 
-## 10. Tips & Troubleshooting
+## 11. Simple Mode (Quick Capture)
+
+A lighter, faster workflow for straightforward poses-on-a-timeline work —
+no rig selection, no manual prop tracking, no "Add Keyframe" button to
+remember.
+
+**Turn it on:** click **Simple** in the mode toggle above RIGS IN SCENE
+(switches back to **Advanced** any time — your session data is untouched
+either way).
+
+The panel collapses to just: a scrubber + frame counter, **Delete Keyframe**,
+a **Camera View** toggle, and a scene name + Save/Export row.
+
+**Everything in `Workspace.FIGURES` is tracked automatically** — R6 rigs the
+same way Advanced mode tracks them, and any other part/model gets its
+world-space CFrame tracked like an Advanced-mode prop. There's no "Track
+Part" or "+ Rig" step; just put things in FIGURES.
+
+**The core workflow — pose, then step:**
+
+1. Pose everything in the viewport at the current frame.
+2. Press **►** (step forward). If the frame you're *leaving* has no recorded
+   data yet, your pose is captured there automatically — then the timeline
+   advances and whatever's recorded at the new frame (if anything) is applied.
+3. Repeat: pose, step, pose, step.
+
+Because capture only happens on a frame that's still empty, scrubbing back
+and forth across already-keyframed frames never overwrites them — only the
+act of stepping *away from a fresh, unkeyframed frame* records it.
+
+**Made a mistake?** Press **Delete Keyframe**. It clears the current frame's
+data and snaps the viewport back to the previous frame's pose — but leaves
+the timeline cursor right where it was. Re-pose, press ► again, and that
+frame is captured fresh. This is the redo loop for Simple Mode.
+
+**Camera View:** toggle it on and the same step-forward rule applies to the
+viewport camera — leaving an empty frame with the camera turned on captures
+its CFrame and FOV alongside the poses.
+
+**Save / Export** work exactly as in Advanced mode, right there in the
+Simple panel — no need to switch modes just to save your work or export
+the scene.
+
+---
+
+## 12. Tips & Troubleshooting
 
 | Symptom | Explanation / fix |
 |---|---|

@@ -125,6 +125,10 @@ local savedCamState  = nil    -- viewport camera snapshot while preview is on
 local camGizmos      = {}     -- { [frame] = Part }
 local gizmoSyncing   = false  -- guards the gizmo CFrame-changed feedback loop
 
+-- Simple Mode state (mode toggle + camera-view-while-posing flag)
+local mode = "advanced"   -- "advanced" | "simple"
+local simpleCameraOn = false
+
 -- ── Motor management ──────────────────────────────────────────────────────────
 
 local function disconnectRig(rigName, model)
@@ -189,6 +193,15 @@ local function applyPosesAt(queryFrame, immediate)
     -- Keep the "Cam KF: move/cut/—" button reflecting the current frame.
     local camKF = recorder:getCameraData(math.floor(queryFrame + 0.5))
     panel:setCameraModeDisplay(camKF and camKF.mode or nil)
+end
+
+-- Non-rig FIGURES child → its world-CFrame-trackable BasePart (Simple Mode).
+local function getPropPart(inst)
+    if inst:IsA("BasePart") then return inst end
+    if inst:IsA("Model") then
+        return inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart", true)
+    end
+    return nil
 end
 
 local function allKeyframesSorted()
@@ -781,6 +794,118 @@ local function scanAndSetup()
     panel:setFrameDisplay(timeline:getCurrent(), timeline:getFrameCount())
 end
 
+-- ── SIMPLE MODE ───────────────────────────────────────────────────────────────
+-- Auto-tracks everything directly under Workspace.FIGURES: R6 rigs use the
+-- same joint/scale/root capture as Advanced; everything else is tracked by
+-- world CFrame like an Advanced prop. Stepping forward captures the
+-- departure frame only if it has no recorded data yet (idempotent — replays
+-- existing keyframes instead of overwriting them); "Delete Keyframe" clears
+-- the current frame and snaps back to the previous frame's pose so the user
+-- can re-pose and step forward again to re-capture it.
+
+local function doSimpleScan()
+    reconnectAllRigs()
+    allRigs = RigScanner.scan()
+    for name, model in pairs(allRigs) do
+        recorder:captureRestPose(name, model)
+        disconnectRig(name, model)
+    end
+
+    for propName in pairs(allProps) do
+        panel:removeProp(propName)
+    end
+    allProps = {}
+
+    local fig = workspace:FindFirstChild("FIGURES")
+    if fig then
+        for _, child in ipairs(fig:GetChildren()) do
+            if not allRigs[child.Name] then
+                local part = getPropPart(child)
+                if part then allProps[child.Name] = part end
+            end
+        end
+    end
+
+    panel:setRigs(allRigs)
+    for rigName in pairs(allRigs) do
+        for _, f in ipairs(recorder:getSortedFrames(rigName)) do
+            panel:addKeyframeMarker(rigName, f)
+        end
+    end
+    for propName, part in pairs(allProps) do
+        panel:addProp(propName, part)
+        for _, f in ipairs(recorder:getSortedPropFrames(propName)) do
+            panel:addPropKeyframeMarker(propName, f)
+        end
+    end
+    panel:setFrameDisplay(timeline:getCurrent(), timeline:getFrameCount())
+
+    local rigCount, propCount = 0, 0
+    for _ in pairs(allRigs) do rigCount += 1 end
+    for _ in pairs(allProps) do propCount += 1 end
+    print(string.format("[MultiAnimation] Simple mode scan: %d rig(s), %d prop(s)", rigCount, propCount))
+end
+
+local function simpleFrameHasData(frame)
+    for rigName in pairs(allRigs) do
+        if recorder:hasKeyframe(rigName, frame) then return true end
+    end
+    for propName in pairs(allProps) do
+        if recorder:getPropData(propName, frame) ~= nil then return true end
+    end
+    if simpleCameraOn and recorder:getCameraData(frame) ~= nil then return true end
+    return false
+end
+
+local function doSimpleCaptureFrame(frame)
+    if next(allRigs) ~= nil or next(allProps) ~= nil then
+        recorder:addKeyframe(frame, allRigs, allProps)
+        for rigName in pairs(allRigs) do panel:addKeyframeMarker(rigName, frame) end
+        for propName in pairs(allProps) do panel:addPropKeyframeMarker(propName, frame) end
+    end
+    if simpleCameraOn then
+        local snap = CameraCapture.capture()
+        recorder:addCameraKeyframe(frame, snap.cf, snap.fov, "move")
+        panel:addCameraKeyframeMarker(frame, "move")
+        updateCameraGizmo(frame)
+    end
+    scheduleAutoSave()
+end
+
+local function doSimpleStepForward()
+    if isPlaying then return end
+    local frame = timeline:getCurrent()
+    if not simpleFrameHasData(frame) then
+        doSimpleCaptureFrame(frame)
+    end
+    local newFrame = math.min(frame + 1, timeline:getFrameCount())
+    local f = timeline:setCurrent(newFrame)
+    panel:setFrameDisplay(f, timeline:getFrameCount())
+    applyPosesAt(f, false)
+end
+
+local function doSimpleDeleteKeyframe()
+    if isPlaying then return end
+    local frame = timeline:getCurrent()
+    for rigName in pairs(allRigs) do
+        recorder:deleteRigKeyframe(rigName, frame)
+        panel:removeKeyframeMarker(rigName, frame)
+    end
+    for propName in pairs(allProps) do
+        recorder:deletePropKeyframe(propName, frame)
+        panel:removePropKeyframeMarker(propName, frame)
+    end
+    if simpleCameraOn then
+        recorder:deleteCameraKeyframe(frame)
+        panel:removeCameraKeyframeMarker(frame)
+        updateCameraGizmo(frame)
+    end
+    scheduleAutoSave()
+    local prevFrame = math.max(1, frame - 1)
+    applyPosesAt(prevFrame, false)
+    print(string.format("[MultiAnimation] Simple: cleared frame %d, showing frame %d for re-pose", frame, prevFrame))
+end
+
 -- ── Panel event wiring ────────────────────────────────────────────────────────
 
 panel.onRefreshRequested:Connect(function()
@@ -872,6 +997,21 @@ end))
 
 panel.onAddRigRequested:Connect(function()
     doAddRig()
+end)
+
+-- ── Simple Mode handlers ──────────────────────────────────────────────────────
+
+panel.onModeChanged:Connect(function(newMode)
+    mode = newMode
+    if mode == "simple" then
+        doSimpleScan()
+    end
+end)
+
+panel.onSimpleStepForward:Connect(doSimpleStepForward)
+panel.onSimpleDeleteKFRequested:Connect(doSimpleDeleteKeyframe)
+panel.onSimpleCameraToggled:Connect(function(isOn)
+    simpleCameraOn = isOn
 end)
 
 panel.onCopyKeyframeRequested:Connect(doCopyKeyframe)
@@ -1280,7 +1420,7 @@ if figuresFolder then
         -- Defer one frame so the model is fully parented/loaded.
         task.defer(function()
             if not child or not child.Parent then return end
-            if allRigs[child.Name] then return end   -- already tracked
+            if allRigs[child.Name] or allProps[child.Name] then return end   -- already tracked
             -- Let RigScanner decide if it's a valid R6 rig.
             local fresh = RigScanner.scan()
             if fresh[child.Name] then
@@ -1289,6 +1429,13 @@ if figuresFolder then
                 disconnectRig(child.Name, child)
                 rebuildRigUI()
                 print("[MultiAnimation] Auto-detected rig: " .. child.Name)
+            elseif mode == "simple" then
+                local part = getPropPart(child)
+                if part then
+                    allProps[child.Name] = part
+                    panel:addProp(child.Name, part)
+                    print("[MultiAnimation] Simple: auto-tracking prop " .. child.Name)
+                end
             end
         end)
     end))
@@ -1299,6 +1446,10 @@ if figuresFolder then
             motorStates[child.Name] = nil   -- can't reconnect a removed model
             rebuildRigUI()
             print("[MultiAnimation] Rig removed from scene: " .. child.Name)
+        elseif allProps[child.Name] and mode == "simple" then
+            panel:removeProp(child.Name)
+            allProps[child.Name] = nil
+            print("[MultiAnimation] Simple: prop removed from scene: " .. child.Name)
         end
     end))
 end
@@ -1525,6 +1676,42 @@ local testBridge = TestBridge.start({
         if not (inst and ev) then return false end
         EffectRunner.fire(inst, ev)
         return true
+    end,
+
+    -- Simple Mode
+    getMode = function() return mode end,
+
+    setMode = function(a)
+        mode = a.mode
+        panel:setMode(a.mode)
+        if mode == "simple" then doSimpleScan() end
+        return mode
+    end,
+
+    simpleStepForward = function()
+        doSimpleStepForward()
+        return timeline:getCurrent()
+    end,
+
+    simpleDeleteKeyframe = function()
+        doSimpleDeleteKeyframe()
+        return timeline:getCurrent()
+    end,
+
+    setSimpleCamera = function(a)
+        simpleCameraOn = a.on and true or false
+        return simpleCameraOn
+    end,
+
+    simpleFrameHasData = function(a)
+        return simpleFrameHasData(a.frame)
+    end,
+
+    getSimpleProps = function()
+        local names = {}
+        for n in pairs(allProps) do table.insert(names, n) end
+        table.sort(names)
+        return names
     end,
 })
 

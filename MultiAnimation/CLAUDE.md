@@ -116,7 +116,7 @@ python3 devsync.py uninstall   # back to build.py + manual reload
 ### Other dev scripts
 
 ```bash
-python3 run_tests.py [pattern] [-v]   # full suite (306 cases), or `mcp test`
+python3 run_tests.py [pattern] [-v]   # full suite (334 cases), or `mcp test`
 python3 watch.py                      # auto-build on save (when not using devsync)
 python3 hotpatch.py game/MultiAnimPlayer.lua   # push one game/ module, or `mcp deploy`
 mcp check <file.lua>                  # compile-check in Studio without executing
@@ -206,8 +206,9 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 | `test_effect_core.lua` | EffectRunner: classify, cycleAction, live fire, crossing-pointer playback (24 cases) |
 | `test_effect_exporter.lua` | EffectTracks source builder; loadstring round-trip; omit-if-empty (13 cases) |
 | `test_ui_effects.lua` | Effect track bridge integration: track, cycle, add/delete events, fire, untrack (18 cases) |
+| `test_ui_simple.lua` | Simple Mode bridge integration: mode toggle, idempotent step-forward capture, Delete Keyframe redo, Camera View capture-on-step, FIGURES auto-track/untrack (29 cases) |
 
-Suite total: **306 cases** across 18 files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive).
+Suite total: **334 cases** across 19 files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive).
 
 All tests inline their module logic (no `require()` to plugin modules) and return a PASS/FAIL string for `execute_luau`. Run with:
 

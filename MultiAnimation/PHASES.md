@@ -335,6 +335,31 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
       round-trip, omit-if-empty), `test_ui_effects.lua` (18: full bridge
       integration — track, cycle, add/read/delete events, live fire, untrack).
       Suite total: **306 cases** across 18 files.
+- [x] **Simple Mode** — a second panel layout (toggle button above RIGS IN
+      SCENE) for quick, no-fuss capture: no rig/prop selection, no manual
+      "Add Keyframe". Everything under `Workspace.FIGURES` (rigs and any other
+      part/model) is auto-tracked. Workflow is pose → press `►` → the
+      departure frame is captured automatically *only if it was still empty*
+      (idempotent — stepping across already-keyframed frames never
+      overwrites), then the timeline advances and the new frame's pose (if
+      any) is applied. **Delete Keyframe** clears the current frame and snaps
+      the pose back to the previous frame without moving the cursor — the
+      redo loop (re-pose, step again, recaptured fresh). A **Camera View**
+      toggle extends the same capture-on-step rule to the viewport camera.
+      Switching Simple ↔ Advanced never touches session data. New modules/
+      changes: `Panel.lua` (mode toggle, Simple section, `_applyModeVisibility`),
+      `init.server.lua` (`doSimpleScan`, `simpleFrameHasData`,
+      `doSimpleCaptureFrame`, `doSimpleStepForward`, `doSimpleDeleteKeyframe`,
+      FIGURES auto-track/untrack of non-rig children while in Simple mode).
+      Bridge commands: `getMode`, `setMode`, `simpleStepForward`,
+      `simpleDeleteKeyframe`, `setSimpleCamera`, `simpleFrameHasData`,
+      `getSimpleProps`.
+- [x] **💾 Save button** — quick-save to the current scene name with no
+      dialog or overwrite confirmation, in both Advanced and Simple panels;
+      complements `_autosave` and the existing named `Save As`/`Load` flow.
+- [x] Tests — `test_ui_simple.lua` (29: mode toggle, idempotent step-forward
+      capture, Delete Keyframe redo, Camera View capture-on-step, FIGURES
+      auto-track/untrack). Suite total: **334 cases** across 19 files.
 
 ### Backlog
 
