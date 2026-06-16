@@ -407,12 +407,30 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
       command: `getSimpleCameraFrustumInfo` (edge count + per-edge
       `WeldConstraint` check, since there's no line-count-style getter for
       Part geometry either).
-- [x] Tests — `test_ui_simple.lua` (53: mode toggle, idempotent step-forward
-      capture, Delete Keyframe redo, Play/Stop toggle, manipulable camera
-      object — creation, FOV round-trip, frustum gizmo edge count/weld
+- [x] **Simple Mode frame management redesign — Add / Insert / Delete Frame.**
+      Replaced the idempotent "step-forward" and "delete-keyframe" semantics
+      with three explicit operations: **Add Frame** always captures the current
+      pose, grows `frameCount` by 1, and moves the cursor to the new end frame
+      (returns `oldCount + 1`); **Insert Frame** shifts all data at frames ≥
+      current+1 right by 1, grows `frameCount` by 1, cursor stays on the now-
+      blank current frame; **Delete Frame** removes data at the current frame,
+      shifts all subsequent data left by 1, shrinks `frameCount` by 1 (minimum
+      1), cursor = min(current, newCount). The panel row is now
+      `Del Frame | + Insert | ▶ Play (wide) | + Add Frame`. Old bridge names
+      `simpleStepForward` / `simpleDeleteKeyframe` are kept as legacy aliases
+      pointing at the new functions so existing saves/scripts aren't broken.
+      `init.server.lua` now saves the Advanced-mode `frameCount` in
+      `advancedFrameCount` before entering Simple Mode (restored on exit) so a
+      `doSimpleScan` that finds no keyframes and resets `frameCount=1` doesn't
+      contaminate subsequent Advanced-mode test runs. Bridge commands:
+      `simpleAddFrame`, `simpleInsertFrame`, `simpleDeleteFrame` (plus legacy
+      aliases above).
+- [x] Tests — `test_ui_simple.lua` (49: mode toggle, Add/Insert/Delete Frame
+      management, Camera View capture-on-add, Play/Stop toggle, manipulable
+      camera object — creation, FOV round-trip, frustum gizmo edge count/weld
       check, Look Through guard/snap/free-fly-mirrors-to-gizmo/exact
-      restore, capture-from-gizmo — Camera View capture-on-step, FIGURES
-      auto-track/untrack). Suite total: **358 cases** across 19 files.
+      restore, capture-from-gizmo — FIGURES auto-track/untrack). Suite total:
+      **355 cases** across 19 files.
 
 ### Backlog
 

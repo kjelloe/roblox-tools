@@ -21,7 +21,7 @@ function Timeline:setFps(v)
 end
 
 function Timeline:setFrameCount(v)
-    self._frameCount = math.max(2, math.floor(v))
+    self._frameCount = math.max(1, math.floor(v))
     self._current = math.min(self._current, self._frameCount)
 end
 

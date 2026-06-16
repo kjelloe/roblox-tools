@@ -2,12 +2,12 @@
 -- Simple Mode integration tests — drives the LIVE plugin panel through the
 -- TestBridge (CoreGui.__MultiAnimTestBridge, see plugin/core/TestBridge.lua).
 --
--- Covers: mode toggle, idempotent step-forward capture (capture departure
--- frame only if empty), Delete Keyframe "redo" (clears + snaps to previous
--- frame without moving the cursor), Camera View capture-on-step, FIGURES
--- auto-track/untrack of non-rig props while in Simple mode, the Play/Stop
--- toggle, and the manipulable camera object (creation, FOV, frustum gizmo,
--- Look Through guard/snap/free-fly-mirrors-to-gizmo/restore, capture-from-gizmo).
+-- Covers: mode toggle, Add/Insert/Delete Frame frame-management (capture +
+-- grow, insert-blank + shift, delete + shrink), Camera View capture-on-add,
+-- FIGURES auto-track/untrack of non-rig props while in Simple mode, the
+-- Play/Stop toggle, and the manipulable camera object (creation, FOV, frustum
+-- gizmo, Look Through guard/snap/free-fly-mirrors-to-gizmo/restore,
+-- capture-from-gizmo).
 --
 -- Mutates the session only at parking frames far from real data, which are
 -- deleted again before exiting. Restores mode, frame, active rig, and
@@ -89,135 +89,121 @@ local function frameOccupied(frame)
     local hd = call("simpleFrameHasData", { frame = frame })
     return hd.ok and hd.result == true
 end
+-- clearFrame uses simpleDeleteFrame (not just a data wipe): it deletes the
+-- frame, shifts all subsequent frame data left by 1, and shrinks frameCount.
+-- Safe to call when all frames between `frame` and the timeline end are empty.
 local function clearFrame(frame)
     call("setFrame", { frame = frame })
-    call("simpleDeleteKeyframe")
+    call("simpleDeleteFrame")
 end
 
--- ── Step-forward capture + idempotent skip + Delete Keyframe redo ──────────────
+-- ── Add Frame / Insert Frame / Delete Frame ───────────────────────────────────
+-- simpleAddFrame: captures current frame, grows frameCount by 1, moves cursor
+--   to the new end frame.
+-- simpleInsertFrame: shifts data at frames >= current+1 right by 1, grows
+--   frameCount by 1, cursor stays at current (left-side anchor).
+-- simpleDeleteFrame: removes data at current frame, shifts data at frames >
+--   current left by 1, shrinks frameCount by 1 (minimum 1).
+--
+-- Works at frames 1 and 2 so tests run in any session, including a fresh one
+-- where doSimpleScan has set frameCount=1 with no existing keyframes.
 
-if frameCount < 40 then
-    table.insert(out, "SKIP  step-forward/delete-keyframe tests (frameCount too small for a safe parking frame)")
-else
-    local PARK = frameCount - 31   -- distinct from other test files' parking offsets (-5/-7/-11/-17/-23)
+do
+    local initCount = (call("getFrameCount").ok and call("getFrameCount").result) or 1
 
-    local occupied = frameOccupied(PARK) or frameOccupied(PARK + 1)
-
-    if occupied then
-        table.insert(out, "SKIP  step-forward/delete-keyframe tests (parking frames already hold user data)")
+    if frameOccupied(1) then
+        table.insert(out, "SKIP  frame management tests (frame 1 already holds user data)")
     else
-        call("setFrame", { frame = PARK })
-        r = call("simpleFrameHasData", { frame = PARK })
-        ok("parking frame starts empty", r.ok and r.result == false, r.err)
+        -- ── simpleAddFrame ────────────────────────────────────────────────────
 
-        -- Step forward from an empty frame captures it before advancing.
-        r = call("simpleStepForward")
-        ok("simpleStepForward advances to PARK+1", r.ok and r.result == PARK + 1, r.err)
+        call("setFrame", { frame = 1 })
+        r = call("simpleFrameHasData", { frame = 1 })
+        ok("frame 1 starts empty before add-frame tests", r.ok and r.result == false, r.err)
 
-        r = call("getFrames", { rig = rigA })
-        local found = false
-        for _, f in ipairs((r.ok and r.result) or {}) do if f == PARK then found = true end end
-        ok("departure frame captured on step-forward", found)
+        r = call("simpleAddFrame")
+        -- captures frame 1, grows frameCount by 1, cursor moves to the NEW end
+        ok("simpleAddFrame returns new end frame (initCount+1)", r.ok and r.result == initCount + 1, r.err)
 
-        r = call("simpleFrameHasData", { frame = PARK })
-        ok("simpleFrameHasData true after capture", r.ok and r.result == true, r.err)
+        r = call("simpleFrameHasData", { frame = 1 })
+        ok("simpleFrameHasData true at frame 1 after simpleAddFrame", r.ok and r.result == true, r.err)
 
-        -- Idempotency: stepping forward from a frame that already has data
-        -- must NOT recapture, even if the live pose was mutated afterward.
-        call("setFrame", { frame = PARK })   -- reapplies PARK's recorded pose
-        local cf1 = call("getJointCF", { rig = rigA, frame = PARK, joint = "RootJoint" })
-        ok("captured RootJoint readable", cf1.ok and cf1.result ~= nil, cf1.err)
+        r = call("getFrameCount")
+        ok("frameCount grew by 1 after simpleAddFrame", r.ok and r.result == initCount + 1, r.err)
 
-        local fig = workspace:FindFirstChild("FIGURES")
-        local torso = fig and fig:FindFirstChild(rigA) and fig[rigA]:FindFirstChild("Torso")
-        if torso then
-            torso.CFrame = torso.CFrame * CFrame.new(3, 0, 0)   -- mutate live pose directly, bypassing the bridge
-        end
+        -- ── simpleDeleteFrame ─────────────────────────────────────────────────
 
-        r = call("simpleStepForward")   -- PARK already has data → must skip recapture
-        ok("simpleStepForward (idempotent) advances to PARK+1", r.ok and r.result == PARK + 1, r.err)
+        call("setFrame", { frame = 1 })
+        r = call("simpleDeleteFrame")
+        -- deletes frame 1, shifts 2..end left, frameCount shrinks by 1
+        ok("simpleDeleteFrame returns cursor at 1", r.ok and r.result == 1, r.err)
 
-        local cf2 = call("getJointCF", { rig = rigA, frame = PARK, joint = "RootJoint" })
-        ok("idempotent step-forward did not overwrite existing keyframe",
-            cf1.ok and cf2.ok and HttpService:JSONEncode(cf1.result) == HttpService:JSONEncode(cf2.result),
-            "before=" .. HttpService:JSONEncode(cf1.result) .. " after=" .. HttpService:JSONEncode(cf2.result))
+        r = call("simpleFrameHasData", { frame = 1 })
+        ok("frame 1 data cleared by simpleDeleteFrame", r.ok and r.result == false, r.err)
 
-        call("setFrame", { frame = PARK })   -- snap live pose back, undoing the manual mutation above
+        r = call("getFrameCount")
+        ok("frameCount restored to initCount after simpleDeleteFrame", r.ok and r.result == initCount, r.err)
 
-        -- Delete Keyframe: clears current frame's data, snaps pose to the
-        -- previous frame WITHOUT moving the cursor, enabling re-pose + redo.
-        call("setFrame", { frame = PARK + 1 })
-        r = call("simpleStepForward")   -- PARK+1 empty → capture it, advance to PARK+2
-        ok("captured PARK+1 before delete-keyframe test", r.ok and r.result == PARK + 2, r.err)
+        -- ── simpleInsertFrame ─────────────────────────────────────────────────
 
-        r = call("getFrames", { rig = rigA })
-        found = false
-        for _, f in ipairs((r.ok and r.result) or {}) do if f == PARK + 1 then found = true end end
-        ok("PARK+1 captured", found)
+        -- Re-capture frame 1; cursor lands at new end (initCount+1).
+        call("setFrame", { frame = 1 })
+        call("simpleAddFrame")   -- frameCount = initCount+1, cursor at initCount+1
 
-        call("setFrame", { frame = PARK + 1 })
-        r = call("simpleDeleteKeyframe")
-        ok("simpleDeleteKeyframe does not move the cursor", r.ok and r.result == PARK + 1, r.err)
+        -- Navigate back to frame 1 and insert a blank frame after it.
+        -- insert shifts data at >= 2 right: frame 1's data stays, frame 2 is blank.
+        call("setFrame", { frame = 1 })
+        r = call("simpleInsertFrame")
+        ok("simpleInsertFrame stays at current frame (1)", r.ok and r.result == 1, r.err)
 
-        r = call("getCurrentFrame")
-        ok("cursor still at PARK+1 after delete", r.ok and r.result == PARK + 1, r.err)
+        r = call("getFrameCount")
+        ok("simpleInsertFrame grows frameCount to initCount+2", r.ok and r.result == initCount + 2, r.err)
 
-        r = call("getFrames", { rig = rigA })
-        found = false
-        for _, f in ipairs((r.ok and r.result) or {}) do if f == PARK + 1 then found = true end end
-        ok("PARK+1 data cleared by delete-keyframe", not found)
+        r = call("simpleFrameHasData", { frame = 1 })
+        ok("frame 1 data preserved after simpleInsertFrame", r.ok and r.result == true, r.err)
 
-        r = call("simpleFrameHasData", { frame = PARK + 1 })
-        ok("simpleFrameHasData false after delete", r.ok and r.result == false, r.err)
+        r = call("simpleFrameHasData", { frame = 2 })
+        ok("frame 2 is a blank inserted frame", r.ok and r.result == false, r.err)
 
-        -- Redo: stepping forward again from the now-empty PARK+1 re-captures it.
-        r = call("simpleStepForward")
-        ok("redo: simpleStepForward recaptures PARK+1 and advances to PARK+2", r.ok and r.result == PARK + 2, r.err)
-
-        r = call("getFrames", { rig = rigA })
-        found = false
-        for _, f in ipairs((r.ok and r.result) or {}) do if f == PARK + 1 then found = true end end
-        ok("redo: PARK+1 captured again", found)
-
-        -- Cleanup — clear ALL rigs/props at both touched frames (Simple Mode
-        -- captured them together; a rig-specific delete would leak the others).
-        clearFrame(PARK)
-        clearFrame(PARK + 1)
+        -- Cleanup: delete frame 2 (blank insert), then frame 1 (captured data).
+        -- Each delete shifts and shrinks; two deletes restore initCount.
+        call("setFrame", { frame = 2 })
+        call("simpleDeleteFrame")
+        call("setFrame", { frame = 1 })
+        call("simpleDeleteFrame")
     end
 end
 
--- ── Camera View capture-on-step ──────────────────────────────────────────────
+-- ── Camera View capture-on-add ───────────────────────────────────────────────
+-- Works at frame 1 (always empty in a fresh Simple Mode session).
 
-if frameCount < 45 then
-    table.insert(out, "SKIP  camera-on-step test (frameCount too small for a safe parking frame)")
-else
-    local CAMPARK = frameCount - 41
+do
+    local camInitCount = (call("getFrameCount").ok and call("getFrameCount").result) or 1
 
+    local camOccupied1 = frameOccupied(1)
     r = call("getCameraFrames")
-    local camOccupied = frameOccupied(CAMPARK)   -- rigs/props (camera flag is off until we toggle it below)
-    for _, f in ipairs((r.ok and r.result) or {}) do if f == CAMPARK then camOccupied = true end end
+    for _, f in ipairs((r.ok and r.result) or {}) do if f == 1 then camOccupied1 = true end end
 
-    if camOccupied then
-        table.insert(out, "SKIP  camera-on-step test (parking frame already holds user data)")
+    if camOccupied1 then
+        table.insert(out, "SKIP  camera-on-add test (frame 1 already holds user data)")
     else
         r = call("setSimpleCamera", { on = true })
-        ok("setSimpleCamera on", r.ok and r.result == true, r.err)
+        ok("setSimpleCamera on (camera-on-add)", r.ok and r.result == true, r.err)
 
-        call("setFrame", { frame = CAMPARK })
-        r = call("simpleFrameHasData", { frame = CAMPARK })
-        ok("camera parking frame starts empty", r.ok and r.result == false, r.err)
+        call("setFrame", { frame = 1 })
+        r = call("simpleFrameHasData", { frame = 1 })
+        ok("camera frame 1 starts empty", r.ok and r.result == false, r.err)
 
-        r = call("simpleStepForward")
-        ok("simpleStepForward advances past camera parking frame", r.ok and r.result == CAMPARK + 1, r.err)
+        -- simpleAddFrame captures frame 1 and moves cursor to new end (camInitCount+1).
+        r = call("simpleAddFrame")
+        ok("simpleAddFrame with camera advances to new end", r.ok and r.result == camInitCount + 1, r.err)
 
         r = call("getCameraFrames")
         found = false
-        for _, f in ipairs((r.ok and r.result) or {}) do if f == CAMPARK then found = true end end
-        ok("camera keyframe captured on step-forward", found)
+        for _, f in ipairs((r.ok and r.result) or {}) do if f == 1 then found = true end end
+        ok("camera keyframe captured on add-frame", found)
 
-        -- Cleanup — clears all rigs/props too, since the same step-forward
-        -- call captured them alongside the camera.
-        clearFrame(CAMPARK)
+        -- Cleanup: clearFrame(1) deletes frame 1 and shrinks frameCount back.
+        clearFrame(1)
         call("setSimpleCamera", { on = false })
     end
 end
@@ -228,19 +214,23 @@ do
     r = call("isPlaying")
     ok("isPlaying starts false", r.ok and r.result == false, r.err)
 
-    -- startPlayback needs at least one recorded keyframe to play; the
-    -- earlier tests clean up everything they capture, so a fresh session
-    -- can reach this point with zero keyframes. Create one temporarily.
-    local origFrame  = call("getCurrentFrame")
-    local PLAYPARK   = math.max(1, frameCount - 61)   -- distinct from PARK/CAMPARK/CAMOBJPARK
-    local madeTempKF = false
-    if frameCount >= 70 and not frameOccupied(PLAYPARK) then
-        call("setFrame", { frame = PLAYPARK })
-        call("simpleStepForward")
+    -- startPlayback needs keyframes to play; earlier tests clean up everything.
+    -- Build 6 frames (enough that 0.1s is mid-playback at 24fps = 5/24≈0.21s),
+    -- using consecutive simpleAddFrame calls from frame 1.
+    local PLAY_FRAMES = 6
+    local origFrame   = call("getCurrentFrame")
+    local madeTempKF  = false
+    if not frameOccupied(1) then
+        call("setFrame", { frame = 1 })
+        for _ = 1, PLAY_FRAMES do
+            call("simpleAddFrame")   -- each call captures current frame and advances to new end
+        end
         madeTempKF = true
     end
 
-    call("setFrame", { frame = math.max(1, frameCount - 3) })
+    -- Navigate near the end so play-to-end finishes within the poll window.
+    local playCount = (call("getFrameCount").ok and call("getFrameCount").result) or 1
+    call("setFrame", { frame = math.max(1, playCount - 1) })
 
     r = call("simpleTogglePlay")
     if r.ok and r.result == true then
@@ -269,7 +259,9 @@ do
         table.insert(out, "SKIP  manual-stop test (no recorded keyframes to play)")
     end
 
-    if madeTempKF then clearFrame(PLAYPARK) end
+    if madeTempKF then
+        for _ = 1, PLAY_FRAMES do clearFrame(1) end   -- each clearFrame(1) shifts data left
+    end
     if origFrame.ok then call("setFrame", { frame = origFrame.result }) end
 end
 
@@ -332,11 +324,17 @@ do
 
     -- Simulate the user free-flying the viewport (native Studio nav) and
     -- confirm the gizmo picks up the new pose on the next Heartbeat.
+    -- task.wait() resumes after Stepped, which fires BEFORE Heartbeat — so we
+    -- wait for Heartbeat directly to guarantee the callback has run.
+    local RunService = game:GetService("RunService")
     local flownCF = nil
     if cam then
         flownCF = lensCF * CFrame.new(3, 1, 0)
         cam.CFrame = flownCF
-        task.wait()
+        -- task.wait(0.1): Connect callbacks and Wait() resumes share the same
+        -- Heartbeat fire but ordering is implementation-defined. 0.1s ensures
+        -- multiple Heartbeat cycles so the callback has definitely run.
+        task.wait(0.1)
         local followed = camPart and (camPart.CFrame.Position - flownCF.Position).Magnitude < 0.01
         ok("flying the viewport re-aims the gizmo while Look Through is on", followed)
     end
@@ -355,23 +353,23 @@ do
     if camPart and lensCF then camPart.CFrame = lensCF end
 
     -- Capture from the gizmo's own pose, not the ambient viewport.
-    if camPart and frameCount >= 60 then
-        local CAMOBJPARK = frameCount - 53   -- distinct from PARK (-31) / CAMPARK (-41)
-        if not frameOccupied(CAMOBJPARK) then
-            camPart.CFrame = camPart.CFrame * CFrame.new(7, 0, 0)
-            call("setFrame", { frame = CAMOBJPARK })
-            r = call("simpleStepForward")
-            ok("step-forward captures camera object pose", r.ok and r.result == CAMOBJPARK + 1, r.err)
+    -- Capture from the gizmo's own pose — use frame 1, always available.
+    if camPart and not frameOccupied(1) then
+        local camObjInitCount = (call("getFrameCount").ok and call("getFrameCount").result) or 1
+        camPart.CFrame = camPart.CFrame * CFrame.new(7, 0, 0)
+        call("setFrame", { frame = 1 })
+        -- simpleAddFrame captures frame 1 and moves to new end (camObjInitCount+1).
+        r = call("simpleAddFrame")
+        ok("simpleAddFrame captures camera object pose", r.ok and r.result == camObjInitCount + 1, r.err)
 
-            r = call("getCameraFrames")
-            found = false
-            for _, f in ipairs((r.ok and r.result) or {}) do if f == CAMOBJPARK then found = true end end
-            ok("camera keyframe recorded at parking frame", found)
+        r = call("getCameraFrames")
+        found = false
+        for _, f in ipairs((r.ok and r.result) or {}) do if f == 1 then found = true end end
+        ok("camera keyframe recorded at frame 1", found)
 
-            clearFrame(CAMOBJPARK)
-        else
-            table.insert(out, "SKIP  camera-object capture test (parking frame already holds user data)")
-        end
+        clearFrame(1)
+    else
+        table.insert(out, "SKIP  camera-object capture test (frame 1 already holds user data)")
     end
 
     call("setSimpleCamera", { on = false })

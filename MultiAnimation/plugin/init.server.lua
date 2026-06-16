@@ -128,6 +128,7 @@ local gizmoSyncing   = false  -- guards the gizmo CFrame-changed feedback loop
 -- Simple Mode state (mode toggle + camera-view-while-posing flag)
 local mode = "advanced"   -- "advanced" | "simple"
 local simpleCameraOn = false
+local advancedFrameCount = nil   -- saved frameCount to restore when leaving Simple Mode
 
 -- Simple Mode camera object: a manipulable Part in FIGURES standing in for
 -- the camera, posed with Studio's normal tools instead of capturing the
@@ -282,8 +283,10 @@ local function applyPosesAt(queryFrame, immediate)
 
     -- Simple Mode: pose the manipulable camera gizmo itself (not the
     -- viewport — that's Look Through's job, mirrored independently via its
-    -- own Heartbeat connection below).
-    if mode == "simple" and simpleCameraOn and simpleCameraPart and simpleCameraPart.Parent then
+    -- own Heartbeat connection below). Apply whenever the part exists,
+    -- regardless of the Camera View toggle state, so scrub/playback always
+    -- reflects recorded camera poses.
+    if mode == "simple" and simpleCameraPart and simpleCameraPart.Parent then
         local camData = Interpolator.getCameraData(recorder, queryFrame)
         if camData then
             local camCFrames = { [SIMPLE_CAMERA_NAME] = camData.cf }
@@ -985,6 +988,23 @@ local function doSimpleScan()
             panel:addPropKeyframeMarker(propName, f)
         end
     end
+    -- If this is a fresh session (no existing keyframes anywhere), start the
+    -- Simple Mode timeline at 1 frame so the user builds it up via Add Frame.
+    local hasAnyData = false
+    for rigName in pairs(allRigs) do
+        if #recorder:getSortedFrames(rigName) > 0 then hasAnyData = true; break end
+    end
+    if not hasAnyData then
+        for propName in pairs(allProps) do
+            if #recorder:getSortedPropFrames(propName) > 0 then hasAnyData = true; break end
+        end
+    end
+    if not hasAnyData and #recorder:getSortedCameraFrames() > 0 then hasAnyData = true end
+    if not hasAnyData then
+        timeline:setFrameCount(1)
+        recorder:setFrameCount(1)
+        panel:setFrameCount(1)
+    end
     panel:setFrameDisplay(timeline:getCurrent(), timeline:getFrameCount())
 
     local rigCount, propCount = 0, 0
@@ -1000,7 +1020,7 @@ local function simpleFrameHasData(frame)
     for propName in pairs(allProps) do
         if recorder:getPropData(propName, frame) ~= nil then return true end
     end
-    if simpleCameraOn and recorder:getCameraData(frame) ~= nil then return true end
+    if recorder:getCameraData(frame) ~= nil then return true end
     return false
 end
 
@@ -1010,7 +1030,9 @@ local function doSimpleCaptureFrame(frame)
         for rigName in pairs(allRigs) do panel:addKeyframeMarker(rigName, frame) end
         for propName in pairs(allProps) do panel:addPropKeyframeMarker(propName, frame) end
     end
-    if simpleCameraOn and simpleCameraPart and simpleCameraPart.Parent then
+    -- Camera is captured whenever the part exists, not gated by Camera View
+    -- toggle, so the pose is always recorded along with rigs/props.
+    if simpleCameraPart and simpleCameraPart.Parent then
         recorder:addCameraKeyframe(frame, simpleCameraPart.CFrame, simpleCameraFOV, "move")
         panel:addCameraKeyframeMarker(frame, "move")
         updateCameraGizmo(frame)
@@ -1018,38 +1040,73 @@ local function doSimpleCaptureFrame(frame)
     scheduleAutoSave()
 end
 
-local function doSimpleStepForward()
+-- Rebuild all timeline markers from recorder state (used after insert/delete
+-- frame operations that shift data across multiple frame numbers at once).
+local function rebuildAllSimpleMarkers()
+    panel:setRigs(allRigs)
+    for rigName in pairs(allRigs) do
+        for _, f in ipairs(recorder:getSortedFrames(rigName)) do
+            panel:addKeyframeMarker(rigName, f)
+        end
+    end
+    for propName in pairs(allProps) do
+        for _, f in ipairs(recorder:getSortedPropFrames(propName)) do
+            panel:addPropKeyframeMarker(propName, f)
+        end
+    end
+    clearCameraGizmos()
+    rebuildCameraUI()
+end
+
+-- Capture current frame (always, overwriting any existing data), extend the
+-- timeline by one frame, and advance the cursor to that new last frame.
+local function doSimpleAddFrame()
     if isPlaying then return end
     local frame = timeline:getCurrent()
-    if not simpleFrameHasData(frame) then
-        doSimpleCaptureFrame(frame)
-    end
-    local newFrame = math.min(frame + 1, timeline:getFrameCount())
-    local f = timeline:setCurrent(newFrame)
-    panel:setFrameDisplay(f, timeline:getFrameCount())
+    doSimpleCaptureFrame(frame)
+    local newCount = timeline:getFrameCount() + 1
+    timeline:setFrameCount(newCount)
+    recorder:setFrameCount(newCount)
+    panel:setFrameCount(newCount)
+    local f = timeline:setCurrent(newCount)
+    panel:setFrameDisplay(f, newCount)
     applyPosesAt(f, false)
 end
 
-local function doSimpleDeleteKeyframe()
+-- Insert a blank frame at the current position: shift all data at frames
+-- >= current+1 right by 1, grow the timeline by 1, stay at current frame
+-- (now empty, ready to pose).
+local function doSimpleInsertFrame()
+    if isPlaying then return end
+    local frame = timeline:setCurrent(timeline:getCurrent())  -- clamp
+    recorder:shiftFrames(frame + 1, 1)
+    local newCount = timeline:getFrameCount() + 1
+    timeline:setFrameCount(newCount)
+    recorder:setFrameCount(newCount)
+    panel:setFrameCount(newCount)
+    rebuildAllSimpleMarkers()
+    panel:setFrameDisplay(frame, newCount)
+    applyPosesAt(frame, false)
+end
+
+-- Delete the current frame: remove its data, shift all data at frames after
+-- it left by 1, shrink the timeline by 1.
+local function doSimpleDeleteFrame()
     if isPlaying then return end
     local frame = timeline:getCurrent()
-    for rigName in pairs(allRigs) do
-        recorder:deleteRigKeyframe(rigName, frame)
-        panel:removeKeyframeMarker(rigName, frame)
-    end
-    for propName in pairs(allProps) do
-        recorder:deletePropKeyframe(propName, frame)
-        panel:removePropKeyframeMarker(propName, frame)
-    end
-    if simpleCameraOn then
-        recorder:deleteCameraKeyframe(frame)
-        panel:removeCameraKeyframeMarker(frame)
-        updateCameraGizmo(frame)
-    end
+    local oldCount = timeline:getFrameCount()
+    if oldCount <= 1 then return end   -- keep at least one frame
+    recorder:deleteFrameAt(frame)
+    recorder:shiftFrames(frame + 1, -1)
+    local newCount = oldCount - 1
+    timeline:setFrameCount(newCount)
+    recorder:setFrameCount(newCount)
+    panel:setFrameCount(newCount)
+    local f = timeline:setCurrent(math.min(frame, newCount))
+    rebuildAllSimpleMarkers()
+    panel:setFrameDisplay(f, newCount)
+    applyPosesAt(f, false)
     scheduleAutoSave()
-    local prevFrame = math.max(1, frame - 1)
-    applyPosesAt(prevFrame, false)
-    print(string.format("[MultiAnimation] Simple: cleared frame %d, showing frame %d for re-pose", frame, prevFrame))
 end
 
 -- Shared by the panel toggle and the TestBridge command so both paths get
@@ -1081,6 +1138,9 @@ function setSimpleLookThroughOn(isOn)
         if simpleLookThroughOn then return true end
         simpleLookThroughOn = true
         savedSimpleCamState = CameraCapture.saveState()
+        -- Scriptable lets scripts drive the CFrame without Studio's editor
+        -- controller overriding it every frame. Restored by restoreState on toggle-off.
+        workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
         CameraCapture.apply(simpleCameraPart.CFrame, simpleCameraFOV)
         simpleLookThroughConn = RunService.Heartbeat:Connect(function()
             if simpleCameraPart and simpleCameraPart.Parent then
@@ -1200,14 +1260,24 @@ end)
 -- ── Simple Mode handlers ──────────────────────────────────────────────────────
 
 panel.onModeChanged:Connect(function(newMode)
-    mode = newMode
-    if mode == "simple" then
+    if newMode == "simple" then
+        advancedFrameCount = timeline:getFrameCount()
+        mode = newMode
         doSimpleScan()
+    else
+        mode = newMode
+        if advancedFrameCount then
+            timeline:setFrameCount(advancedFrameCount)
+            recorder:setFrameCount(advancedFrameCount)
+            panel:setFrameCount(advancedFrameCount)
+            advancedFrameCount = nil
+        end
     end
 end)
 
-panel.onSimpleStepForward:Connect(doSimpleStepForward)
-panel.onSimpleDeleteKFRequested:Connect(doSimpleDeleteKeyframe)
+panel.onSimpleAddFrame:Connect(doSimpleAddFrame)
+panel.onSimpleInsertFrame:Connect(doSimpleInsertFrame)
+panel.onSimpleDeleteFrame:Connect(doSimpleDeleteFrame)
 panel.onSimpleCameraToggled:Connect(setSimpleCameraOn)
 panel.onSimpleLookThroughToggled:Connect(function(isOn)
     local result = setSimpleLookThroughOn(isOn)
@@ -1901,19 +1971,47 @@ local testBridge = TestBridge.start({
     getMode = function() return mode end,
 
     setMode = function(a)
-        mode = a.mode
-        panel:setMode(a.mode)
-        if mode == "simple" then doSimpleScan() end
+        if a.mode == "simple" then
+            advancedFrameCount = timeline:getFrameCount()
+            mode = a.mode
+            panel:setMode(a.mode)
+            doSimpleScan()
+        else
+            mode = a.mode
+            panel:setMode(a.mode)
+            if advancedFrameCount then
+                timeline:setFrameCount(advancedFrameCount)
+                recorder:setFrameCount(advancedFrameCount)
+                panel:setFrameCount(advancedFrameCount)
+                advancedFrameCount = nil
+            end
+        end
         return mode
     end,
 
+    simpleAddFrame = function()
+        doSimpleAddFrame()
+        return timeline:getCurrent()
+    end,
+
+    simpleInsertFrame = function()
+        doSimpleInsertFrame()
+        return timeline:getCurrent()
+    end,
+
+    simpleDeleteFrame = function()
+        doSimpleDeleteFrame()
+        return timeline:getCurrent()
+    end,
+
+    -- Legacy aliases kept for backward compatibility with any saved test scripts.
     simpleStepForward = function()
-        doSimpleStepForward()
+        doSimpleAddFrame()
         return timeline:getCurrent()
     end,
 
     simpleDeleteKeyframe = function()
-        doSimpleDeleteKeyframe()
+        doSimpleDeleteFrame()
         return timeline:getCurrent()
     end,
 

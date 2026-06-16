@@ -301,6 +301,51 @@ function Recorder:setScaleData(rigName, frame, scaleData)
     self._session.rigs[rigName].scaleTrack[frame] = scaleData
 end
 
+-- Shift all frame data at frames >= fromFrame by delta (positive=insert space,
+-- negative=close a gap). Collect→clear→write in that order so frames don't
+-- collide when delta<0 and the destination range overlaps the source range.
+function Recorder:shiftFrames(fromFrame, delta)
+    local function shiftTrack(track)
+        if not track then return end
+        local toMove = {}
+        for f, v in pairs(track) do
+            if f >= fromFrame then toMove[f] = v end
+        end
+        for f in pairs(toMove) do track[f] = nil end
+        for f, v in pairs(toMove) do track[f + delta] = v end
+    end
+    for _, rig in pairs(self._session.rigs or {}) do
+        shiftTrack(rig.jointTrack)
+        shiftTrack(rig.scaleTrack)
+        shiftTrack(rig.rootTrack)
+    end
+    for _, prop in pairs(self._session.props or {}) do
+        shiftTrack(prop.track)
+    end
+    local cam = self._session.camera
+    if cam then shiftTrack(cam.track) end
+    for _, fx in pairs(self._session.effects or {}) do
+        shiftTrack(fx.track)
+    end
+end
+
+-- Delete all track data at exactly `frame` across every track type.
+function Recorder:deleteFrameAt(frame)
+    for _, rig in pairs(self._session.rigs or {}) do
+        rig.jointTrack[frame] = nil
+        rig.scaleTrack[frame] = nil
+        if rig.rootTrack then rig.rootTrack[frame] = nil end
+    end
+    for _, prop in pairs(self._session.props or {}) do
+        if prop.track then prop.track[frame] = nil end
+    end
+    local cam = self._session.camera
+    if cam and cam.track then cam.track[frame] = nil end
+    for _, fx in pairs(self._session.effects or {}) do
+        if fx.track then fx.track[frame] = nil end
+    end
+end
+
 function Recorder:destroy()
     self._added:Destroy()
 end

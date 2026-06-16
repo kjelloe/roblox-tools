@@ -334,12 +334,13 @@ function Panel.new(widget)
     self._eTrackFx = eTrackFx
 
     -- Simple Mode
-    local eMode        = mkEvent("onModeChanged")
-    local eSimpleStep  = mkEvent("onSimpleStepForward")
-    local eSimpleDelKF = mkEvent("onSimpleDeleteKFRequested")
-    local eSimpleCam   = mkEvent("onSimpleCameraToggled")
-    local eSimpleFOV   = mkEvent("onSimpleFOVChanged")
-    local eSimpleLook  = mkEvent("onSimpleLookThroughToggled")
+    local eMode             = mkEvent("onModeChanged")
+    local eSimpleAddFrame   = mkEvent("onSimpleAddFrame")
+    local eSimpleInsertFrame= mkEvent("onSimpleInsertFrame")
+    local eSimpleDeleteFrame= mkEvent("onSimpleDeleteFrame")
+    local eSimpleCam        = mkEvent("onSimpleCameraToggled")
+    local eSimpleFOV        = mkEvent("onSimpleFOVChanged")
+    local eSimpleLook       = mkEvent("onSimpleLookThroughToggled")
 
     local eFxRemoved = Instance.new("BindableEvent")
     self.onEffectRemoved = eFxRemoved.Event
@@ -667,16 +668,24 @@ function Panel.new(widget)
     simpleSec.Visible = false
     self._simpleSec = simpleSec
 
-    local simpleDelRow = hrow(simpleSec, 1, 4)
-    local simpleDelBtn = btn(simpleDelRow, "🗑  Delete Keyframe", 1)
-    simpleDelBtn.MouseButton1Click:Connect(function()
-        if not self._isPlaying then eSimpleDelKF:Fire() end
+    local simpleActionRow = hrow(simpleSec, 1, 4)
+    local simpleDelFrameBtn = btn(simpleActionRow, "🗑 Del Frame", 1)
+    simpleDelFrameBtn.MouseButton1Click:Connect(function()
+        if not self._isPlaying then eSimpleDeleteFrame:Fire() end
     end)
-    local simplePlayBtn = btn(simpleDelRow, "▶  Play", 2, true)
+    local simpleInsertBtn = btn(simpleActionRow, "+ Insert", 2)
+    simpleInsertBtn.MouseButton1Click:Connect(function()
+        if not self._isPlaying then eSimpleInsertFrame:Fire() end
+    end)
+    local simplePlayBtn = btn(simpleActionRow, "▶  Play", 3, true)
     widenButton(simplePlayBtn, 2.5)
     self._simplePlayBtn = simplePlayBtn
     simplePlayBtn.MouseButton1Click:Connect(function()
         if self._isPlaying then eStop:Fire() else ePreview:Fire() end
+    end)
+    local simpleAddBtn = btn(simpleActionRow, "+ Add Frame", 4)
+    simpleAddBtn.MouseButton1Click:Connect(function()
+        if not self._isPlaying then eSimpleAddFrame:Fire() end
     end)
 
     local simpleScrubRow = Instance.new("Frame")
@@ -687,7 +696,7 @@ function Panel.new(widget)
     simpleScrubRow.LayoutOrder      = 2
     simpleScrubRow.Parent           = simpleSec
 
-    self._simpleScrubber = Scrubber.new(simpleScrubRow, 120, 1, widget, 0)
+    self._simpleScrubber = Scrubber.new(simpleScrubRow, 1, 1, widget, 0)
     self._simpleScrubber.onFrameChanged:Connect(function(f)
         self._currentFrame = f
         if frameBox then frameBox.Text = tostring(f) end
@@ -705,7 +714,7 @@ function Panel.new(widget)
     local simpleNextBtn   = smallBtn(simpleNavRow, "►",  5)
     local simpleNextKFBtn = smallBtn(simpleNavRow, "►|", 6)
     lbl(simpleNavRow, "/", 8, 7)
-    local simpleTotalBox  = textBox(simpleNavRow, "120", 36, 8)
+    local simpleTotalBox  = textBox(simpleNavRow, "1", 36, 8)
     self._simpleFrameBox = simpleFrameBox
     self._simpleTotalBox = simpleTotalBox
 
@@ -716,7 +725,10 @@ function Panel.new(widget)
         eFrame:Fire(f)
     end)
     simpleNextBtn.MouseButton1Click:Connect(function()
-        if not self._isPlaying then eSimpleStep:Fire() end
+        if not self._isPlaying then
+            local f = math.min(self._currentFrame + 1, self._frameCount)
+            eFrame:Fire(f)
+        end
     end)
     simpleFrameBox.FocusLost:Connect(function()
         local n = tonumber(simpleFrameBox.Text)

@@ -223,10 +223,11 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 | Scrubber | Drag | Scrub; auto-updates an existing keyframe at the departure frame |
 | `\|◄` / `►\|` | Click | Jump to first / last frame |
 | `◄` / `►` | Click | Step one frame back / forward |
-| **Simple mode** `►` | Click | Step forward; captures the departure frame first if it's still empty |
+| **Simple mode** `+ Add Frame` | Click | Capture current frame's pose, grow the timeline by 1, move cursor to the new end frame |
+| **Simple mode** `+ Insert` | Click | Insert a blank frame at the current position, shift all subsequent frame data right by 1 |
 | **Simple mode** `▶ Play` / `■ Stop` | Click | Play from the current frame to the end, or stop mid-playback |
-| **Simple mode** `Delete Keyframe` | Click | Clear current frame's data, snap pose to the previous frame (cursor stays put) |
-| **Simple mode** `Camera View` | Click | Create/arm the manipulable `SimpleCamera` part; toggle camera capture-on-step alongside rig/prop poses |
+| **Simple mode** `Del Frame` | Click | Delete the current frame's data, shift all subsequent frames left by 1, shrink the timeline |
+| **Simple mode** `Camera View` | Click | Create/arm the manipulable `SimpleCamera` part; camera pose captured on every `+ Add Frame` |
 | **Simple mode** FOV box | Type + Tab/Enter | Set the `SimpleCamera`'s field of view (clamped 1–120) |
 | **Simple mode** `Look Through` | Click | Slave the viewport to the `SimpleCamera`'s view, then fly freely with Studio's normal edit-camera controls; toggle off to restore your original viewport exactly |
 | `SimpleCamera` part (viewport) | Move / rotate | Pose the camera like any rig or prop — captured the same way on step-forward; shows a wireframe FOV-frustum outline |
@@ -306,31 +307,31 @@ remember.
 either way).
 
 The panel collapses to just: a scrubber + frame counter, a row with
-**Delete Keyframe** and **▶ Play/Stop** side by side, a **Camera View**
-toggle with FOV box and **Look Through** toggle, and a scene name +
-Save/Export row.
+**Del Frame**, **+ Insert**, **▶ Play/Stop**, and **+ Add Frame**, a
+**Camera View** toggle with FOV box and **Look Through** toggle, and a
+scene name + Save/Export row.
 
 **Everything in `Workspace.FIGURES` is tracked automatically** — R6 rigs the
 same way Advanced mode tracks them, and any other part/model gets its
 world-space CFrame tracked like an Advanced-mode prop. There's no "Track
 Part" or "+ Rig" step; just put things in FIGURES.
 
-**The core workflow — pose, then step:**
+**The core workflow:**
 
-1. Pose everything in the viewport at the current frame.
-2. Press **►** (step forward). If the frame you're *leaving* has no recorded
-   data yet, your pose is captured there automatically — then the timeline
-   advances and whatever's recorded at the new frame (if anything) is applied.
-3. Repeat: pose, step, pose, step.
+- **`+ Add Frame`** — captures the current frame's pose, grows the timeline by
+  one frame, and moves the cursor to the new (blank) end frame. The typical
+  loop is: pose → **+ Add Frame** → pose → **+ Add Frame** → …
+- **`+ Insert`** — shifts all frames *after* the current one right by 1,
+  growing the timeline by 1 without overwriting what's already there. The
+  cursor stays on the current frame, which is now blank — ready for a new
+  pose. Use this to slip a new key between two existing ones.
+- **`Del Frame`** — removes the current frame's data, shifts all subsequent
+  frames left by 1 (so frame numbers stay contiguous), and shrinks the
+  timeline by 1. The cursor lands on min(current, newEnd).
 
-Because capture only happens on a frame that's still empty, scrubbing back
-and forth across already-keyframed frames never overwrites them — only the
-act of stepping *away from a fresh, unkeyframed frame* records it.
-
-**Made a mistake?** Press **Delete Keyframe**. It clears the current frame's
-data and snaps the viewport back to the previous frame's pose — but leaves
-the timeline cursor right where it was. Re-pose, press ► again, and that
-frame is captured fresh. This is the redo loop for Simple Mode.
+**Made a mistake?** Press **Del Frame**. The frame is deleted and subsequent
+data shifts to close the gap — re-pose at the current cursor position and
+press **+ Add Frame** again.
 
 **Play / Stop:** press **▶ Play** to play the recorded animation forward from
 the current frame to the end of the timeline; the button flips to **■ Stop**
@@ -339,13 +340,13 @@ viewport settles on whatever frame playback stopped at.
 
 **Camera View:** toggling it on creates (or reuses) a **`SimpleCamera`**
 part in `FIGURES` — a real, manipulable object you pose with Studio's normal
-move/rotate tools, exactly like a rig or prop. A yellow wireframe outline on
-the part shows its field of view and aim direction at a glance (an apex plus
-a far rectangle sized from the FOV — not a solid shape, so it won't block
-your view of anything behind it). The same step-forward rule applies to the
-camera: leaving an empty frame with Camera View on captures the camera
-part's CFrame and FOV alongside the poses. Set its field of view with the
-**FOV** box next to the toggle (1–120); the wireframe redraws to match.
+move/rotate tools, exactly like a rig or prop. A wireframe outline on the
+part shows its field of view and aim direction at a glance (an apex plus a
+far rectangle sized from the FOV — not a solid shape, so it won't block
+your view of anything behind it). When Camera View is on, pressing **+ Add
+Frame** captures the camera part's CFrame and FOV alongside all rig/prop
+poses. Set the camera's field of view with the **FOV** box next to the
+toggle (1–120); the wireframe redraws to match.
 
 **Look Through:** with Camera View on, toggle **Look Through** to slave your
 edit-mode viewport to the `SimpleCamera` part's current view. Once it's on,
