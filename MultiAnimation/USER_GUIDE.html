@@ -421,8 +421,12 @@ frames (default 2)</td></tr>
 <tr><td><code>|◄</code> / <code>►|</code></td><td>Click</td><td>Jump to first / last frame</td></tr>
 <tr><td><code>◄</code> / <code>►</code></td><td>Click</td><td>Step one frame back / forward</td></tr>
 <tr><td><strong>Simple mode</strong> <code>►</code></td><td>Click</td><td>Step forward; captures the departure frame first if it's still empty</td></tr>
+<tr><td><strong>Simple mode</strong> <code>▶ Play</code> / <code>■ Stop</code></td><td>Click</td><td>Play from the current frame to the end, or stop mid-playback</td></tr>
 <tr><td><strong>Simple mode</strong> <code>Delete Keyframe</code></td><td>Click</td><td>Clear current frame's data, snap pose to the previous frame (cursor stays put)</td></tr>
-<tr><td><strong>Simple mode</strong> <code>Camera View</code></td><td>Click</td><td>Toggle camera capture-on-step alongside rig/prop poses</td></tr>
+<tr><td><strong>Simple mode</strong> <code>Camera View</code></td><td>Click</td><td>Create/arm the manipulable <code>SimpleCamera</code> part; toggle camera capture-on-step alongside rig/prop poses</td></tr>
+<tr><td><strong>Simple mode</strong> FOV box</td><td>Type + Tab/Enter</td><td>Set the <code>SimpleCamera</code>'s field of view (clamped 1–120)</td></tr>
+<tr><td><strong>Simple mode</strong> <code>Look Through</code></td><td>Click</td><td>Slave the edit viewport to the <code>SimpleCamera</code> part live; toggle off to restore your viewport exactly</td></tr>
+<tr><td><code>SimpleCamera</code> part (viewport)</td><td>Move / rotate</td><td>Pose the camera like any rig or prop — captured the same way on step-forward</td></tr>
 <tr><td><code>💾 Save</code></td><td>Click</td><td>Quick-save the session under the current scene name (no dialog)</td></tr>
 </table>
 
@@ -504,8 +508,9 @@ toggle above RIGS IN SCENE (switches back to <strong>Advanced</strong> any
 time — your session data is untouched either way).</p>
 
 <p>The panel collapses to just: a scrubber + frame counter,
-<strong>Delete Keyframe</strong>, a <strong>Camera View</strong> toggle, and a
-scene name + Save/Export row.</p>
+<strong>▶ Play/Stop</strong>, <strong>Delete Keyframe</strong>, a
+<strong>Camera View</strong> toggle with FOV box and <strong>Look
+Through</strong> toggle, and a scene name + Save/Export row.</p>
 
 <p><strong>Everything in <code>Workspace.FIGURES</code> is tracked
 automatically</strong> — R6 rigs the same way Advanced mode tracks them, and
@@ -534,9 +539,26 @@ frame's pose — but leaves the timeline cursor right where it was. Re-pose,
 press ► again, and that frame is captured fresh. This is the redo loop for
 Simple Mode.</p>
 
-<p><strong>Camera View:</strong> toggle it on and the same step-forward rule
-applies to the viewport camera — leaving an empty frame with the camera
-turned on captures its CFrame and FOV alongside the poses.</p>
+<p><strong>Play / Stop:</strong> press <strong>▶ Play</strong> to play the
+recorded animation forward from the current frame to the end of the
+timeline; the button flips to <strong>■ Stop</strong> while playing. Press it
+again (or let it reach the end) to stop — the viewport settles on whatever
+frame playback stopped at.</p>
+
+<p><strong>Camera View:</strong> toggling it on creates (or reuses) a
+<strong><code>SimpleCamera</code></strong> part in <code>FIGURES</code> — a
+real, manipulable object you pose with Studio's normal move/rotate tools,
+exactly like a rig or prop. The same step-forward rule applies to it: leaving
+an empty frame with Camera View on captures the camera part's CFrame and FOV
+alongside the poses. Set its field of view with the <strong>FOV</strong> box
+next to the toggle (1–120).</p>
+
+<p><strong>Look Through:</strong> with Camera View on, toggle <strong>Look
+Through</strong> to slave your edit-mode viewport to the
+<code>SimpleCamera</code> part live — move or rotate the part and the
+viewport follows in real time, so you can frame a shot before capturing it.
+Toggle it off to restore your own viewport exactly where you left it. Look
+Through is rejected (no-op) if Camera View isn't on yet.</p>
 
 <p><strong>Save / Export</strong> work exactly as in Advanced mode, right
 there in the Simple panel — no need to switch modes just to save your work or

@@ -357,9 +357,30 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
 - [x] **💾 Save button** — quick-save to the current scene name with no
       dialog or overwrite confirmation, in both Advanced and Simple panels;
       complements `_autosave` and the existing named `Save As`/`Load` flow.
-- [x] Tests — `test_ui_simple.lua` (29: mode toggle, idempotent step-forward
-      capture, Delete Keyframe redo, Camera View capture-on-step, FIGURES
-      auto-track/untrack). Suite total: **334 cases** across 19 files.
+- [x] **Simple Mode refinement — Play/Stop + manipulable camera object.**
+      A **▶ Play / ■ Stop** toggle plays the recorded animation forward from
+      the current frame to the end (reuses the Advanced-mode playback engine
+      and `ePreview`/`eStop` events — no new engine). Camera View no longer
+      captures the ambient, unmoving viewport camera; toggling it on creates
+      a persistent `SimpleCamera` part in `FIGURES` that's posed with
+      Studio's normal move/rotate tools just like a rig or prop, with its own
+      FOV box. A separate **Look Through** toggle slaves the edit viewport to
+      the camera part live (`RunService.Heartbeat` mirror via
+      `CameraCapture.apply`) and restores the original viewport exactly on
+      toggle-off (`CameraCapture.saveState`/`restoreState`). The camera
+      object is excluded from generic prop auto-tracking and captured via
+      `PoseApplier.applyPropImmediate`/`applyPropRecorded` like a one-entry
+      prop table; the exported `CameraTrack` data shape is unchanged, so
+      export and in-game cutscene playback need no changes. New:
+      `ensureSimpleCameraPart`, `setSimpleCameraOn`, `setSimpleLookThroughOn`
+      in `init.server.lua`; FOV box + Look Through button in `Panel.lua`.
+      Bridge commands: `isPlaying`, `simpleTogglePlay`, `setSimpleLookThrough`,
+      `getSimpleLookThrough`, `setSimpleCameraFOV`, `getSimpleCameraInfo`.
+- [x] Tests — `test_ui_simple.lua` (47: mode toggle, idempotent step-forward
+      capture, Delete Keyframe redo, Play/Stop toggle, manipulable camera
+      object — creation, FOV round-trip, Look Through on/off with exact
+      viewport restore, capture-from-gizmo — Camera View capture-on-step,
+      FIGURES auto-track/untrack). Suite total: **353 cases** across 19 files.
 
 ### Backlog
 

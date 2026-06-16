@@ -327,6 +327,8 @@ function Panel.new(widget)
     local eSimpleStep  = mkEvent("onSimpleStepForward")
     local eSimpleDelKF = mkEvent("onSimpleDeleteKFRequested")
     local eSimpleCam   = mkEvent("onSimpleCameraToggled")
+    local eSimpleFOV   = mkEvent("onSimpleFOVChanged")
+    local eSimpleLook  = mkEvent("onSimpleLookThroughToggled")
 
     local eFxRemoved = Instance.new("BindableEvent")
     self.onEffectRemoved = eFxRemoved.Event
@@ -709,7 +711,14 @@ function Panel.new(widget)
         end
     end)
 
-    local simpleCamRow = hrow(simpleSec, 4, 4)
+    local simplePlayRow = hrow(simpleSec, 4, 4)
+    local simplePlayBtn = btn(simplePlayRow, "▶  Play", 1, true)
+    self._simplePlayBtn = simplePlayBtn
+    simplePlayBtn.MouseButton1Click:Connect(function()
+        if self._isPlaying then eStop:Fire() else ePreview:Fire() end
+    end)
+
+    local simpleCamRow = hrow(simpleSec, 5, 4)
     local simpleCamBtn = btn(simpleCamRow, "Camera View: OFF", 1)
     self._simpleCamOn = false
     simpleCamBtn.MouseButton1Click:Connect(function()
@@ -717,8 +726,27 @@ function Panel.new(widget)
         simpleCamBtn.Text = "Camera View: " .. (self._simpleCamOn and "ON" or "OFF")
         eSimpleCam:Fire(self._simpleCamOn)
     end)
+    lbl(simpleCamRow, "FOV:", 28, 2)
+    local simpleFOVBox = textBox(simpleCamRow, "70", 36, 3)
+    self._simpleFOVBox = simpleFOVBox
+    simpleFOVBox.FocusLost:Connect(function()
+        local n = tonumber(simpleFOVBox.Text)
+        if n then
+            n = math.clamp(n, 1, 120)
+            simpleFOVBox.Text = tostring(n)
+            eSimpleFOV:Fire(n)
+        else
+            simpleFOVBox.Text = tostring(self._simpleFOV or 70)
+        end
+    end)
+    local simpleLookBtn = btn(simpleCamRow, "Look Through: OFF", 4)
+    self._simpleLookBtn = simpleLookBtn
+    self._simpleLookOn  = false
+    simpleLookBtn.MouseButton1Click:Connect(function()
+        eSimpleLook:Fire(not self._simpleLookOn)
+    end)
 
-    local simpleSceneRow = hrow(simpleSec, 5, 4)
+    local simpleSceneRow = hrow(simpleSec, 6, 4)
     lbl(simpleSceneRow, "Scene:", 42, 1)
     local simpleSceneBox = textBox(simpleSceneRow, "Scene_001", 80, 2)
     local simpleSaveBtn   = btn(simpleSceneRow, "💾 Save",   3)
@@ -1161,6 +1189,20 @@ function Panel:setCameraPreviewState(isOn)
     end
 end
 
+function Panel:setSimpleLookThroughState(isOn)
+    self._simpleLookOn = isOn
+    if self._simpleLookBtn then
+        self._simpleLookBtn.Text = "Look Through: " .. (isOn and "ON" or "OFF")
+    end
+end
+
+function Panel:setSimpleFOVDisplay(fov)
+    self._simpleFOV = fov
+    if self._simpleFOVBox then
+        self._simpleFOVBox.Text = string.format("%.0f", fov)
+    end
+end
+
 -- Shows the mode of the camera keyframe at the current frame ("move"/"cut"),
 -- or "—" when the current frame has no camera keyframe.
 function Panel:setCameraModeDisplay(mode)
@@ -1234,6 +1276,9 @@ function Panel:setPlaybackState(isPlaying)
     if self._previewBtn then
         self._previewBtn.BackgroundColor3 = isPlaying and C.btnDim or C.btnBg
         self._previewBtn.TextColor3 = isPlaying and C.btnDimTxt or C.btnText
+    end
+    if self._simplePlayBtn then
+        self._simplePlayBtn.Text = isPlaying and "■  Stop" or "▶  Play"
     end
 end
 

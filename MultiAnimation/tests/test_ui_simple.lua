@@ -4,11 +4,14 @@
 --
 -- Covers: mode toggle, idempotent step-forward capture (capture departure
 -- frame only if empty), Delete Keyframe "redo" (clears + snaps to previous
--- frame without moving the cursor), Camera View capture-on-step, and
--- FIGURES auto-track/untrack of non-rig props while in Simple mode.
+-- frame without moving the cursor), Camera View capture-on-step, FIGURES
+-- auto-track/untrack of non-rig props while in Simple mode, the Play/Stop
+-- toggle, and the manipulable camera object (creation, FOV, Look Through
+-- guard/restore, capture-from-gizmo).
 --
 -- Mutates the session only at parking frames far from real data, which are
--- deleted again before exiting. Restores mode, frame, and active rig.
+-- deleted again before exiting. Restores mode, frame, active rig, and
+-- destroys the SimpleCamera object if this run is the one that created it.
 
 local HttpService = game:GetService("HttpService")
 
@@ -47,6 +50,12 @@ end
 local prevMode   = call("getMode")
 local prevFrame  = call("getCurrentFrame")
 local prevActive = call("getActiveRigs")
+
+-- The Camera View camera is now a real, persistent Part (created on first
+-- toggle-on) rather than a flag with no scene effect — only destroy it at
+-- the end of this file if THIS run is the one that created it.
+local figForCam0 = workspace:FindFirstChild("FIGURES")
+local preexistingSimpleCam = figForCam0 and figForCam0:FindFirstChild("SimpleCamera") ~= nil
 
 -- ── Mode toggle ───────────────────────────────────────────────────────────────
 
@@ -213,6 +222,126 @@ else
     end
 end
 
+-- ── Play/Stop toggle ──────────────────────────────────────────────────────────
+
+do
+    r = call("isPlaying")
+    ok("isPlaying starts false", r.ok and r.result == false, r.err)
+
+    -- startPlayback needs at least one recorded keyframe to play; the
+    -- earlier tests clean up everything they capture, so a fresh session
+    -- can reach this point with zero keyframes. Create one temporarily.
+    local origFrame  = call("getCurrentFrame")
+    local PLAYPARK   = math.max(1, frameCount - 61)   -- distinct from PARK/CAMPARK/CAMOBJPARK
+    local madeTempKF = false
+    if frameCount >= 70 and not frameOccupied(PLAYPARK) then
+        call("setFrame", { frame = PLAYPARK })
+        call("simpleStepForward")
+        madeTempKF = true
+    end
+
+    call("setFrame", { frame = math.max(1, frameCount - 3) })
+
+    r = call("simpleTogglePlay")
+    if r.ok and r.result == true then
+        ok("simpleTogglePlay starts playback", true)
+        local stopped = false
+        for _ = 1, 100 do
+            task.wait(0.05)
+            local p = call("isPlaying")
+            if p.ok and p.result == false then stopped = true; break end
+        end
+        ok("playback reaches the end and auto-stops", stopped)
+    else
+        table.insert(out, "SKIP  play-to-end test (no recorded keyframes to play)")
+    end
+
+    -- Manual stop mid-playback.
+    call("setFrame", { frame = 1 })
+    r = call("simpleTogglePlay")
+    if r.ok and r.result == true then
+        task.wait(0.1)
+        r = call("simpleTogglePlay")   -- toggle again = manual stop
+        ok("manual simpleTogglePlay stops mid-playback", r.ok and r.result == false, r.err)
+        r = call("isPlaying")
+        ok("isPlaying false after manual stop", r.ok and r.result == false, r.err)
+    else
+        table.insert(out, "SKIP  manual-stop test (no recorded keyframes to play)")
+    end
+
+    if madeTempKF then clearFrame(PLAYPARK) end
+    if origFrame.ok then call("setFrame", { frame = origFrame.result }) end
+end
+
+-- ── Manipulable camera object: creation, FOV, Look Through, capture ────────────
+
+do
+    local fig = workspace:FindFirstChild("FIGURES")
+
+    -- Look Through is rejected while Camera View is off.
+    call("setSimpleCamera", { on = false })
+    r = call("setSimpleLookThrough", { on = true })
+    ok("Look Through rejected when Camera View is off", r.ok and r.result == false, r.err)
+    r = call("getSimpleLookThrough")
+    ok("getSimpleLookThrough false after rejected request", r.ok and r.result == false, r.err)
+
+    -- Turn Camera View on — creates (or reuses) the manipulable camera object.
+    r = call("setSimpleCamera", { on = true })
+    ok("setSimpleCamera on", r.ok and r.result == true, r.err)
+
+    r = call("getSimpleCameraInfo")
+    ok("getSimpleCameraInfo returns data once Camera View is on", r.ok and r.result ~= nil, r.err)
+
+    local camPart = fig and fig:FindFirstChild("SimpleCamera")
+    ok("SimpleCamera part exists in FIGURES", camPart ~= nil)
+
+    r = call("setSimpleCameraFOV", { fov = 55 })
+    ok("setSimpleCameraFOV sets fov", r.ok and r.result == 55, r.err)
+    r = call("getSimpleCameraInfo")
+    ok("getSimpleCameraInfo reflects new FOV", r.ok and r.result and math.abs(r.result.fov - 55) < 0.01, r.err)
+
+    -- Look Through ON mirrors the gizmo onto the viewport; OFF restores it exactly.
+    local cam = workspace.CurrentCamera
+    local savedCF  = cam and cam.CFrame
+    local savedFov = cam and cam.FieldOfView
+
+    r = call("setSimpleLookThrough", { on = true })
+    ok("setSimpleLookThrough on succeeds once Camera View is on", r.ok and r.result == true, r.err)
+    r = call("getSimpleLookThrough")
+    ok("getSimpleLookThrough true", r.ok and r.result == true, r.err)
+
+    r = call("setSimpleLookThrough", { on = false })
+    ok("setSimpleLookThrough off", r.ok and r.result == false, r.err)
+
+    if cam and savedCF then
+        local restored = (cam.CFrame.Position - savedCF.Position).Magnitude < 0.01
+            and math.abs(cam.FieldOfView - savedFov) < 0.01
+        ok("viewport restored exactly after Look Through off", restored)
+    end
+
+    -- Capture from the gizmo's own pose, not the ambient viewport.
+    if camPart and frameCount >= 60 then
+        local CAMOBJPARK = frameCount - 53   -- distinct from PARK (-31) / CAMPARK (-41)
+        if not frameOccupied(CAMOBJPARK) then
+            camPart.CFrame = camPart.CFrame * CFrame.new(7, 0, 0)
+            call("setFrame", { frame = CAMOBJPARK })
+            r = call("simpleStepForward")
+            ok("step-forward captures camera object pose", r.ok and r.result == CAMOBJPARK + 1, r.err)
+
+            r = call("getCameraFrames")
+            found = false
+            for _, f in ipairs((r.ok and r.result) or {}) do if f == CAMOBJPARK then found = true end end
+            ok("camera keyframe recorded at parking frame", found)
+
+            clearFrame(CAMOBJPARK)
+        else
+            table.insert(out, "SKIP  camera-object capture test (parking frame already holds user data)")
+        end
+    end
+
+    call("setSimpleCamera", { on = false })
+end
+
 -- ── FIGURES auto-track / untrack of non-rig props in Simple mode ───────────────
 
 do
@@ -251,5 +380,11 @@ if prevActive.ok and prevActive.result[1] then
     call("setActiveRig", { name = prevActive.result[1] })
 end
 if prevMode.ok then call("setMode", { mode = prevMode.result }) end
+
+if not preexistingSimpleCam then
+    local fig = workspace:FindFirstChild("FIGURES")
+    local camPart = fig and fig:FindFirstChild("SimpleCamera")
+    if camPart then camPart:Destroy() end
+end
 
 return finish()

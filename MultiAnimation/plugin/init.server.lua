@@ -129,6 +129,17 @@ local gizmoSyncing   = false  -- guards the gizmo CFrame-changed feedback loop
 local mode = "advanced"   -- "advanced" | "simple"
 local simpleCameraOn = false
 
+-- Simple Mode camera object: a manipulable Part in FIGURES standing in for
+-- the camera, posed with Studio's normal tools instead of capturing the
+-- ambient viewport. Look Through mirrors it onto workspace.CurrentCamera.
+local SIMPLE_CAMERA_NAME    = "SimpleCamera"
+local simpleCameraPart      = nil
+local simpleCameraFOV       = 70
+local simpleLookThroughOn   = false
+local savedSimpleCamState   = nil
+local simpleLookThroughConn = nil
+local setSimpleLookThroughOn -- forward declared; defined in the SIMPLE MODE section, used by setSimpleCameraOn below
+
 -- ── Motor management ──────────────────────────────────────────────────────────
 
 local function disconnectRig(rigName, model)
@@ -188,6 +199,25 @@ local function applyPosesAt(queryFrame, immediate)
         local camData = Interpolator.getCameraData(recorder, queryFrame)
         if camData then
             CameraCapture.apply(camData.cf, camData.fov)
+        end
+    end
+
+    -- Simple Mode: pose the manipulable camera gizmo itself (not the
+    -- viewport — that's Look Through's job, mirrored independently via its
+    -- own Heartbeat connection below).
+    if mode == "simple" and simpleCameraOn and simpleCameraPart and simpleCameraPart.Parent then
+        local camData = Interpolator.getCameraData(recorder, queryFrame)
+        if camData then
+            local camCFrames = { [SIMPLE_CAMERA_NAME] = camData.cf }
+            local camParts    = { [SIMPLE_CAMERA_NAME] = simpleCameraPart }
+            if immediate then
+                PoseApplier.applyPropImmediate(camParts, camCFrames)
+            else
+                PoseApplier.applyPropRecorded(camParts, camCFrames)
+            end
+            simpleCameraFOV = camData.fov
+            simpleCameraPart:SetAttribute("FOV", camData.fov)
+            panel:setSimpleFOVDisplay(camData.fov)
         end
     end
     -- Keep the "Cam KF: move/cut/—" button reflecting the current frame.
@@ -802,6 +832,45 @@ end
 -- existing keyframes instead of overwriting them); "Delete Keyframe" clears
 -- the current frame and snaps back to the previous frame's pose so the user
 -- can re-pose and step forward again to re-capture it.
+--
+-- The Camera View camera is a real, manipulable Part (SIMPLE_CAMERA_NAME) in
+-- FIGURES — posed with Studio's move/rotate tools like any rig or prop —
+-- rather than a capture of the ambient Studio viewport. It is excluded from
+-- the generic prop auto-tracking below and instead driven through the same
+-- recorder:addCameraKeyframe/Interpolator.getCameraData path Advanced mode's
+-- camera track already uses, so the export pipeline is unaffected.
+
+local function ensureSimpleCameraPart()
+    local fig = workspace:FindFirstChild("FIGURES")
+    if not fig then
+        fig = Instance.new("Folder")
+        fig.Name = "FIGURES"
+        fig.Parent = workspace
+    end
+
+    local part = fig:FindFirstChild(SIMPLE_CAMERA_NAME)
+    if not part then
+        part = Instance.new("Part")
+        part.Name        = SIMPLE_CAMERA_NAME
+        part.Size         = Vector3.new(0.7, 0.7, 1.4)
+        part.Anchored     = true
+        part.CanCollide   = false
+        part.CastShadow   = false
+        part.Material     = Enum.Material.Neon
+        part.Color        = Color3.fromRGB(80, 200, 255)
+        -- Hinge stud on the front face marks the look direction (-Z), matching
+        -- the camera-gizmo convention used by Advanced mode's camera track.
+        part.FrontSurface    = Enum.SurfaceType.Hinge
+        part.TopSurface      = Enum.SurfaceType.Smooth
+        part.BottomSurface   = Enum.SurfaceType.Smooth
+        part.CFrame       = workspace.CurrentCamera.CFrame
+        part:SetAttribute("FOV", simpleCameraFOV)
+        part.Parent = fig
+        print("[MultiAnimation] Simple: created manipulable camera object 'SimpleCamera' in FIGURES")
+    end
+    simpleCameraPart = part
+    return part
+end
 
 local function doSimpleScan()
     reconnectAllRigs()
@@ -819,11 +888,14 @@ local function doSimpleScan()
     local fig = workspace:FindFirstChild("FIGURES")
     if fig then
         for _, child in ipairs(fig:GetChildren()) do
-            if not allRigs[child.Name] then
+            if not allRigs[child.Name] and child.Name ~= SIMPLE_CAMERA_NAME then
                 local part = getPropPart(child)
                 if part then allProps[child.Name] = part end
             end
         end
+        simpleCameraPart = fig:FindFirstChild(SIMPLE_CAMERA_NAME)
+    else
+        simpleCameraPart = nil
     end
 
     panel:setRigs(allRigs)
@@ -863,9 +935,8 @@ local function doSimpleCaptureFrame(frame)
         for rigName in pairs(allRigs) do panel:addKeyframeMarker(rigName, frame) end
         for propName in pairs(allProps) do panel:addPropKeyframeMarker(propName, frame) end
     end
-    if simpleCameraOn then
-        local snap = CameraCapture.capture()
-        recorder:addCameraKeyframe(frame, snap.cf, snap.fov, "move")
+    if simpleCameraOn and simpleCameraPart and simpleCameraPart.Parent then
+        recorder:addCameraKeyframe(frame, simpleCameraPart.CFrame, simpleCameraFOV, "move")
         panel:addCameraKeyframeMarker(frame, "move")
         updateCameraGizmo(frame)
     end
@@ -904,6 +975,50 @@ local function doSimpleDeleteKeyframe()
     local prevFrame = math.max(1, frame - 1)
     applyPosesAt(prevFrame, false)
     print(string.format("[MultiAnimation] Simple: cleared frame %d, showing frame %d for re-pose", frame, prevFrame))
+end
+
+-- Shared by the panel toggle and the TestBridge command so both paths get
+-- identical gizmo-creation / Look-Through-teardown behaviour.
+local function setSimpleCameraOn(isOn)
+    simpleCameraOn = isOn
+    if isOn then
+        ensureSimpleCameraPart()
+    elseif simpleLookThroughOn then
+        setSimpleLookThroughOn(false)
+        panel:setSimpleLookThroughState(false)
+    end
+end
+
+-- Mirrors simpleCameraPart's CFrame/FOV onto workspace.CurrentCamera every
+-- Heartbeat (so dragging the gizmo with Studio's tools updates the view
+-- live), exactly like Advanced mode's Cam Preview (core/CameraCapture.lua).
+function setSimpleLookThroughOn(isOn)
+    if isOn then
+        if not simpleCameraOn or not (simpleCameraPart and simpleCameraPart.Parent) then
+            warn("[MultiAnimation] Turn Camera View ON first — nothing to look through")
+            return false
+        end
+        if simpleLookThroughOn then return true end
+        simpleLookThroughOn = true
+        savedSimpleCamState = CameraCapture.saveState()
+        simpleLookThroughConn = RunService.Heartbeat:Connect(function()
+            if simpleCameraPart and simpleCameraPart.Parent then
+                CameraCapture.apply(simpleCameraPart.CFrame, simpleCameraFOV)
+            end
+        end)
+    else
+        if not simpleLookThroughOn then return false end
+        simpleLookThroughOn = false
+        if simpleLookThroughConn then
+            simpleLookThroughConn:Disconnect()
+            simpleLookThroughConn = nil
+        end
+        if savedSimpleCamState then
+            CameraCapture.restoreState(savedSimpleCamState)
+            savedSimpleCamState = nil
+        end
+    end
+    return simpleLookThroughOn
 end
 
 -- ── Panel event wiring ────────────────────────────────────────────────────────
@@ -1010,8 +1125,16 @@ end)
 
 panel.onSimpleStepForward:Connect(doSimpleStepForward)
 panel.onSimpleDeleteKFRequested:Connect(doSimpleDeleteKeyframe)
-panel.onSimpleCameraToggled:Connect(function(isOn)
-    simpleCameraOn = isOn
+panel.onSimpleCameraToggled:Connect(setSimpleCameraOn)
+panel.onSimpleLookThroughToggled:Connect(function(isOn)
+    local result = setSimpleLookThroughOn(isOn)
+    if result ~= isOn then
+        panel:setSimpleLookThroughState(result)
+    end
+end)
+panel.onSimpleFOVChanged:Connect(function(fov)
+    simpleCameraFOV = fov
+    if simpleCameraPart then simpleCameraPart:SetAttribute("FOV", fov) end
 end)
 
 panel.onCopyKeyframeRequested:Connect(doCopyKeyframe)
@@ -1396,6 +1519,9 @@ track(plugin.Unloading:Connect(function()
     if camPreviewOn then
         CameraCapture.restoreState(savedCamState)
     end
+    if simpleLookThroughOn then
+        setSimpleLookThroughOn(false)
+    end
     clearCameraGizmos()
     -- testBridge is declared below; guard for the unload-before-init edge.
     local bridge = game:GetService("CoreGui"):FindFirstChild("__MultiAnimTestBridge")
@@ -1420,7 +1546,7 @@ if figuresFolder then
         -- Defer one frame so the model is fully parented/loaded.
         task.defer(function()
             if not child or not child.Parent then return end
-            if allRigs[child.Name] or allProps[child.Name] then return end   -- already tracked
+            if allRigs[child.Name] or allProps[child.Name] or child.Name == SIMPLE_CAMERA_NAME then return end   -- already tracked
             -- Let RigScanner decide if it's a valid R6 rig.
             local fresh = RigScanner.scan()
             if fresh[child.Name] then
@@ -1446,6 +1572,13 @@ if figuresFolder then
             motorStates[child.Name] = nil   -- can't reconnect a removed model
             rebuildRigUI()
             print("[MultiAnimation] Rig removed from scene: " .. child.Name)
+        elseif child.Name == SIMPLE_CAMERA_NAME then
+            simpleCameraPart = nil
+            if simpleLookThroughOn then
+                setSimpleLookThroughOn(false)
+                panel:setSimpleLookThroughState(false)
+            end
+            print("[MultiAnimation] Simple: camera object removed from scene")
         elseif allProps[child.Name] and mode == "simple" then
             panel:removeProp(child.Name)
             allProps[child.Name] = nil
@@ -1699,7 +1832,7 @@ local testBridge = TestBridge.start({
     end,
 
     setSimpleCamera = function(a)
-        simpleCameraOn = a.on and true or false
+        setSimpleCameraOn(a.on and true or false)
         return simpleCameraOn
     end,
 
@@ -1712,6 +1845,36 @@ local testBridge = TestBridge.start({
         for n in pairs(allProps) do table.insert(names, n) end
         table.sort(names)
         return names
+    end,
+
+    isPlaying = function()
+        return isPlaying
+    end,
+
+    simpleTogglePlay = function()
+        if isPlaying then stopPlayback() else startPlayback() end
+        return isPlaying
+    end,
+
+    setSimpleLookThrough = function(a)
+        local result = setSimpleLookThroughOn(a.on and true or false)
+        panel:setSimpleLookThroughState(result)
+        return result
+    end,
+
+    getSimpleLookThrough = function()
+        return simpleLookThroughOn
+    end,
+
+    setSimpleCameraFOV = function(a)
+        simpleCameraFOV = a.fov
+        if simpleCameraPart then simpleCameraPart:SetAttribute("FOV", a.fov) end
+        return simpleCameraFOV
+    end,
+
+    getSimpleCameraInfo = function()
+        if not (simpleCameraPart and simpleCameraPart.Parent) then return nil end
+        return { fov = simpleCameraFOV, cf = { simpleCameraPart.CFrame:GetComponents() } }
     end,
 })
 

@@ -224,8 +224,12 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 | `\|◄` / `►\|` | Click | Jump to first / last frame |
 | `◄` / `►` | Click | Step one frame back / forward |
 | **Simple mode** `►` | Click | Step forward; captures the departure frame first if it's still empty |
+| **Simple mode** `▶ Play` / `■ Stop` | Click | Play from the current frame to the end, or stop mid-playback |
 | **Simple mode** `Delete Keyframe` | Click | Clear current frame's data, snap pose to the previous frame (cursor stays put) |
-| **Simple mode** `Camera View` | Click | Toggle camera capture-on-step alongside rig/prop poses |
+| **Simple mode** `Camera View` | Click | Create/arm the manipulable `SimpleCamera` part; toggle camera capture-on-step alongside rig/prop poses |
+| **Simple mode** FOV box | Type + Tab/Enter | Set the `SimpleCamera`'s field of view (clamped 1–120) |
+| **Simple mode** `Look Through` | Click | Slave the edit viewport to the `SimpleCamera` part live; toggle off to restore your viewport exactly |
+| `SimpleCamera` part (viewport) | Move / rotate | Pose the camera like any rig or prop — captured the same way on step-forward |
 | `💾 Save` | Click | Quick-save the session under the current scene name (no dialog) |
 
 **Dot colours:** yellow = rig · teal = prop · orange = camera (move) · red = camera (cut) · purple = effect event.
@@ -301,8 +305,9 @@ remember.
 (switches back to **Advanced** any time — your session data is untouched
 either way).
 
-The panel collapses to just: a scrubber + frame counter, **Delete Keyframe**,
-a **Camera View** toggle, and a scene name + Save/Export row.
+The panel collapses to just: a scrubber + frame counter, **▶ Play/Stop**,
+**Delete Keyframe**, a **Camera View** toggle with FOV box and **Look
+Through** toggle, and a scene name + Save/Export row.
 
 **Everything in `Workspace.FIGURES` is tracked automatically** — R6 rigs the
 same way Advanced mode tracks them, and any other part/model gets its
@@ -326,9 +331,23 @@ data and snaps the viewport back to the previous frame's pose — but leaves
 the timeline cursor right where it was. Re-pose, press ► again, and that
 frame is captured fresh. This is the redo loop for Simple Mode.
 
-**Camera View:** toggle it on and the same step-forward rule applies to the
-viewport camera — leaving an empty frame with the camera turned on captures
-its CFrame and FOV alongside the poses.
+**Play / Stop:** press **▶ Play** to play the recorded animation forward from
+the current frame to the end of the timeline; the button flips to **■ Stop**
+while playing. Press it again (or let it reach the end) to stop — the
+viewport settles on whatever frame playback stopped at.
+
+**Camera View:** toggling it on creates (or reuses) a **`SimpleCamera`**
+part in `FIGURES` — a real, manipulable object you pose with Studio's normal
+move/rotate tools, exactly like a rig or prop. The same step-forward rule
+applies to it: leaving an empty frame with Camera View on captures the
+camera part's CFrame and FOV alongside the poses. Set its field of view with
+the **FOV** box next to the toggle (1–120).
+
+**Look Through:** with Camera View on, toggle **Look Through** to slave your
+edit-mode viewport to the `SimpleCamera` part live — move or rotate the part
+and the viewport follows in real time, so you can frame a shot before
+capturing it. Toggle it off to restore your own viewport exactly where you
+left it. Look Through is rejected (no-op) if Camera View isn't on yet.
 
 **Save / Export** work exactly as in Advanced mode, right there in the
 Simple panel — no need to switch modes just to save your work or export
