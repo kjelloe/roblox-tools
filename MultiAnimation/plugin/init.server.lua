@@ -140,6 +140,84 @@ local savedSimpleCamState   = nil
 local simpleLookThroughConn = nil
 local setSimpleLookThroughOn -- forward declared; defined in the SIMPLE MODE section, used by setSimpleCameraOn below
 
+-- FOV-frustum outline drawn on the SimpleCamera part — an apex (the part's
+-- origin) plus a far rectangle sized from the FOV, so aim and field of view
+-- are both visible at a glance. Aspect is a fixed estimate (the gizmo
+-- doesn't know the runtime viewport's actual aspect ratio).
+--
+-- Built from thin welded Parts rather than a WireframeHandleAdornment:
+-- screen_capture cannot render WireframeHandleAdornment content at all
+-- (confirmed via isolated test instances), and in live Studio its Adornee
+-- did not track the part's position either. Real Parts always render, and
+-- WeldConstraint to simpleCameraPart (Anchored) rigidly carries them along
+-- through Roblox's assembly mechanics on ANY CFrame change to the camera
+-- part — scripted (scrubbing/playback/Look Through) or Studio's own drag
+-- tool — exactly like the Motor6D rigid-weld behavior already relied on
+-- elsewhere in this file for rigs.
+local SIMPLE_CAM_FRUSTUM_DEPTH     = 4
+local SIMPLE_CAM_FRUSTUM_ASPECT    = 16 / 9
+local SIMPLE_CAM_FRUSTUM_THICKNESS = 0.06
+
+local function addFrustumEdge(folder, part, fromLocal, toLocal)
+    local mid    = fromLocal:Lerp(toLocal, 0.5)
+    local length = (toLocal - fromLocal).Magnitude
+    local localCF = CFrame.new(mid, mid + (toLocal - fromLocal))
+
+    local edge = Instance.new("Part")
+    edge.Name        = "Edge"
+    edge.Size        = Vector3.new(SIMPLE_CAM_FRUSTUM_THICKNESS, SIMPLE_CAM_FRUSTUM_THICKNESS, length)
+    edge.Anchored    = false
+    edge.CanCollide  = false
+    edge.CanQuery    = false
+    edge.CastShadow  = false
+    edge.Massless    = true
+    edge.Locked      = true
+    edge.Material    = Enum.Material.Neon
+    edge.Color       = Color3.fromRGB(255, 200, 40)
+    edge.Archivable  = false
+    edge.CFrame      = part.CFrame * localCF
+    edge.Parent      = folder
+
+    local weld = Instance.new("WeldConstraint")
+    weld.Part0 = part
+    weld.Part1 = edge
+    weld.Parent = edge
+end
+
+local function drawSimpleCameraFrustum(part, fov)
+    local old = part:FindFirstChild("FOVFrustum")
+    if old then old:Destroy() end
+
+    local folder = Instance.new("Folder")
+    folder.Name       = "FOVFrustum"
+    folder.Archivable = false
+
+    local depth = SIMPLE_CAM_FRUSTUM_DEPTH
+    local vHalf = math.rad(fov) / 2
+    local hHalf = math.atan(math.tan(vHalf) * SIMPLE_CAM_FRUSTUM_ASPECT)
+    local y = depth * math.tan(vHalf)
+    local x = depth * math.tan(hHalf)
+
+    -- Front face (-Z) is the look direction, matching the existing camera-
+    -- gizmo convention used elsewhere in this file.
+    local apex = Vector3.new(0, 0, 0)
+    local corners = {
+        Vector3.new(-x,  y, -depth),
+        Vector3.new( x,  y, -depth),
+        Vector3.new( x, -y, -depth),
+        Vector3.new(-x, -y, -depth),
+    }
+    for _, c in ipairs(corners) do
+        addFrustumEdge(folder, part, apex, c)
+    end
+    for i, c in ipairs(corners) do
+        local next_ = corners[(i % #corners) + 1]
+        addFrustumEdge(folder, part, c, next_)
+    end
+
+    folder.Parent = part
+end
+
 -- ── Motor management ──────────────────────────────────────────────────────────
 
 local function disconnectRig(rigName, model)
@@ -217,6 +295,7 @@ local function applyPosesAt(queryFrame, immediate)
             end
             simpleCameraFOV = camData.fov
             simpleCameraPart:SetAttribute("FOV", camData.fov)
+            drawSimpleCameraFrustum(simpleCameraPart, camData.fov)
             panel:setSimpleFOVDisplay(camData.fov)
         end
     end
@@ -858,17 +937,13 @@ local function ensureSimpleCameraPart()
         part.CastShadow   = false
         part.Material     = Enum.Material.Neon
         part.Color        = Color3.fromRGB(80, 200, 255)
-        -- Hinge stud on the front face marks the look direction (-Z), matching
-        -- the camera-gizmo convention used by Advanced mode's camera track.
-        part.FrontSurface    = Enum.SurfaceType.Hinge
-        part.TopSurface      = Enum.SurfaceType.Smooth
-        part.BottomSurface   = Enum.SurfaceType.Smooth
         part.CFrame       = workspace.CurrentCamera.CFrame
         part:SetAttribute("FOV", simpleCameraFOV)
         part.Parent = fig
         print("[MultiAnimation] Simple: created manipulable camera object 'SimpleCamera' in FIGURES")
     end
     simpleCameraPart = part
+    drawSimpleCameraFrustum(part, simpleCameraFOV)
     return part
 end
 
@@ -989,9 +1064,14 @@ local function setSimpleCameraOn(isOn)
     end
 end
 
--- Mirrors simpleCameraPart's CFrame/FOV onto workspace.CurrentCamera every
--- Heartbeat (so dragging the gizmo with Studio's tools updates the view
--- live), exactly like Advanced mode's Cam Preview (core/CameraCapture.lua).
+-- Snaps the viewport into the gizmo's lens once, then mirrors the OTHER way
+-- for as long as Look Through stays on: Studio's native edit-camera controls
+-- (right-drag look, WASD/QE fly, scroll zoom) keep driving
+-- workspace.CurrentCamera as normal, and every Heartbeat that live CFrame is
+-- copied back onto simpleCameraPart — so flying around re-aims the gizmo
+-- instead of fighting it. FOV still flows gizmo → viewport one-way, since
+-- the FOV box is its single source of truth. Restores the original viewport
+-- exactly on toggle-off, like Advanced mode's Cam Preview (CameraCapture.lua).
 function setSimpleLookThroughOn(isOn)
     if isOn then
         if not simpleCameraOn or not (simpleCameraPart and simpleCameraPart.Parent) then
@@ -1001,9 +1081,12 @@ function setSimpleLookThroughOn(isOn)
         if simpleLookThroughOn then return true end
         simpleLookThroughOn = true
         savedSimpleCamState = CameraCapture.saveState()
+        CameraCapture.apply(simpleCameraPart.CFrame, simpleCameraFOV)
         simpleLookThroughConn = RunService.Heartbeat:Connect(function()
             if simpleCameraPart and simpleCameraPart.Parent then
-                CameraCapture.apply(simpleCameraPart.CFrame, simpleCameraFOV)
+                simpleCameraPart.CFrame = workspace.CurrentCamera.CFrame
+                workspace.CurrentCamera.FieldOfView = simpleCameraFOV
+                simpleCameraPart:SetAttribute("FOV", simpleCameraFOV)
             end
         end)
     else
@@ -1134,7 +1217,10 @@ panel.onSimpleLookThroughToggled:Connect(function(isOn)
 end)
 panel.onSimpleFOVChanged:Connect(function(fov)
     simpleCameraFOV = fov
-    if simpleCameraPart then simpleCameraPart:SetAttribute("FOV", fov) end
+    if simpleCameraPart then
+        simpleCameraPart:SetAttribute("FOV", fov)
+        drawSimpleCameraFrustum(simpleCameraPart, fov)
+    end
 end)
 
 panel.onCopyKeyframeRequested:Connect(doCopyKeyframe)
@@ -1868,13 +1954,33 @@ local testBridge = TestBridge.start({
 
     setSimpleCameraFOV = function(a)
         simpleCameraFOV = a.fov
-        if simpleCameraPart then simpleCameraPart:SetAttribute("FOV", a.fov) end
+        if simpleCameraPart then
+            simpleCameraPart:SetAttribute("FOV", a.fov)
+            drawSimpleCameraFrustum(simpleCameraPart, a.fov)
+        end
         return simpleCameraFOV
     end,
 
     getSimpleCameraInfo = function()
         if not (simpleCameraPart and simpleCameraPart.Parent) then return nil end
         return { fov = simpleCameraFOV, cf = { simpleCameraPart.CFrame:GetComponents() } }
+    end,
+
+    getSimpleCameraFrustumInfo = function()
+        if not (simpleCameraPart and simpleCameraPart.Parent) then return nil end
+        local folder = simpleCameraPart:FindFirstChild("FOVFrustum")
+        if not folder then return nil end
+        local edgeCount, allWelded = 0, true
+        for _, edge in ipairs(folder:GetChildren()) do
+            if edge:IsA("BasePart") then
+                edgeCount += 1
+                local weld = edge:FindFirstChildOfClass("WeldConstraint")
+                if not (weld and weld.Part0 == simpleCameraPart and weld.Part1 == edge) then
+                    allWelded = false
+                end
+            end
+        end
+        return { className = folder.ClassName, edgeCount = edgeCount, allWelded = allWelded }
     end,
 })
 

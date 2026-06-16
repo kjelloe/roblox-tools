@@ -6,8 +6,8 @@
 -- frame only if empty), Delete Keyframe "redo" (clears + snaps to previous
 -- frame without moving the cursor), Camera View capture-on-step, FIGURES
 -- auto-track/untrack of non-rig props while in Simple mode, the Play/Stop
--- toggle, and the manipulable camera object (creation, FOV, Look Through
--- guard/restore, capture-from-gizmo).
+-- toggle, and the manipulable camera object (creation, FOV, frustum gizmo,
+-- Look Through guard/snap/free-fly-mirrors-to-gizmo/restore, capture-from-gizmo).
 --
 -- Mutates the session only at parking frames far from real data, which are
 -- deleted again before exiting. Restores mode, frame, active rig, and
@@ -300,15 +300,46 @@ do
     r = call("getSimpleCameraInfo")
     ok("getSimpleCameraInfo reflects new FOV", r.ok and r.result and math.abs(r.result.fov - 55) < 0.01, r.err)
 
-    -- Look Through ON mirrors the gizmo onto the viewport; OFF restores it exactly.
+    -- FOV-frustum gizmo (welded thin Parts, not WireframeHandleAdornment --
+    -- screen_capture can't render that class, and in live Studio its Adornee
+    -- did not track the part) exists and is rigidly welded to the camera part
+    -- (replaces the old Hinge-stud cone/sphere marker).
+    r = call("getSimpleCameraFrustumInfo")
+    ok("frustum gizmo exists on the camera part", r.ok and r.result ~= nil, r.err)
+    ok("frustum gizmo is a Folder", r.ok and r.result and r.result.className == "Folder", r.err)
+    ok("frustum gizmo has 8 edges", r.ok and r.result and r.result.edgeCount == 8, r.err)
+    ok("frustum gizmo edges are all welded to the camera part", r.ok and r.result and r.result.allWelded == true, r.err)
+
+    -- Look Through snaps the viewport into the gizmo's lens once, then lets
+    -- native Studio navigation (mouse/keyboard free-cam) drive the viewport
+    -- while mirroring it back onto the gizmo — so flying around re-aims the
+    -- camera object instead of fighting a forced gizmo->viewport mirror.
     local cam = workspace.CurrentCamera
     local savedCF  = cam and cam.CFrame
     local savedFov = cam and cam.FieldOfView
+    local lensCF   = camPart and camPart.CFrame
 
     r = call("setSimpleLookThrough", { on = true })
     ok("setSimpleLookThrough on succeeds once Camera View is on", r.ok and r.result == true, r.err)
     r = call("getSimpleLookThrough")
     ok("getSimpleLookThrough true", r.ok and r.result == true, r.err)
+
+    if cam and lensCF then
+        local snapped = (cam.CFrame.Position - lensCF.Position).Magnitude < 0.01
+            and math.abs(cam.FieldOfView - 55) < 0.01
+        ok("viewport snaps to the gizmo's lens on Look Through on", snapped)
+    end
+
+    -- Simulate the user free-flying the viewport (native Studio nav) and
+    -- confirm the gizmo picks up the new pose on the next Heartbeat.
+    local flownCF = nil
+    if cam then
+        flownCF = lensCF * CFrame.new(3, 1, 0)
+        cam.CFrame = flownCF
+        task.wait()
+        local followed = camPart and (camPart.CFrame.Position - flownCF.Position).Magnitude < 0.01
+        ok("flying the viewport re-aims the gizmo while Look Through is on", followed)
+    end
 
     r = call("setSimpleLookThrough", { on = false })
     ok("setSimpleLookThrough off", r.ok and r.result == false, r.err)
@@ -316,8 +347,12 @@ do
     if cam and savedCF then
         local restored = (cam.CFrame.Position - savedCF.Position).Magnitude < 0.01
             and math.abs(cam.FieldOfView - savedFov) < 0.01
-        ok("viewport restored exactly after Look Through off", restored)
+        ok("viewport restored exactly after Look Through off (even after flying)", restored)
     end
+
+    -- Put the gizmo back where it started so the capture-from-gizmo test
+    -- below isn't working from the flown-to pose.
+    if camPart and lensCF then camPart.CFrame = lensCF end
 
     -- Capture from the gizmo's own pose, not the ambient viewport.
     if camPart and frameCount >= 60 then

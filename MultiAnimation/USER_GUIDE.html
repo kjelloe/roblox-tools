@@ -425,8 +425,8 @@ frames (default 2)</td></tr>
 <tr><td><strong>Simple mode</strong> <code>Delete Keyframe</code></td><td>Click</td><td>Clear current frame's data, snap pose to the previous frame (cursor stays put)</td></tr>
 <tr><td><strong>Simple mode</strong> <code>Camera View</code></td><td>Click</td><td>Create/arm the manipulable <code>SimpleCamera</code> part; toggle camera capture-on-step alongside rig/prop poses</td></tr>
 <tr><td><strong>Simple mode</strong> FOV box</td><td>Type + Tab/Enter</td><td>Set the <code>SimpleCamera</code>'s field of view (clamped 1–120)</td></tr>
-<tr><td><strong>Simple mode</strong> <code>Look Through</code></td><td>Click</td><td>Slave the edit viewport to the <code>SimpleCamera</code> part live; toggle off to restore your viewport exactly</td></tr>
-<tr><td><code>SimpleCamera</code> part (viewport)</td><td>Move / rotate</td><td>Pose the camera like any rig or prop — captured the same way on step-forward</td></tr>
+<tr><td><strong>Simple mode</strong> <code>Look Through</code></td><td>Click</td><td>Slave the viewport to the <code>SimpleCamera</code>'s view, then fly freely with Studio's normal edit-camera controls; toggle off to restore your original viewport exactly</td></tr>
+<tr><td><code>SimpleCamera</code> part (viewport)</td><td>Move / rotate</td><td>Pose the camera like any rig or prop — captured the same way on step-forward; shows a wireframe FOV-frustum outline</td></tr>
 <tr><td><code>💾 Save</code></td><td>Click</td><td>Quick-save the session under the current scene name (no dialog)</td></tr>
 </table>
 
@@ -507,9 +507,9 @@ remember.</p>
 toggle above RIGS IN SCENE (switches back to <strong>Advanced</strong> any
 time — your session data is untouched either way).</p>
 
-<p>The panel collapses to just: a scrubber + frame counter,
-<strong>▶ Play/Stop</strong>, <strong>Delete Keyframe</strong>, a
-<strong>Camera View</strong> toggle with FOV box and <strong>Look
+<p>The panel collapses to just: a scrubber + frame counter, a row with
+<strong>Delete Keyframe</strong> and <strong>▶ Play/Stop</strong> side by
+side, a <strong>Camera View</strong> toggle with FOV box and <strong>Look
 Through</strong> toggle, and a scene name + Save/Export row.</p>
 
 <p><strong>Everything in <code>Workspace.FIGURES</code> is tracked
@@ -548,17 +548,22 @@ frame playback stopped at.</p>
 <p><strong>Camera View:</strong> toggling it on creates (or reuses) a
 <strong><code>SimpleCamera</code></strong> part in <code>FIGURES</code> — a
 real, manipulable object you pose with Studio's normal move/rotate tools,
-exactly like a rig or prop. The same step-forward rule applies to it: leaving
-an empty frame with Camera View on captures the camera part's CFrame and FOV
-alongside the poses. Set its field of view with the <strong>FOV</strong> box
-next to the toggle (1–120).</p>
+exactly like a rig or prop. A yellow wireframe outline on the part shows its
+field of view and aim direction at a glance (an apex plus a far rectangle
+sized from the FOV — not a solid shape, so it won't block your view of
+anything behind it). The same step-forward rule applies to the camera:
+leaving an empty frame with Camera View on captures the camera part's CFrame
+and FOV alongside the poses. Set its field of view with the <strong>FOV</strong>
+box next to the toggle (1–120); the wireframe redraws to match.</p>
 
 <p><strong>Look Through:</strong> with Camera View on, toggle <strong>Look
 Through</strong> to slave your edit-mode viewport to the
-<code>SimpleCamera</code> part live — move or rotate the part and the
-viewport follows in real time, so you can frame a shot before capturing it.
-Toggle it off to restore your own viewport exactly where you left it. Look
-Through is rejected (no-op) if Camera View isn't on yet.</p>
+<code>SimpleCamera</code> part's current view. Once it's on, fly around with
+Studio's normal edit-camera controls (right-drag to look, WASD/QE to move,
+scroll to zoom) — the camera part follows your viewport live, so the gizmo
+doesn't fight your navigation. Toggle Look Through off to restore your own
+viewport exactly where it was <em>before</em> you turned it on (not wherever
+you flew to). Look Through is rejected (no-op) if Camera View isn't on yet.</p>
 
 <p><strong>Save / Export</strong> work exactly as in Advanced mode, right
 there in the Simple panel — no need to switch modes just to save your work or

@@ -376,11 +376,43 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
       in `init.server.lua`; FOV box + Look Through button in `Panel.lua`.
       Bridge commands: `isPlaying`, `simpleTogglePlay`, `setSimpleLookThrough`,
       `getSimpleLookThrough`, `setSimpleCameraFOV`, `getSimpleCameraInfo`.
-- [x] Tests — `test_ui_simple.lua` (47: mode toggle, idempotent step-forward
+- [x] **Simple Mode refinement #2 — layout + FOV-frustum gizmo + free-fly
+      Look Through.** ▶/■ Play moved into the Delete Keyframe row (was its
+      own row, now also 2.5× wider via `widenButton`) so the two most-used
+      Simple buttons sit together and Play is easy to hit. The SimpleCamera
+      part's visual marker (a Hinge-surface stud) is replaced with a
+      `FOVFrustum` Folder of 8 thin Neon Parts (apex-to-corner edges + far
+      rectangle, sized from the live FOV, `drawSimpleCameraFrustum`/
+      `addFrustumEdge`, redrawn on FOV change/keyframe apply), each rigidly
+      welded to the camera part via `WeldConstraint` — so aim direction and
+      field of view are visible at a glance and the outline reliably follows
+      the part through Studio's drag tool *and* scripted CFrame writes
+      (scrubbing/playback/Look Through), via the same assembly mechanics
+      already relied on for Motor6D rigid welds elsewhere in this file.
+      (First attempt used a `WireframeHandleAdornment`, which `screen_capture`
+      can't render at all — confirmed with isolated test parts — and whose
+      `Adornee` did not visually track the part in live Studio either; the
+      Part+weld approach renders unconditionally and was visually confirmed
+      via `screen_capture` to follow the camera through an arbitrary
+      move+rotate.) Look Through now allows free navigation while active: a
+      one-time snap (gizmo → viewport) on toggle-on, then a reversed one-way
+      Heartbeat mirror (viewport → gizmo) for as long as it stays on, so
+      Studio's native edit-camera controls (right-drag look, WASD/QE fly,
+      scroll zoom) drive the viewport as normal and re-aim the gizmo to
+      match — previously the gizmo's CFrame was forced onto the viewport
+      every tick, which fought any attempt to navigate while looking
+      through. FOV still flows gizmo/FOV-box → viewport one-way. Toggle-off
+      still restores the original pre-toggle viewport exactly
+      (`CameraCapture.saveState`/`restoreState`, unchanged). New bridge
+      command: `getSimpleCameraFrustumInfo` (edge count + per-edge
+      `WeldConstraint` check, since there's no line-count-style getter for
+      Part geometry either).
+- [x] Tests — `test_ui_simple.lua` (53: mode toggle, idempotent step-forward
       capture, Delete Keyframe redo, Play/Stop toggle, manipulable camera
-      object — creation, FOV round-trip, Look Through on/off with exact
-      viewport restore, capture-from-gizmo — Camera View capture-on-step,
-      FIGURES auto-track/untrack). Suite total: **353 cases** across 19 files.
+      object — creation, FOV round-trip, frustum gizmo edge count/weld
+      check, Look Through guard/snap/free-fly-mirrors-to-gizmo/exact
+      restore, capture-from-gizmo — Camera View capture-on-step, FIGURES
+      auto-track/untrack). Suite total: **358 cases** across 19 files.
 
 ### Backlog
 

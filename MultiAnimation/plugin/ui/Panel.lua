@@ -169,6 +169,17 @@ local function btn(parent, text, order, accent)
     return b
 end
 
+local TextService = game:GetService("TextService")
+
+-- Fixes a btn()'s width to `multiplier` times its natural (auto-sized) text
+-- width, centering the label inside the extra space.
+local function widenButton(b, multiplier)
+    local natural = TextService:GetTextSize(b.Text, b.TextSize, b.Font, Vector2.new(2000, 100))
+    b.AutomaticSize = Enum.AutomaticSize.None
+    b.Size = UDim2.new(0, math.ceil(natural.X * multiplier), 0, 24)
+    b.TextXAlignment = Enum.TextXAlignment.Center
+end
+
 local function smallBtn(parent, text, order)
     local b = Instance.new("TextButton")
     b.Size             = UDim2.new(0, 26, 0, 22)
@@ -661,6 +672,12 @@ function Panel.new(widget)
     simpleDelBtn.MouseButton1Click:Connect(function()
         if not self._isPlaying then eSimpleDelKF:Fire() end
     end)
+    local simplePlayBtn = btn(simpleDelRow, "▶  Play", 2, true)
+    widenButton(simplePlayBtn, 2.5)
+    self._simplePlayBtn = simplePlayBtn
+    simplePlayBtn.MouseButton1Click:Connect(function()
+        if self._isPlaying then eStop:Fire() else ePreview:Fire() end
+    end)
 
     local simpleScrubRow = Instance.new("Frame")
     simpleScrubRow.Name             = "SimpleScrubRow"
@@ -711,14 +728,7 @@ function Panel.new(widget)
         end
     end)
 
-    local simplePlayRow = hrow(simpleSec, 4, 4)
-    local simplePlayBtn = btn(simplePlayRow, "▶  Play", 1, true)
-    self._simplePlayBtn = simplePlayBtn
-    simplePlayBtn.MouseButton1Click:Connect(function()
-        if self._isPlaying then eStop:Fire() else ePreview:Fire() end
-    end)
-
-    local simpleCamRow = hrow(simpleSec, 5, 4)
+    local simpleCamRow = hrow(simpleSec, 4, 4)
     local simpleCamBtn = btn(simpleCamRow, "Camera View: OFF", 1)
     self._simpleCamOn = false
     simpleCamBtn.MouseButton1Click:Connect(function()
@@ -746,7 +756,7 @@ function Panel.new(widget)
         eSimpleLook:Fire(not self._simpleLookOn)
     end)
 
-    local simpleSceneRow = hrow(simpleSec, 6, 4)
+    local simpleSceneRow = hrow(simpleSec, 5, 4)
     lbl(simpleSceneRow, "Scene:", 42, 1)
     local simpleSceneBox = textBox(simpleSceneRow, "Scene_001", 80, 2)
     local simpleSaveBtn   = btn(simpleSceneRow, "💾 Save",   3)
