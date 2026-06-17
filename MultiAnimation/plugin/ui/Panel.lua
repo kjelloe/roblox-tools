@@ -37,6 +37,10 @@ local CAMERA_COLOUR     = Color3.fromRGB(255, 150, 40)   -- orange: camera "move
 local CAMERA_CUT_COLOUR = Color3.fromRGB(255, 80, 80)    -- red: camera "cut" keyframes
 local EFFECT_COLOUR     = Color3.fromRGB(190, 120, 255)  -- purple: effect event dots
 
+-- Simple Mode frame icon strip
+local SIMPLE_ICON_W  = 28   -- px per frame slot (icon + scrubber share this grid)
+local SIMPLE_ICON_H  = 24   -- px height of the icon row
+
 local C = {
     bg        = Color3.fromRGB(46,  46,  46),
     sectionBg = Color3.fromRGB(37,  37,  37),
@@ -245,6 +249,7 @@ function Panel.new(widget)
     local eRefresh  = mkEvent("onRefreshRequested")
     local eAddKF    = mkEvent("onAddKeyframeRequested")
     local eFrame    = mkEvent("onFrameChanged")
+    self._eFrame    = eFrame
     local eMarker   = mkEvent("onMarkerClicked")
     local ePreview  = mkEvent("onPreviewRequested")
     local eStop     = mkEvent("onStopRequested")
@@ -688,15 +693,30 @@ function Panel.new(widget)
         if not self._isPlaying then eSimpleAddFrame:Fire() end
     end)
 
+    -- Frame icon strip: one clickable chip per keyframed frame, above the scrubber.
+    -- Width is driven by setSimpleIconWidth(); starts at 1 slot.
+    local simpleIconRow = Instance.new("Frame")
+    simpleIconRow.Name             = "SimpleIconRow"
+    simpleIconRow.Size             = UDim2.new(0, SIMPLE_ICON_W, 0, SIMPLE_ICON_H)
+    simpleIconRow.BackgroundTransparency = 1
+    simpleIconRow.LayoutOrder      = 2
+    simpleIconRow.Parent           = simpleSec
+    self._simpleIconRow = simpleIconRow
+    self._simpleIcons   = {}   -- [frame] = TextButton
+
     local simpleScrubRow = Instance.new("Frame")
     simpleScrubRow.Name             = "SimpleScrubRow"
-    simpleScrubRow.Size             = UDim2.new(1, 0, 0, 0)
+    simpleScrubRow.Size             = UDim2.new(0, SIMPLE_ICON_W, 0, 0)
     simpleScrubRow.AutomaticSize    = Enum.AutomaticSize.Y
     simpleScrubRow.BackgroundTransparency = 1
-    simpleScrubRow.LayoutOrder      = 2
+    simpleScrubRow.LayoutOrder      = 3
     simpleScrubRow.Parent           = simpleSec
+    self._simpleScrubRow = simpleScrubRow
 
-    self._simpleScrubber = Scrubber.new(simpleScrubRow, 1, 1, widget, 0)
+    -- leftOffset = rightOffset = SIMPLE_ICON_W/2 so the thumb centres on each
+    -- icon slot rather than landing on the slot's left edge.
+    self._simpleScrubber = Scrubber.new(simpleScrubRow, 1, 1, widget,
+        SIMPLE_ICON_W / 2, SIMPLE_ICON_W / 2)
     self._simpleScrubber.onFrameChanged:Connect(function(f)
         self._currentFrame = f
         if frameBox then frameBox.Text = tostring(f) end
@@ -706,7 +726,7 @@ function Panel.new(widget)
     self._simpleScrubber.onDragBegan:Connect(function() eScrubBgn:Fire() end)
     self._simpleScrubber.onDragEnded:Connect(function() eScrubEnd:Fire() end)
 
-    local simpleNavRow = hrow(simpleSec, 3, 4)
+    local simpleNavRow = hrow(simpleSec, 4, 4)
     local simplePrevKFBtn = smallBtn(simpleNavRow, "|◄", 1)
     local simplePrevBtn   = smallBtn(simpleNavRow, "◄",  2)
     lbl(simpleNavRow, "Frame:", 38, 3)
@@ -740,7 +760,7 @@ function Panel.new(widget)
         end
     end)
 
-    local simpleCamRow = hrow(simpleSec, 4, 4)
+    local simpleCamRow = hrow(simpleSec, 5, 4)
     local simpleCamBtn = btn(simpleCamRow, "Camera View: OFF", 1)
     self._simpleCamOn = false
     simpleCamBtn.MouseButton1Click:Connect(function()
@@ -768,7 +788,7 @@ function Panel.new(widget)
         eSimpleLook:Fire(not self._simpleLookOn)
     end)
 
-    local simpleSceneRow = hrow(simpleSec, 5, 4)
+    local simpleSceneRow = hrow(simpleSec, 6, 4)
     lbl(simpleSceneRow, "Scene:", 42, 1)
     local simpleSceneBox = textBox(simpleSceneRow, "Scene_001", 80, 2)
     local simpleSaveBtn   = btn(simpleSceneRow, "💾 Save",   3)
@@ -1246,6 +1266,7 @@ function Panel:removeKeyframeMarker(rigName, frame)
 end
 
 function Panel:setFrameDisplay(current, total)
+    local prev = self._currentFrame
     self._currentFrame = current
     if total then self._frameCount = total end
     if self._frameBox then self._frameBox.Text = tostring(current) end
@@ -1254,6 +1275,13 @@ function Panel:setFrameDisplay(current, total)
     if self._simpleFrameBox then self._simpleFrameBox.Text = tostring(current) end
     if total and self._simpleTotalBox then self._simpleTotalBox.Text = tostring(total) end
     if self._simpleScrubber then self._simpleScrubber:setFrame(current) end
+    -- Update icon strip highlight
+    if self._simpleIcons then
+        local prevBtn = self._simpleIcons[prev]
+        local curBtn  = self._simpleIcons[current]
+        if prevBtn then prevBtn.BackgroundColor3 = C.btnBg end
+        if curBtn  then curBtn.BackgroundColor3  = C.btnAccent end
+    end
     for _, lane in pairs(self._trackLanes) do
         lane:setActiveFrame(current)
     end
@@ -1265,6 +1293,65 @@ function Panel:setFrameDisplay(current, total)
     end
     if self._cameraLane then
         self._cameraLane:setActiveFrame(current)
+    end
+end
+
+-- ── Simple Mode frame icon strip ─────────────────────────────────────────────
+
+function Panel:addSimpleFrameIcon(frame)
+    if not self._simpleIconRow or self._simpleIcons[frame] then return end
+    local b = Instance.new("TextButton")
+    b.Name             = "FrameIcon_" .. frame
+    b.Size             = UDim2.new(0, SIMPLE_ICON_W - 2, 0, SIMPLE_ICON_H)
+    b.Position         = UDim2.new(0, (frame - 1) * SIMPLE_ICON_W + 1, 0, 0)
+    b.BackgroundColor3 = (frame == self._currentFrame) and C.btnAccent or C.btnBg
+    b.BorderSizePixel  = 0
+    b.Text             = tostring(frame)
+    b.TextColor3       = C.btnText
+    b.TextSize         = 11
+    b.Font             = Enum.Font.Code
+    b.AutoButtonColor  = false
+    b.Parent           = self._simpleIconRow
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 3)
+    b.MouseEnter:Connect(function()
+        if frame ~= self._currentFrame then b.BackgroundColor3 = C.btnHover end
+    end)
+    b.MouseLeave:Connect(function()
+        if frame ~= self._currentFrame then b.BackgroundColor3 = C.btnBg end
+    end)
+    b.MouseButton1Click:Connect(function()
+        self._eFrame:Fire(frame)
+    end)
+    self._simpleIcons[frame] = b
+end
+
+function Panel:removeSimpleFrameIcon(frame)
+    local b = self._simpleIcons and self._simpleIcons[frame]
+    if b then b:Destroy(); self._simpleIcons[frame] = nil end
+end
+
+-- Rebuild the entire icon strip from a sorted list of frame numbers.
+function Panel:rebuildSimpleFrameIcons(sortedFrames)
+    if not self._simpleIconRow then return end
+    for _, b in pairs(self._simpleIcons) do b:Destroy() end
+    self._simpleIcons = {}
+    for _, frame in ipairs(sortedFrames) do
+        self:addSimpleFrameIcon(frame)
+    end
+end
+
+-- Resize the icon row and scrubber row to fit frameCount slots.
+function Panel:setSimpleIconWidth(frameCount)
+    local n = math.max(1, frameCount)
+    local w = n * SIMPLE_ICON_W
+    if self._simpleIconRow then
+        self._simpleIconRow.Size = UDim2.new(0, w, 0, SIMPLE_ICON_H)
+    end
+    if self._simpleScrubRow then
+        self._simpleScrubRow.Size = UDim2.new(0, w, 0, 0)
+    end
+    if self._simpleScrubber then
+        self._simpleScrubber:setFrameCount(n)
     end
 end
 

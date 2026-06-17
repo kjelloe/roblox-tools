@@ -950,6 +950,22 @@ local function ensureSimpleCameraPart()
     return part
 end
 
+-- Collect all frame numbers that have any keyframe data in Simple Mode.
+local function getSimpleKeyframedFrames()
+    local set = {}
+    for rigName in pairs(allRigs) do
+        for _, f in ipairs(recorder:getSortedFrames(rigName)) do set[f] = true end
+    end
+    for propName in pairs(allProps) do
+        for _, f in ipairs(recorder:getSortedPropFrames(propName)) do set[f] = true end
+    end
+    for _, f in ipairs(recorder:getSortedCameraFrames()) do set[f] = true end
+    local sorted = {}
+    for f in pairs(set) do table.insert(sorted, f) end
+    table.sort(sorted)
+    return sorted
+end
+
 local function doSimpleScan()
     reconnectAllRigs()
     allRigs = RigScanner.scan()
@@ -1011,6 +1027,8 @@ local function doSimpleScan()
     for _ in pairs(allRigs) do rigCount += 1 end
     for _ in pairs(allProps) do propCount += 1 end
     print(string.format("[MultiAnimation] Simple mode scan: %d rig(s), %d prop(s)", rigCount, propCount))
+    panel:rebuildSimpleFrameIcons(getSimpleKeyframedFrames())
+    panel:setSimpleIconWidth(timeline:getFrameCount())
 end
 
 local function simpleFrameHasData(frame)
@@ -1057,6 +1075,9 @@ local function rebuildAllSimpleMarkers()
         end
     end
     -- Camera gizmos are Advanced Mode only; skip rebuild in Simple Mode.
+    -- Rebuild icon strip and resize scrubber.
+    panel:rebuildSimpleFrameIcons(getSimpleKeyframedFrames())
+    panel:setSimpleIconWidth(timeline:getFrameCount())
 end
 
 -- Capture current frame (always, overwriting any existing data), extend the
@@ -1065,10 +1086,12 @@ local function doSimpleAddFrame()
     if isPlaying then return end
     local frame = timeline:getCurrent()
     doSimpleCaptureFrame(frame)
+    panel:addSimpleFrameIcon(frame)
     local newCount = timeline:getFrameCount() + 1
     timeline:setFrameCount(newCount)
     recorder:setFrameCount(newCount)
     panel:setFrameCount(newCount)
+    panel:setSimpleIconWidth(newCount)
     local f = timeline:setCurrent(newCount)
     panel:setFrameDisplay(f, newCount)
     applyPosesAt(f, false)
