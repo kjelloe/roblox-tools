@@ -1035,7 +1035,9 @@ local function doSimpleCaptureFrame(frame)
     if simpleCameraPart and simpleCameraPart.Parent then
         recorder:addCameraKeyframe(frame, simpleCameraPart.CFrame, simpleCameraFOV, "move")
         panel:addCameraKeyframeMarker(frame, "move")
-        updateCameraGizmo(frame)
+        -- No updateCameraGizmo here: the SimpleCamera Part in FIGURES is the
+        -- visual for Simple Mode. Advanced-mode orange markers would pile up at
+        -- every past keyframe position and clutter the viewport.
     end
     scheduleAutoSave()
 end
@@ -1054,8 +1056,7 @@ local function rebuildAllSimpleMarkers()
             panel:addPropKeyframeMarker(propName, f)
         end
     end
-    clearCameraGizmos()
-    rebuildCameraUI()
+    -- Camera gizmos are Advanced Mode only; skip rebuild in Simple Mode.
 end
 
 -- Capture current frame (always, overwriting any existing data), extend the
@@ -1263,6 +1264,7 @@ panel.onModeChanged:Connect(function(newMode)
     if newMode == "simple" then
         advancedFrameCount = timeline:getFrameCount()
         mode = newMode
+        clearCameraGizmos()
         doSimpleScan()
     else
         mode = newMode
@@ -1272,6 +1274,7 @@ panel.onModeChanged:Connect(function(newMode)
             panel:setFrameCount(advancedFrameCount)
             advancedFrameCount = nil
         end
+        rebuildCameraUI()
     end
 end)
 
@@ -1975,6 +1978,7 @@ local testBridge = TestBridge.start({
             advancedFrameCount = timeline:getFrameCount()
             mode = a.mode
             panel:setMode(a.mode)
+            clearCameraGizmos()
             doSimpleScan()
         else
             mode = a.mode
@@ -1985,6 +1989,7 @@ local testBridge = TestBridge.start({
                 panel:setFrameCount(advancedFrameCount)
                 advancedFrameCount = nil
             end
+            rebuildCameraUI()
         end
         return mode
     end,
