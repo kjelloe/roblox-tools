@@ -192,6 +192,7 @@ local function drawSimpleCameraFrustum(part, fov)
     local folder = Instance.new("Folder")
     folder.Name       = "FOVFrustum"
     folder.Archivable = false
+    folder.Parent     = part   -- parent first so edge Parts are in Workspace from creation
 
     local depth = SIMPLE_CAM_FRUSTUM_DEPTH
     local vHalf = math.rad(fov) / 2
@@ -215,8 +216,6 @@ local function drawSimpleCameraFrustum(part, fov)
         local next_ = corners[(i % #corners) + 1]
         addFrustumEdge(folder, part, c, next_)
     end
-
-    folder.Parent = part
 end
 
 -- ── Motor management ──────────────────────────────────────────────────────────
@@ -298,7 +297,9 @@ local function applyPosesAt(queryFrame, immediate)
             end
             simpleCameraFOV = camData.fov
             simpleCameraPart:SetAttribute("FOV", camData.fov)
-            drawSimpleCameraFrustum(simpleCameraPart, camData.fov)
+            if simpleCameraOn then
+                drawSimpleCameraFrustum(simpleCameraPart, camData.fov)
+            end
             panel:setSimpleFOVDisplay(camData.fov)
         end
     end
@@ -988,6 +989,11 @@ local function doSimpleScan()
             end
         end
         simpleCameraPart = fig:FindFirstChild(SIMPLE_CAMERA_NAME)
+        if simpleCameraPart and not simpleCameraOn then
+            simpleCameraPart.Transparency = 1
+            local frustum = simpleCameraPart:FindFirstChild("FOVFrustum")
+            if frustum then frustum:Destroy() end
+        end
     else
         simpleCameraPart = nil
     end
@@ -1106,16 +1112,25 @@ end
 local function doSimpleAddFrame()
     if isPlaying then return end
     local frame = timeline:getCurrent()
+    local frameCount = timeline:getFrameCount()
     doSimpleCaptureFrame(frame)
     panel:addSimpleFrameIcon(frame)
-    local newCount = timeline:getFrameCount() + 1
-    timeline:setFrameCount(newCount)
-    recorder:setFrameCount(newCount)
-    panel:setFrameCount(newCount)
-    panel:setSimpleIconWidth(newCount)
-    local f = timeline:setCurrent(newCount)
-    panel:setFrameDisplay(f, newCount)
-    applyPosesAt(f, false)
+    if frame >= frameCount then
+        -- Cursor is at the blank end slot — grow timeline and advance.
+        local newCount = frameCount + 1
+        timeline:setFrameCount(newCount)
+        recorder:setFrameCount(newCount)
+        panel:setFrameCount(newCount)
+        panel:setSimpleIconWidth(newCount)
+        local f = timeline:setCurrent(newCount)
+        panel:setFrameDisplay(f, newCount)
+        applyPosesAt(f, false)
+    else
+        -- Cursor is at an existing frame — update its data, advance one step.
+        local f = timeline:setCurrent(frame + 1)
+        panel:setFrameDisplay(f, frameCount)
+        applyPosesAt(f, false)
+    end
 end
 
 -- Insert a blank frame at the current position: shift all data at frames
@@ -1160,9 +1175,19 @@ local function setSimpleCameraOn(isOn)
     simpleCameraOn = isOn
     if isOn then
         ensureSimpleCameraPart()
-    elseif simpleLookThroughOn then
-        setSimpleLookThroughOn(false)
-        panel:setSimpleLookThroughState(false)
+        if simpleCameraPart then
+            simpleCameraPart.Transparency = 0
+        end
+    else
+        if simpleLookThroughOn then
+            setSimpleLookThroughOn(false)
+            panel:setSimpleLookThroughState(false)
+        end
+        if simpleCameraPart then
+            simpleCameraPart.Transparency = 1
+            local frustum = simpleCameraPart:FindFirstChild("FOVFrustum")
+            if frustum then frustum:Destroy() end
+        end
     end
 end
 
@@ -1334,7 +1359,9 @@ panel.onSimpleFOVChanged:Connect(function(fov)
     simpleCameraFOV = fov
     if simpleCameraPart then
         simpleCameraPart:SetAttribute("FOV", fov)
-        drawSimpleCameraFrustum(simpleCameraPart, fov)
+        if simpleCameraOn then
+            drawSimpleCameraFrustum(simpleCameraPart, fov)
+        end
     end
 end)
 
