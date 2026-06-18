@@ -346,6 +346,7 @@ function Panel.new(widget)
     local eSimpleCam        = mkEvent("onSimpleCameraToggled")
     local eSimpleFOV        = mkEvent("onSimpleFOVChanged")
     local eSimpleLook       = mkEvent("onSimpleLookThroughToggled")
+    local eSimpleFPS        = mkEvent("onSimpleFPSChanged")
 
     local eFxRemoved = Instance.new("BindableEvent")
     self.onEffectRemoved = eFxRemoved.Event
@@ -735,8 +736,12 @@ function Panel.new(widget)
     local simpleNextKFBtn = smallBtn(simpleNavRow, "►|", 6)
     lbl(simpleNavRow, "/", 8, 7)
     local simpleTotalBox  = textBox(simpleNavRow, "1", 36, 8)
+    lbl(simpleNavRow, " @", 14, 9)
+    local simpleFPSBox    = textBox(simpleNavRow, "30", 30, 10)
+    lbl(simpleNavRow, "fps", nil, 11)
     self._simpleFrameBox = simpleFrameBox
     self._simpleTotalBox = simpleTotalBox
+    self._simpleFPSBox   = simpleFPSBox
 
     simplePrevKFBtn.MouseButton1Click:Connect(function() eRewind:Fire() end)
     simpleNextKFBtn.MouseButton1Click:Connect(function() eFF:Fire() end)
@@ -757,6 +762,16 @@ function Panel.new(widget)
             eFrame:Fire(n)
         else
             simpleFrameBox.Text = tostring(self._currentFrame)
+        end
+    end)
+    simpleFPSBox.FocusLost:Connect(function()
+        local n = tonumber(simpleFPSBox.Text)
+        if n then
+            n = math.clamp(math.floor(n), 1, 999)
+            simpleFPSBox.Text = tostring(n)
+            eSimpleFPS:Fire(n)
+        else
+            simpleFPSBox.Text = tostring(self._simpleFPS or 30)
         end
     end)
 
@@ -1242,6 +1257,13 @@ function Panel:setSimpleFOVDisplay(fov)
     self._simpleFOV = fov
     if self._simpleFOVBox then
         self._simpleFOVBox.Text = string.format("%.0f", fov)
+    end
+end
+
+function Panel:setSimpleFPSDisplay(fps)
+    self._simpleFPS = fps
+    if self._simpleFPSBox then
+        self._simpleFPSBox.Text = tostring(math.floor(fps))
     end
 end
 

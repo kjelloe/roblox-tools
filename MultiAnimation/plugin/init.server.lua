@@ -1026,6 +1026,8 @@ local function doSimpleScan()
         timeline:setFrameCount(1)
         recorder:setFrameCount(1)
         panel:setFrameCount(1)
+        timeline:setFps(30)
+        recorder:setFps(30)
     else
         -- Derive frame count from actual keyframe span so a large Advanced-Mode
         -- session frameCount doesn't carry into Simple Mode's sequential model.
@@ -1056,6 +1058,7 @@ local function doSimpleScan()
     print(string.format("[MultiAnimation] Simple mode scan: %d rig(s), %d prop(s)", rigCount, propCount))
     panel:rebuildSimpleFrameIcons(getSimpleKeyframedFrames())
     panel:setSimpleIconWidth(timeline:getFrameCount())
+    panel:setSimpleFPSDisplay(timeline:getFps())
 end
 
 local function simpleFrameHasData(frame)
@@ -1364,6 +1367,10 @@ panel.onSimpleFOVChanged:Connect(function(fov)
         end
     end
 end)
+panel.onSimpleFPSChanged:Connect(function(fps)
+    timeline:setFps(fps)
+    recorder:setFps(fps)
+end)
 
 panel.onCopyKeyframeRequested:Connect(doCopyKeyframe)
 
@@ -1496,45 +1503,57 @@ panel.onCameraLaneDoubleClicked:Connect(function(frame)
     doCameraCapture()
 end)
 
+local simpleScrubbing = false  -- true while Simple Mode scrubber is being dragged
+
 panel.onFrameChanged:Connect(function(newFrame)
+    -- Simple Mode: auto-capture the departure frame when navigating via icons or
+    -- nav buttons (scrubber drag is handled by onScrubBegan instead).
+    if mode == "simple" and not isPlaying and not simpleScrubbing then
+        local departureFrame = timeline:getCurrent()
+        if departureFrame ~= newFrame and simpleFrameHasData(departureFrame) then
+            doSimpleCaptureFrame(departureFrame)
+            scheduleAutoSave()
+        end
+    end
     local f = timeline:setCurrent(newFrame)
     panel:setFrameDisplay(f, timeline:getFrameCount())
     applyPosesAt(f, false)
 end)
 
 panel.onScrubBegan:Connect(function()
-    -- Auto-update existing keyframe at the departure frame.
-    -- If the user was parked at a keyframe and manually adjusted the rig/prop pose,
-    -- re-capture it now so the change is saved without an explicit "Add Keyframe" click.
-    -- Idempotent if nothing changed (captures the same values).
     if not isPlaying then
-        local frame       = timeline:getCurrent()
-        local activeRigs  = panel:getActiveRigs()
-        local activeProps = panel:getActiveProps()
-
-        local shouldUpdate = false
-        for rigName in pairs(activeRigs) do
-            if recorder:hasKeyframe(rigName, frame) then
-                shouldUpdate = true; break
+        local frame = timeline:getCurrent()
+        if mode == "simple" then
+            -- Simple Mode: auto-capture the departure frame so pose changes
+            -- made while parked at a frame are not lost on scrub.
+            simpleScrubbing = true
+            if simpleFrameHasData(frame) then
+                doSimpleCaptureFrame(frame)
+                scheduleAutoSave()
             end
-        end
-        if not shouldUpdate then
-            for propName in pairs(activeProps) do
-                if recorder:getPropData(propName, frame) ~= nil then
-                    shouldUpdate = true; break
+        else
+            -- Advanced Mode: re-capture if there's an existing keyframe here.
+            local activeRigs  = panel:getActiveRigs()
+            local activeProps = panel:getActiveProps()
+            local shouldUpdate = false
+            for rigName in pairs(activeRigs) do
+                if recorder:hasKeyframe(rigName, frame) then shouldUpdate = true; break end
+            end
+            if not shouldUpdate then
+                for propName in pairs(activeProps) do
+                    if recorder:getPropData(propName, frame) ~= nil then shouldUpdate = true; break end
                 end
             end
-        end
-
-        if shouldUpdate then
-            recorder:addKeyframe(frame, activeRigs, activeProps)
-            scheduleAutoSave()
+            if shouldUpdate then
+                recorder:addKeyframe(frame, activeRigs, activeProps)
+                scheduleAutoSave()
+            end
         end
     end
-
     ChangeHistoryService:SetEnabled(false)
 end)
 panel.onScrubEnded:Connect(function()
+    simpleScrubbing = false
     ChangeHistoryService:SetEnabled(true)
     ChangeHistoryService:SetWaypoint("MultiAnim_Scrub")
 end)
