@@ -1020,6 +1020,27 @@ local function doSimpleScan()
         timeline:setFrameCount(1)
         recorder:setFrameCount(1)
         panel:setFrameCount(1)
+    else
+        -- Derive frame count from actual keyframe span so a large Advanced-Mode
+        -- session frameCount doesn't carry into Simple Mode's sequential model.
+        local maxKF = 0
+        for rigName in pairs(allRigs) do
+            for _, f in ipairs(recorder:getSortedFrames(rigName)) do
+                if f > maxKF then maxKF = f end
+            end
+        end
+        for propName in pairs(allProps) do
+            for _, f in ipairs(recorder:getSortedPropFrames(propName)) do
+                if f > maxKF then maxKF = f end
+            end
+        end
+        for _, f in ipairs(recorder:getSortedCameraFrames()) do
+            if f > maxKF then maxKF = f end
+        end
+        local needed = maxKF + 1
+        timeline:setFrameCount(needed)
+        recorder:setFrameCount(needed)
+        panel:setFrameCount(needed)
     end
     panel:setFrameDisplay(timeline:getCurrent(), timeline:getFrameCount())
 
@@ -1307,9 +1328,7 @@ panel.onSimpleDeleteFrame:Connect(doSimpleDeleteFrame)
 panel.onSimpleCameraToggled:Connect(setSimpleCameraOn)
 panel.onSimpleLookThroughToggled:Connect(function(isOn)
     local result = setSimpleLookThroughOn(isOn)
-    if result ~= isOn then
-        panel:setSimpleLookThroughState(result)
-    end
+    panel:setSimpleLookThroughState(result)
 end)
 panel.onSimpleFOVChanged:Connect(function(fov)
     simpleCameraFOV = fov
