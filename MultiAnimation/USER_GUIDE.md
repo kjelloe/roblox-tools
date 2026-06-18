@@ -223,11 +223,11 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 | Scrubber | Drag | Scrub; auto-updates an existing keyframe at the departure frame |
 | `\|◄` / `►\|` | Click | Jump to first / last frame |
 | `◄` / `►` | Click | Step one frame back / forward |
-| **Simple mode** `+ Add Frame` | Click | Capture current frame's pose, grow the timeline by 1, move cursor to the new end frame |
+| **Simple mode** `+ Add Frame` | Click | Capture current frame's pose. At the blank end slot: grow the timeline by 1 and advance cursor. At an existing frame: update its data and advance cursor by 1 (no grow). |
 | **Simple mode** `+ Insert` | Click | Insert a blank frame at the current position, shift all subsequent frame data right by 1 |
 | **Simple mode** `▶ Play` / `■ Stop` | Click | Play from the current frame to the end, or stop mid-playback |
 | **Simple mode** `Del Frame` | Click | Delete the current frame's data, shift all subsequent frames left by 1, shrink the timeline |
-| **Simple mode** `Camera View` | Click | Create/arm the manipulable `SimpleCamera` part; camera pose captured on every `+ Add Frame` |
+| **Simple mode** `Camera View` | Click | ON: create/show the manipulable `SimpleCamera` part and arm camera capture on `+ Add Frame`. OFF: hide the part (kept in FIGURES for next toggle-on). |
 | **Simple mode** FOV box | Type + Tab/Enter | Set the `SimpleCamera`'s field of view (clamped 1–120) |
 | **Simple mode** `Look Through` | Click | Slave the viewport to the `SimpleCamera`'s view, then fly freely with Studio's normal edit-camera controls; toggle off to restore your original viewport exactly |
 | `SimpleCamera` part (viewport) | Move / rotate | Pose the camera like any rig or prop — captured the same way on step-forward; shows a wireframe FOV-frustum outline |
@@ -318,9 +318,12 @@ Part" or "+ Rig" step; just put things in FIGURES.
 
 **The core workflow:**
 
-- **`+ Add Frame`** — captures the current frame's pose, grows the timeline by
-  one frame, and moves the cursor to the new (blank) end frame. The typical
-  loop is: pose → **+ Add Frame** → pose → **+ Add Frame** → …
+- **`+ Add Frame`** — captures the current frame's pose. When the cursor is at
+  the blank end slot it grows the timeline by one and moves the cursor there.
+  When the cursor is at an *existing* frame it overwrites that frame's data and
+  advances the cursor by 1 without growing the timeline (useful for re-posing a
+  frame you navigated back to). The typical forward loop is:
+  pose → **+ Add Frame** → pose → **+ Add Frame** → …
 - **`+ Insert`** — shifts all frames *after* the current one right by 1,
   growing the timeline by 1 without overwriting what's already there. The
   cursor stays on the current frame, which is now blank — ready for a new
@@ -346,7 +349,9 @@ far rectangle sized from the FOV — not a solid shape, so it won't block
 your view of anything behind it). When Camera View is on, pressing **+ Add
 Frame** captures the camera part's CFrame and FOV alongside all rig/prop
 poses. Set the camera's field of view with the **FOV** box next to the
-toggle (1–120); the wireframe redraws to match.
+toggle (1–120); the wireframe redraws to match. Toggling Camera View **off**
+hides the `SimpleCamera` part and its FOV outline — the part stays in FIGURES
+so it reappears in the same position when you turn Camera View back on.
 
 **Look Through:** with Camera View on, toggle **Look Through** to slave your
 edit-mode viewport to the `SimpleCamera` part's current view. Once it's on,

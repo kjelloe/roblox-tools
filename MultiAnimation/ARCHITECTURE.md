@@ -477,7 +477,7 @@ locally-computed camera — accepted v1 trade-off.
 | `build.py` | Assembles `.rbxmx` from source files and copies to Plugins folder |
 | `watch.py` | Auto-build on save, with Studio compile-check first |
 | `devsync.py` + `plugin/devloader.lua` | Hot-reload the plugin on save — no Studio restart |
-| `run_tests.py` | Runs the full `tests/` suite (214 cases) against live Studio |
+| `run_tests.py` | Runs the full `tests/` suite (355 cases, 19 files) against live Studio |
 | `hotpatch.py` | Push a single `game/` module without reload |
 | `mcp.py` (`mcp` alias) | CLI for everything: luau, console/tail, tree/inspect/read/grep, check, drift, test, deploy, playtest, gen, store, addrig, scene, daemon |
 | MCP daemon | Persistent StudioMCP proxy (auto-starts) — 0.07s/call vs ~7s |

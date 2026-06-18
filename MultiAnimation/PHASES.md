@@ -431,6 +431,25 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
       check, Look Through guard/snap/free-fly-mirrors-to-gizmo/exact
       restore, capture-from-gizmo — FIGURES auto-track/untrack). Suite total:
       **355 cases** across 19 files.
+- [x] **Simple Mode bug-fix pass.**
+  - **Look Through toggle stuck on:** `panel.onSimpleLookThroughToggled` now always calls
+    `panel:setSimpleLookThroughState(result)` — previously only called when result differed
+    from the requested state, so `self._simpleLookOn` was never set to `true` and every
+    button click fired `eSimpleLook:Fire(true)` rather than toggling off.
+  - **Frame count inherits Advanced session size:** `doSimpleScan` now derives `frameCount`
+    from the highest keyframed frame (`maxKF + 1`) instead of the stored session frame count,
+    preventing a large Advanced-mode session from inflating the Simple Mode scrubber on entry.
+  - **Camera View ON/OFF is now visually effective:** `setSimpleCameraOn` sets the Part's
+    `Transparency = 0/1` and destroys/recreates the `FOVFrustum` folder on toggle. `doSimpleScan`
+    hides an existing Part on load when Camera View is OFF. `applyPosesAt` and `onSimpleFOVChanged`
+    now guard frustum redraws behind `simpleCameraOn`.
+  - **`doSimpleAddFrame` only grows the timeline when at the blank end frame:** if the cursor
+    is at an existing frame, data is overwritten and the cursor advances by 1 without growing
+    `frameCount` — previously navigating back and pressing Add Frame created a phantom gap in the
+    icon strip.
+  - **"Part Edge not parented" log warning fixed:** `drawSimpleCameraFrustum` now parents the
+    `FOVFrustum` Folder to the camera Part *before* adding edge Parts, so WeldConstraint
+    geometry resolution happens in Workspace context from the start.
 
 ### Backlog
 
