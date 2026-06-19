@@ -206,9 +206,9 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 | `test_effect_core.lua` | EffectRunner: classify, cycleAction, live fire, crossing-pointer playback (24 cases) |
 | `test_effect_exporter.lua` | EffectTracks source builder; loadstring round-trip; omit-if-empty (13 cases) |
 | `test_ui_effects.lua` | Effect track bridge integration: track, cycle, add/delete events, fire, untrack (18 cases) |
-| `test_ui_simple.lua` | Simple Mode bridge integration: mode toggle, Add/Insert/Delete Frame management, Camera View capture-on-add, Play/Stop toggle, manipulable camera object (FOV, frustum gizmo, Look Through guard/snap/free-fly-mirrors-to-gizmo/restore, capture-from-gizmo), FIGURES auto-track/untrack (49 cases) |
+| `test_ui_simple.lua` | Simple Mode bridge integration: mode toggle, Add/Insert/Delete Frame management, Camera View capture-on-add, Play/Stop toggle, manipulable camera object (FOV, frustum gizmo, Look Through guard/snap/free-fly-mirrors-to-gizmo/restore, capture-from-gizmo), FIGURES auto-track/untrack, FPS box round-trip, auto-capture-on-navigate (59 cases) |
 
-Suite total: **355 cases** across 19 files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive).
+Suite total: **365 cases** across 19 files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive).
 
 All tests inline their module logic (no `require()` to plugin modules) and return a PASS/FAIL string for `execute_luau`. Run with:
 

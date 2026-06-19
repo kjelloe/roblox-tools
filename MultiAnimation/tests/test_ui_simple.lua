@@ -406,6 +406,79 @@ do
     end
 end
 
+-- ── Playback FPS box ──────────────────────────────────────────────────────────
+-- Uses frame offsets -59 and -67 (unused by prior tests) so no collision with
+-- user data.  All writes are cleaned up inside the block.
+
+do
+    -- Fresh Simple Mode scan should default to 30 fps.
+    r = call("getSimpleFPS")
+    ok("getSimpleFPS returns a number", r.ok and type(r.result) == "number", r.err)
+
+    -- Round-trip: set an unusual value, read it back.
+    r = call("setSimpleFPS", { fps = 12 })
+    ok("setSimpleFPS 12 returns 12", r.ok and r.result == 12, r.err)
+
+    r = call("getSimpleFPS")
+    ok("getSimpleFPS == 12 after setSimpleFPS", r.ok and r.result == 12, r.err)
+
+    -- Clamp: values outside 1-999 should be clamped, not rejected.
+    r = call("setSimpleFPS", { fps = 0 })
+    ok("setSimpleFPS 0 clamped to 1", r.ok and r.result == 1, r.err)
+
+    r = call("setSimpleFPS", { fps = 10000 })
+    ok("setSimpleFPS 10000 clamped to 999", r.ok and r.result == 999, r.err)
+
+    -- Restore a sane default so later tests run at expected speed.
+    call("setSimpleFPS", { fps = 30 })
+end
+
+-- ── Auto-capture on frame-icon navigation ─────────────────────────────────────
+-- Verifies that simpleNavigate auto-captures the departure frame, so a value
+-- changed while parked there (here: camera FOV) is persisted, not discarded.
+-- Uses Camera View's FOV because that value is directly readable after
+-- applyPosesAt restores frame data on navigation back.
+
+do
+    if frameOccupied(1) then
+        table.insert(out, "SKIP  auto-capture-on-navigate test (frame 1 holds user data)")
+    else
+        local navInitCount = (call("getFrameCount").ok and call("getFrameCount").result) or 1
+
+        -- Build frame 1 with FOV = 55 as the baseline.
+        call("setSimpleCamera", { on = true })
+        call("setSimpleCameraFOV", { fov = 55 })
+        call("setFrame", { frame = 1 })
+        r = call("simpleAddFrame")
+        ok("simpleAddFrame creates frame 1 for auto-capture test", r.ok and r.result ~= nil, r.err)
+
+        -- Navigate back; applyPosesAt restores FOV = 55 from the recorder.
+        call("setFrame", { frame = 1 })
+        r = call("getSimpleCameraInfo")
+        ok("FOV == 55 at frame 1 after setFrame back", r.ok and r.result and math.abs(r.result.fov - 55) < 0.01, r.err)
+
+        -- Mutate FOV to 65 while parked at frame 1 (user edits without pressing Add Frame).
+        call("setSimpleCameraFOV", { fov = 65 })
+
+        -- simpleNavigate away: auto-capture fires for departure frame 1, saving FOV=65.
+        local afterCount = (call("getFrameCount").ok and call("getFrameCount").result) or 2
+        r = call("simpleNavigate", { frame = math.min(2, afterCount) })
+        ok("simpleNavigate moves cursor away from frame 1", r.ok and r.result ~= nil, r.err)
+
+        -- Navigate back to frame 1; applyPosesAt should restore the auto-captured FOV=65.
+        call("setFrame", { frame = 1 })
+        r = call("getSimpleCameraInfo")
+        ok("auto-capture saved FOV=65 when navigating away from frame 1", r.ok and r.result and math.abs(r.result.fov - 65) < 0.01, r.err)
+
+        -- Cleanup.
+        clearFrame(1)
+        call("setSimpleCamera", { on = false })
+
+        r = call("getFrameCount")
+        ok("frameCount restored after auto-capture test", r.ok and r.result == navInitCount, r.err)
+    end
+end
+
 -- ── Restore user state ────────────────────────────────────────────────────────
 
 if prevFrame.ok then call("setFrame", { frame = prevFrame.result }) end

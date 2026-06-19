@@ -231,6 +231,7 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 | **Simple mode** FOV box | Type + Tab/Enter | Set the `SimpleCamera`'s field of view (clamped 1–120) |
 | **Simple mode** `Look Through` | Click | Slave the viewport to the `SimpleCamera`'s view, then fly freely with Studio's normal edit-camera controls; toggle off to restore your original viewport exactly |
 | `SimpleCamera` part (viewport) | Move / rotate | Pose the camera like any rig or prop — captured the same way on step-forward; shows a wireframe FOV-frustum outline |
+| **Simple mode** FPS box (nav row) | Type + Tab/Enter | Set playback speed (1–999 fps, default 30). Affects `▶ Play` speed; saved with the session. |
 | `💾 Save` | Click | Quick-save the session under the current scene name (no dialog) |
 
 **Dot colours:** yellow = rig · teal = prop · orange = camera (move) · red = camera (cut) · purple = effect event.
@@ -306,10 +307,10 @@ remember.
 (switches back to **Advanced** any time — your session data is untouched
 either way).
 
-The panel collapses to just: a scrubber + frame counter, a row with
-**Del Frame**, **+ Insert**, **▶ Play/Stop**, and **+ Add Frame**, a
-**Camera View** toggle with FOV box and **Look Through** toggle, and a
-scene name + Save/Export row.
+The panel collapses to just: a scrubber + frame counter, a nav row with
+**Del Frame**, **+ Insert**, **▶ Play/Stop**, **+ Add Frame**, and an **FPS
+box** (default 30), a **Camera View** toggle with FOV box and **Look Through**
+toggle, and a scene name + Save/Export row.
 
 **Everything in `Workspace.FIGURES` is tracked automatically** — R6 rigs the
 same way Advanced mode tracks them, and any other part/model gets its
@@ -336,10 +337,18 @@ Part" or "+ Rig" step; just put things in FIGURES.
 data shifts to close the gap — re-pose at the current cursor position and
 press **+ Add Frame** again.
 
+**Auto-save on navigation:** any time you click a different frame icon (or
+use the nav buttons), the frame you're leaving is automatically re-captured —
+so posing and moving on is safe without remembering to press **+ Add Frame**
+each time. The same capture fires at the start of a scrubber drag. Changes
+still auto-save to the `_autosave` slot within a second.
+
 **Play / Stop:** press **▶ Play** to play the recorded animation forward from
 the current frame to the end of the timeline; the button flips to **■ Stop**
 while playing. Press it again (or let it reach the end) to stop — the
-viewport settles on whatever frame playback stopped at.
+viewport settles on whatever frame playback stopped at. The **FPS box** (right
+of the nav row, default 30) controls playback speed; type a number and press
+Tab or Enter to apply. The setting is saved with the session.
 
 **Camera View:** toggling it on creates (or reuses) a **`SimpleCamera`**
 part in `FIGURES` — a real, manipulable object you pose with Studio's normal

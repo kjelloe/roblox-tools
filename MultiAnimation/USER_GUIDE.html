@@ -428,6 +428,7 @@ frames (default 2)</td></tr>
 <tr><td><strong>Simple mode</strong> FOV box</td><td>Type + Tab/Enter</td><td>Set the <code>SimpleCamera</code>'s field of view (clamped 1–120)</td></tr>
 <tr><td><strong>Simple mode</strong> <code>Look Through</code></td><td>Click</td><td>Slave the viewport to the <code>SimpleCamera</code>'s view, then fly freely with Studio's normal edit-camera controls; toggle off to restore your original viewport exactly</td></tr>
 <tr><td><code>SimpleCamera</code> part (viewport)</td><td>Move / rotate</td><td>Pose the camera like any rig or prop — captured by <code>+ Add Frame</code> alongside rig/prop poses; shows a wireframe FOV-frustum outline</td></tr>
+<tr><td><strong>Simple mode</strong> FPS box (nav row)</td><td>Type + Tab/Enter</td><td>Set playback speed (1–999 fps, default 30). Affects ▶ Play speed; saved with the session.</td></tr>
 <tr><td><code>💾 Save</code></td><td>Click</td><td>Quick-save the session under the current scene name (no dialog)</td></tr>
 </table>
 
@@ -508,11 +509,11 @@ remember.</p>
 toggle above RIGS IN SCENE (switches back to <strong>Advanced</strong> any
 time — your session data is untouched either way).</p>
 
-<p>The panel collapses to just: a scrubber + frame counter, a row with
+<p>The panel collapses to just: a scrubber + frame counter, a nav row with
 <strong>Del Frame</strong>, <strong>+ Insert</strong>, <strong>▶ Play/Stop</strong>,
-and <strong>+ Add Frame</strong>, a <strong>Camera View</strong> toggle with
-FOV box and <strong>Look Through</strong> toggle, and a scene name +
-Save/Export row.</p>
+<strong>+ Add Frame</strong>, and an <strong>FPS box</strong> (default 30), a
+<strong>Camera View</strong> toggle with FOV box and <strong>Look Through</strong>
+toggle, and a scene name + Save/Export row.</p>
 
 <p><strong>Everything in <code>Workspace.FIGURES</code> is tracked
 automatically</strong> — R6 rigs the same way Advanced mode tracks them, and
@@ -545,11 +546,20 @@ in FIGURES.</p>
 is deleted and subsequent data shifts to close the gap — re-pose at the
 current cursor position and press <strong>+ Add Frame</strong> again.</p>
 
+<p><strong>Auto-save on navigation:</strong> any time you click a different
+frame icon (or use the nav buttons), the frame you're leaving is automatically
+re-captured — so posing and moving on is safe without remembering to press
+<strong>+ Add Frame</strong> each time. The same capture fires at the start of
+a scrubber drag. Changes still auto-save to the <code>_autosave</code> slot
+within a second.</p>
+
 <p><strong>Play / Stop:</strong> press <strong>▶ Play</strong> to play the
 recorded animation forward from the current frame to the end of the
 timeline; the button flips to <strong>■ Stop</strong> while playing. Press it
 again (or let it reach the end) to stop — the viewport settles on whatever
-frame playback stopped at.</p>
+frame playback stopped at. The <strong>FPS box</strong> (right of the nav row,
+default 30) controls playback speed; type a number and press Tab or Enter to
+apply. The setting is saved with the session.</p>
 
 <p><strong>Camera View:</strong> toggling it on creates (or reuses) a
 <strong><code>SimpleCamera</code></strong> part in <code>FIGURES</code> — a

@@ -2173,6 +2173,35 @@ local testBridge = TestBridge.start({
         end
         return { className = folder.ClassName, edgeCount = edgeCount, allWelded = allWelded }
     end,
+
+    getSimpleFPS = function()
+        return timeline:getFps()
+    end,
+
+    setSimpleFPS = function(a)
+        local fps = math.clamp(math.floor(tonumber(a.fps) or 30), 1, 999)
+        timeline:setFps(fps)
+        recorder:setFps(fps)
+        panel:setSimpleFPSDisplay(fps)
+        return fps
+    end,
+
+    -- Simulates clicking a frame icon: auto-captures the departure frame (same
+    -- logic as onFrameChanged in Simple Mode), then navigates to targetFrame.
+    simpleNavigate = function(a)
+        local targetFrame = a.frame
+        if mode == "simple" and not isPlaying then
+            local departureFrame = timeline:getCurrent()
+            if departureFrame ~= targetFrame and simpleFrameHasData(departureFrame) then
+                doSimpleCaptureFrame(departureFrame)
+                scheduleAutoSave()
+            end
+        end
+        local f = timeline:setCurrent(targetFrame)
+        panel:setFrameDisplay(f, timeline:getFrameCount())
+        applyPosesAt(f, false)
+        return f
+    end,
 })
 
 -- ── devsync teardown registration ─────────────────────────────────────────────

@@ -451,10 +451,24 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
     `FOVFrustum` Folder to the camera Part *before* adding edge Parts, so WeldConstraint
     geometry resolution happens in Workspace context from the start.
 
+- [x] **Simple Mode auto-capture on navigation + Playback FPS box.**
+  - **Pose changes no longer lost on frame-icon navigation:** `panel.onFrameChanged`
+    now calls `doSimpleCaptureFrame(departureFrame)` before jumping when `not simpleScrubbing`
+    and the departure frame already has data. Scrubber drag is handled by `panel.onScrubBegan`
+    (sets `simpleScrubbing = true`, captures departure frame once) so intermediate drag frames
+    are not over-captured.
+  - **Playback FPS box in Simple nav row:** a `textBox("30")` next to the total-frames box
+    lets the user set playback speed (1–999 fps). `panel.onSimpleFPSChanged` fires on
+    `FocusLost`; `init.server.lua` forwards to `timeline:setFps` + `recorder:setFps`. Fresh
+    sessions default to 30 fps; existing sessions restore their saved fps via
+    `panel:setSimpleFPSDisplay` at the end of `doSimpleScan`.
+  - **New TestBridge commands:** `getSimpleFPS`, `setSimpleFPS {fps}`, `simpleNavigate {frame}`
+    (simulates icon click with auto-capture logic).
+  - **10 new test cases** in `test_ui_simple.lua` (suite: 365 cases across 19 files).
+
 ### Backlog
 
 - Multiple named cameras + switcher track (authoring sugar over Phase 8 cuts)
-- Auto-capture on transform change
 - Per-keyframe easing curve selector
 - R15 rig support
 - Audio track sync

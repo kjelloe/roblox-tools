@@ -62,16 +62,16 @@ python3 watch.py               # or: auto-build on every save
 ## Testing
 
 ```bash
-mcp test                 # full suite — 355 cases, ~2s
+mcp test                 # full suite — 365 cases, ~2s
 mcp test prop            # only tests matching *prop*
 mcp test ui -v           # UI integration tests, verbose
 mcp playtest             # play-mode test: deploys, presses F5, watches the
                          # console for FINISHED/ERROR, exits play mode, reports
 ```
 
-The suite runs **against the live Studio session** — including 18 UI tests that
-drive the actual plugin panel (rig selection, timeline, keyframes) through a
-test bridge. Tests clean up after themselves.
+The suite runs **against the live Studio session** — including UI tests that
+drive the actual plugin panel (rig selection, timeline, keyframes, Simple Mode)
+through a test bridge. Tests clean up after themselves.
 
 ---
 
