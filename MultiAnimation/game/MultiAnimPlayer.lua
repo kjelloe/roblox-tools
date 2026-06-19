@@ -63,6 +63,23 @@ local function findJoints(rig)
     return joints
 end
 
+local POSE_EASING_TO_STR = {}
+POSE_EASING_TO_STR[Enum.PoseEasingStyle.Linear]   = { default = "Linear" }
+POSE_EASING_TO_STR[Enum.PoseEasingStyle.Constant]  = { default = "Constant" }
+POSE_EASING_TO_STR[Enum.PoseEasingStyle.Bounce]    = { default = "Bounce" }
+POSE_EASING_TO_STR[Enum.PoseEasingStyle.Cubic]     = {
+    [Enum.PoseEasingDirection.In]    = "EaseIn",
+    [Enum.PoseEasingDirection.Out]   = "EaseOut",
+    [Enum.PoseEasingDirection.InOut] = "EaseInOut",
+    default = "EaseOut",
+}
+
+local function poseEasingToStr(style, dir)
+    local m = POSE_EASING_TO_STR[style]
+    if not m then return "Linear" end
+    return m[dir] or m.default or "Linear"
+end
+
 -- Parse a KeyframeSequence into sorted { {time, easing, poses={[jointName]=CFrame}} }.
 local function parseKFS(kfs)
     local out = {}
@@ -134,23 +151,6 @@ local function easedAlpha(t, easing)
         end
     end
     return t
-end
-
-local POSE_EASING_TO_STR = {}
-POSE_EASING_TO_STR[Enum.PoseEasingStyle.Linear]   = { default = "Linear" }
-POSE_EASING_TO_STR[Enum.PoseEasingStyle.Constant]  = { default = "Constant" }
-POSE_EASING_TO_STR[Enum.PoseEasingStyle.Bounce]    = { default = "Bounce" }
-POSE_EASING_TO_STR[Enum.PoseEasingStyle.Cubic]     = {
-    [Enum.PoseEasingDirection.In]    = "EaseIn",
-    [Enum.PoseEasingDirection.Out]   = "EaseOut",
-    [Enum.PoseEasingDirection.InOut] = "EaseInOut",
-    default = "EaseOut",
-}
-
-local function poseEasingToStr(style, dir)
-    local m = POSE_EASING_TO_STR[style]
-    if not m then return "Linear" end
-    return m[dir] or m.default or "Linear"
 end
 
 local function clearActive()

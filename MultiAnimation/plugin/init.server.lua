@@ -1515,7 +1515,8 @@ buildPlaybackSnippet = function()
         }, "\n")
     local snippet = string.format(
         '-- LocalScript in StarterPlayerScripts (or StarterCharacterScripts)\n' ..
-        '-- Requires: MultiAnimDataServer.setup() called once from a server Script\n' ..
+        '-- Server prerequisite (Script in ServerScriptService):\n' ..
+        '--   require(game.ServerStorage.MultiAnimationData.MultiAnimDataServer).setup()\n' ..
         'local RS = game:GetService("ReplicatedStorage")\n' ..
         'local CutscenePlayer = require(RS:WaitForChild("CutscenePlayer"))\n' ..
         'local handle = CutscenePlayer.play(\n' ..
@@ -1997,6 +1998,9 @@ panel.onLoadRequested:Connect(function()
 end)
 panel.onLoadNamedRequested:Connect(function(name)
     loadNamed(name)
+    if mode == "simple" then
+        doSimpleScan()
+    end
     panel:hideLoadList()
 end)
 panel.onPreviewRequested:Connect(startPlayback)
