@@ -353,7 +353,10 @@ local updateCameraGizmo, clearCameraGizmos, rebuildCameraUI
 
 local function serializeSession()
     local session = recorder:getSession()
-    local out = { fps = session.fps, frameCount = session.frameCount, rigs = {}, props = {} }
+    -- When in simple/playback mode the timeline has a small synthetic frame count;
+    -- serialize the real advanced count so plugin reloads don't start with 1–2 frames.
+    local savedFC = advancedFrameCount or session.frameCount
+    local out = { fps = session.fps, frameCount = savedFC, rigs = {}, props = {} }
     for rigName, rigData in pairs(session.rigs) do
         local jOut, sOut = {}, {}
         for frame, jointData in pairs(rigData.jointTrack) do
@@ -450,7 +453,10 @@ local function applySessionData(data)
 
     recorder:clearSession()
     local fps        = data.fps        or 24
-    local frameCount = data.frameCount or 120
+    -- Minimum of 20: guards against a corrupt autosave (e.g. from a tiny Simple
+    -- Mode session) producing a frameCount too small for the advanced timeline.
+    -- Simple mode overwrites this with its own keyframe-derived count anyway.
+    local frameCount = math.max(data.frameCount or 120, 20)
     recorder:setFps(fps)
     recorder:setFrameCount(frameCount)
     timeline:setFps(fps)
@@ -1431,6 +1437,9 @@ panel.onModeChanged:Connect(function(newMode)
         clearCameraGizmos()
         doSimpleScan()
     elseif newMode == "playback" then
+        if not advancedFrameCount then
+            advancedFrameCount = timeline:getFrameCount()
+        end
         mode = newMode
         doPlaybackScan()
     else
@@ -2217,6 +2226,9 @@ local testBridge = TestBridge.start({
             clearCameraGizmos()
             doSimpleScan()
         elseif a.mode == "playback" then
+            if not advancedFrameCount then
+                advancedFrameCount = timeline:getFrameCount()
+            end
             mode = a.mode
             panel:setMode(a.mode)
             doPlaybackScan()
@@ -2359,6 +2371,9 @@ local testBridge = TestBridge.start({
     -- Switch to (or query) playback mode.
     setPlaybackMode = function()
         if mode ~= "playback" then
+            if not advancedFrameCount then
+                advancedFrameCount = timeline:getFrameCount()
+            end
             mode = "playback"
             panel:setMode("playback")
             doPlaybackScan()

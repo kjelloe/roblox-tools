@@ -171,7 +171,8 @@
   <a href="#sessions">9. Sessions: Save, Load, New</a>
   <a href="#export">10. Export &amp; In-Game Playback</a>
   <a href="#simple">11. Simple Mode (Quick Capture)</a>
-  <a href="#tips">12. Tips &amp; Troubleshooting</a>
+  <a href="#playback">12. Playback Tab — Use Animations In-Game</a>
+  <a href="#tips">13. Tips &amp; Troubleshooting</a>
 </nav>
 
 <h2 id="start">1. Getting Started</h2>
@@ -203,9 +204,9 @@ automatically when the plugin unloads.</div>
 
 <table>
 <tr><th>Section</th><th>What's in it</th></tr>
-<tr><td><strong>Mode toggle</strong></td><td><code>Simple</code> / <code>Advanced</code>
-buttons, always visible above RIGS IN SCENE — switches the whole panel layout
-without losing session data. See §11, Simple Mode.</td></tr>
+<tr><td><strong>Mode toggle</strong></td><td><code>Simple</code> / <code>Advanced</code> / <code>Playback</code>
+buttons, always visible — switches the whole panel layout without losing session data.
+See §11 Simple Mode, §12 Playback Tab.</td></tr>
 <tr><td><strong>RIGS IN SCENE</strong></td><td>One button per detected rig
 (exclusive select — exactly one active), plus <code>↺ Refresh</code>,
 <code>+ Rig</code>, <code>Save As</code>, <code>Load</code>, <code>New</code></td></tr>
@@ -587,7 +588,62 @@ you flew to). Look Through is rejected (no-op) if Camera View isn't on yet.</p>
 there in the Simple panel — no need to switch modes just to save your work or
 export the scene.</p>
 
-<h2 id="tips">12. Tips &amp; Troubleshooting</h2>
+<h2 id="playback">12. Playback Tab — Use Animations In-Game</h2>
+
+<p>The <strong>Playback</strong> tab (third mode button) lets you select any saved
+scene and generate a Lua snippet ready to paste into a game
+<code>LocalScript</code>. It also supports animating a <strong>player's actual
+character</strong> (or a local clone of it) as one of the rigs.</p>
+
+<h3>Setup</h3>
+<ol>
+  <li><strong>Server side</strong> — add a <code>Script</code> to
+    <code>ServerScriptService</code>:
+    <pre><code>require(game.ServerStorage.MultiAnimationData.MultiAnimDataServer).setup()</code></pre>
+    Deploy <code>MultiAnimDataServer.lua</code> to
+    <code>ServerStorage.MultiAnimationData</code>. This creates the
+    <code>MultiAnimGetScene</code> RemoteFunction clients use to fetch scene data.
+  </li>
+  <li><strong>Client side</strong> — deploy <code>CutscenePlayer.lua</code>,
+    <code>PlayerRigProxy.lua</code>, and <code>LetterboxGui.lua</code> to
+    <code>ReplicatedStorage</code>.
+  </li>
+  <li><strong>Paste the snippet</strong> from the Playback tab into a
+    <code>LocalScript</code>. Example output:
+    <pre><code>local CutscenePlayer = require(game.ReplicatedStorage.CutscenePlayer)
+local handle = CutscenePlayer.play(
+    "MyScene",
+    {
+        Rig1 = workspace.FIGURES.Rig1,
+        Rig2 = { player = game.Players.LocalPlayer, mode = "clone" },
+    },
+    { fps = 30, loop = false, movieMode = true }
+)
+-- handle.stop() cancels early</code></pre>
+  </li>
+</ol>
+
+<h3>Rig mapping modes</h3>
+<table>
+<tr><th>Mode</th><th>What it does</th></tr>
+<tr><td><strong>Fixed rig</strong></td><td>Uses the workspace rig as-is (default)</td></tr>
+<tr><td><strong>LocalPlayer — clone</strong></td><td>Clones the local player's character; strips scripts and Humanoid; hides the original during playback; restores on finish</td></tr>
+<tr><td><strong>LocalPlayer — direct</strong></td><td>Animates the player's real character; sets <code>PlatformStand = true</code> to suppress physics; restores on finish</td></tr>
+<tr><td><strong>UserId — clone</strong></td><td>Same as clone but looks up the player by UserId (must be in the same server)</td></tr>
+<tr><td><strong>UserId — direct</strong></td><td>Same as direct but by UserId</td></tr>
+</table>
+<p><em>R6 only</em> — R15 player characters are warned and skipped.</p>
+
+<h3>Parameters</h3>
+<table>
+<tr><th>Control</th><th>Effect</th></tr>
+<tr><td><strong>◄ / ►</strong> scene selector</td><td>Cycle through saved sessions</td></tr>
+<tr><td><strong>FPS box</strong></td><td>Override playback speed (1–999; defaults to scene's recorded fps)</td></tr>
+<tr><td><strong>Loop</strong></td><td>Restart automatically when the last frame is reached</td></tr>
+<tr><td><strong>Movie Mode</strong></td><td>Shows cinematic black bars (top/bottom 10%) during playback via <code>LetterboxGui</code></td></tr>
+</table>
+
+<h2 id="tips">13. Tips &amp; Troubleshooting</h2>
 
 <table>
 <tr><th>Symptom</th><th>Explanation / fix</th></tr>

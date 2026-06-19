@@ -42,12 +42,13 @@ except ImportError:
 
 from build import script_xml, ROBLOX_HEADER, ROBLOX_FOOTER, PLUGINS_DIR_WSL
 
-SRC_NAME     = "__MultiAnimDevSrc"
-LOADER_NAME  = "MultiAnimationDevLoader.rbxmx"
-PLUGIN_NAME  = "MultiAnimation.rbxmx"
-PUSH_DIRS    = ["core", "ui"]      # plugin/<dir>/*.lua
+SRC_NAME      = "__MultiAnimDevSrc"
+LOADER_NAME   = "MultiAnimationDevLoader.rbxmx"
+PLUGIN_NAME   = "MultiAnimation.rbxmx"
+PUSH_DIRS     = ["core", "ui"]      # plugin/<dir>/*.lua
 POLL_INTERVAL = 0.5
 DEBOUNCE      = 0.4
+VERSION_CHECK_INTERVAL = 10  # poll cycles between Studio-side version checks (~5 s)
 
 # ── install / uninstall ───────────────────────────────────────────────────────
 
@@ -139,7 +140,26 @@ return "version " .. root:GetAttribute("Version")
     return err is None, "\n".join(texts) or (err or "")
 
 
+_last_pushed_version: int = 0   # updated after every successful push
+
+
+def _studio_version() -> int:
+    """Read the current Version attribute from Studio's DevSrc folder (0 = not found)."""
+    lua = f"""
+local root = game:GetService("CoreGui"):FindFirstChild({_lua_str(SRC_NAME)})
+return (root and root:GetAttribute("Version")) or 0
+"""
+    texts, err = call_mcp("execute_luau", {"code": lua, "datamodel_type": "Edit"}, timeout=10)
+    if err:
+        return -1   # unreachable — treat as unknown
+    try:
+        return int("".join(texts).strip())
+    except (ValueError, TypeError):
+        return 0
+
+
 def push() -> bool:
+    global _last_pushed_version
     t0 = time.time()
     for d in PUSH_DIRS:
         ok, msg = _push_folder(d, os.path.join(HERE, "plugin", d))
@@ -160,6 +180,7 @@ def push() -> bool:
         print(f"[push] FAILED on init: {msg}")
         return False
     print(f"[push] {msg} — hot-reloaded in {time.time() - t0:.1f}s")
+    _last_pushed_version = _studio_version()
     return True
 
 # ── watch mode ────────────────────────────────────────────────────────────────
@@ -191,6 +212,7 @@ def watch():
     print(f"\nWatching {len(snapshot)} file(s); every save hot-reloads the plugin. (Ctrl+C to stop)\n")
 
     pending = None
+    version_check_counter = 0
     while True:
         time.sleep(POLL_INTERVAL)
         current = _collect_mtimes()
@@ -222,6 +244,20 @@ def watch():
 
         if pending is None and current.keys() != snapshot.keys():
             snapshot = current
+
+        # Periodically verify that Studio's version matches the last push.
+        # Catches Studio restarts (DevSrc cleared → Version resets to 0) and
+        # failed/partial pushes where the loader never received the new version.
+        if pending is None:
+            version_check_counter += 1
+            if version_check_counter >= VERSION_CHECK_INTERVAL:
+                version_check_counter = 0
+                studio_ver = _studio_version()
+                if studio_ver >= 0 and studio_ver != _last_pushed_version:
+                    print(f"[version check] Studio has v{studio_ver}, last push was v{_last_pushed_version} — re-pushing...")
+                    snapshot = current   # reset mtime baseline to avoid double-push
+                    push()
+                    print()
 
 # ── entry point ───────────────────────────────────────────────────────────────
 

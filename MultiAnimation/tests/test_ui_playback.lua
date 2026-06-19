@@ -210,9 +210,9 @@ ok(gotParams.movieMode == true, "partial setPlaybackParams: movieMode preserved"
 ok(call("getPlaybackMode") == "playback", "mode is still 'playback' at end of test")
 
 -- ── Restore original state ────────────────────────────────────────────────────
-if origMode and origMode ~= "playback" then
-    call("setMode", { mode = origMode })
-end
+-- Always leave in advanced (or original non-playback mode) so that subsequent
+-- test files are not left with a tiny frameCount from the playback context.
+call("setMode", { mode = (origMode and origMode ~= "playback") and origMode or "advanced" })
 -- Reset playback state
 call("setPlaybackParams", { fps = 30, loop = false, movieMode = false })
 

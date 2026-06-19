@@ -72,6 +72,10 @@
 | `game/MultiAnimPlayer` | Game | In-game simultaneous playback — direct Motor6D.Transform Heartbeat loop |
 | `game/CutsceneServer` | Game | Synchronized cutscene start: plays anims, broadcasts camera track + timestamp |
 | `game/CutsceneCamera` | Game | Client camera driver: Scriptable camera follows CameraTrack on a shared clock |
+| `game/LetterboxGui` | Game | Cinematic black bars (top/bottom 10%) in PlayerGui ScreenGui (Phase 10) |
+| `game/PlayerRigProxy` | Game | Resolves player entries into R6 rig models; clone/direct modes; R6-only (Phase 10) |
+| `game/MultiAnimDataServer` | Game | Server-side `MultiAnimGetScene` RemoteFunction — parses scene from ServerStorage (Phase 10) |
+| `game/CutscenePlayer` | Game | Client LocalScript orchestrator — Heartbeat loop for joints, root, scale, camera (Phase 10) |
 
 ---
 
@@ -152,6 +156,38 @@ CutsceneServer.lua      ModuleScript — server side of synchronized cutscenes
 CutsceneCamera.lua      ModuleScript — client camera driver
                         .start() — listens for the MultiAnimCutscene RemoteEvent
                         and drives a Scriptable camera against the shared clock
+
+-- Phase 10: client-side player-rig playback pipeline --
+
+LetterboxGui.lua        ModuleScript — cinematic black bars
+                        .show() / .hide() / .isVisible()
+                        Creates ScreenGui in PlayerGui (DisplayOrder 200)
+
+PlayerRigProxy.lua      ModuleScript — resolves player→R6 rig for CutscenePlayer
+                        .resolve(entry, anchorCF) → rig, teardownFn
+                        .resolveAll(rigMap, anchorCFs) → resolvedMap, teardownFn
+                        clone mode: character:Clone(), strip scripts/Humanoid,
+                          hide original; teardown destroys clone + restores original
+                        direct mode: PlatformStand=true; teardown restores it
+                        R6-only: warns + returns nil for R15
+
+MultiAnimDataServer.lua ModuleScript — server bridge for client playback
+                        .setup() — creates "MultiAnimGetScene" RemoteFunction in
+                          ReplicatedStorage; OnServerInvoke parses scene folder
+                          from ServerStorage.MultiAnimationData into serializable
+                          Lua table (joints, scale, root, props, camera, effects)
+                        Call setup() once from a Script in ServerScriptService
+
+CutscenePlayer.lua      ModuleScript — client LocalScript orchestrator
+                        .play(sceneName, rigMap, opts) → handle
+                          opts: { fps, loop, movieMode }
+                          handle.stop() — cancel early
+                        Flow: MultiAnimGetScene:InvokeServer → PlayerRigProxy.resolveAll
+                          → LetterboxGui.show (if movieMode) → RunService.Heartbeat loop
+                          → teardown on finish
+                        Heartbeat drives: Motor6D.Transform (joints),
+                          HumanoidRootPart.CFrame (root track),
+                          Part.Size (scale track), CurrentCamera (camera track)
 ```
 
 ---
