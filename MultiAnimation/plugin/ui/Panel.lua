@@ -348,6 +348,16 @@ function Panel.new(widget)
     local eSimpleLook       = mkEvent("onSimpleLookThroughToggled")
     local eSimpleFPS        = mkEvent("onSimpleFPSChanged")
 
+    -- Playback tab events
+    local ePlaybackSceneChanged   = mkEvent("onPlaybackSceneChanged")    -- fires (sceneName)
+    local ePlaybackRig            = Instance.new("BindableEvent")        -- fires (rigName, entry)
+    self.onPlaybackRigChanged     = ePlaybackRig.Event
+    self._ePlaybackRig            = ePlaybackRig
+    table.insert(evts, ePlaybackRig)
+    local ePlaybackParams         = mkEvent("onPlaybackParamsChanged")   -- fires ({fps,loop,movieMode})
+    local ePlaybackCopy           = mkEvent("onPlaybackCopySnippet")
+    local ePlaybackPreview        = mkEvent("onPlaybackPreview")
+
     local eFxRemoved = Instance.new("BindableEvent")
     self.onEffectRemoved = eFxRemoved.Event
     self._eFxRemoved = eFxRemoved
@@ -416,12 +426,14 @@ function Panel.new(widget)
         return b
     end
 
-    local modeSimpleBtn = modeToggleBtn("Simple", 1)
-    local modeAdvBtn    = modeToggleBtn("Advanced", 2)
+    local modeSimpleBtn   = modeToggleBtn("Simple",   1)
+    local modeAdvBtn      = modeToggleBtn("Advanced", 2)
+    local modePlaybackBtn = modeToggleBtn("Playback", 3)
 
     local function refreshModeButtons()
-        modeSimpleBtn.BackgroundColor3 = (self._mode == "simple")   and C.btnAccent or C.btnBg
-        modeAdvBtn.BackgroundColor3    = (self._mode == "advanced") and C.btnAccent or C.btnBg
+        modeSimpleBtn.BackgroundColor3   = (self._mode == "simple")   and C.btnAccent or C.btnBg
+        modeAdvBtn.BackgroundColor3      = (self._mode == "advanced") and C.btnAccent or C.btnBg
+        modePlaybackBtn.BackgroundColor3 = (self._mode == "playback") and C.btnAccent or C.btnBg
     end
     refreshModeButtons()
     self._refreshModeButtons = refreshModeButtons
@@ -439,6 +451,13 @@ function Panel.new(widget)
         refreshModeButtons()
         self:_applyModeVisibility()
         eMode:Fire("advanced")
+    end)
+    modePlaybackBtn.MouseButton1Click:Connect(function()
+        if self._isPlaying or self._mode == "playback" then return end
+        self._mode = "playback"
+        refreshModeButtons()
+        self:_applyModeVisibility()
+        eMode:Fire("playback")
     end)
 
     -- ── Advanced-mode wrapper — every Advanced section lives in here so the
@@ -979,6 +998,169 @@ function Panel.new(widget)
     self._loadOverlay = loadOv
     self._loadScroll  = loadScroll
 
+    -- ── PLAYBACK TAB ─────────────────────────────────────────────────────────
+    -- Third mode: select a saved scene, map each rig slot to a workspace rig
+    -- or a player (clone/direct), set FPS/Loop/MovieMode, then copy the
+    -- generated Lua snippet or preview directly from the plugin.
+
+    local playbackSec = section(root, "PLAYBACK", 1)
+    playbackSec.Visible = false
+    self._playbackSec = playbackSec
+
+    -- Scene selector row: ◄ [scene name] ►
+    local pbSceneRow = hrow(playbackSec, 1, 4)
+    local pbScenePrevBtn = smallBtn(pbSceneRow, "◄", 1)
+    local pbSceneBox = textBox(pbSceneRow, "—", 120, 2)
+    self._pbSceneBox = pbSceneBox
+    local pbSceneNextBtn = smallBtn(pbSceneRow, "►", 3)
+    pbSceneBox.FocusLost:Connect(function()
+        local name = pbSceneBox.Text
+        ePlaybackSceneChanged:Fire(name)
+    end)
+    pbScenePrevBtn.MouseButton1Click:Connect(function()
+        ePlaybackSceneChanged:Fire("__prev__")
+    end)
+    pbSceneNextBtn.MouseButton1Click:Connect(function()
+        ePlaybackSceneChanged:Fire("__next__")
+    end)
+
+    -- Rig mapping header
+    local pbRigHdr = hrow(playbackSec, 2, 2)
+    lbl(pbRigHdr, "Rig slot → workspace / player", nil, 1)
+
+    -- Rig rows container (dynamically populated by _rebuildPlaybackRigRows)
+    local pbRigContainer = Instance.new("Frame")
+    pbRigContainer.Name               = "PBRigContainer"
+    pbRigContainer.Size               = UDim2.new(1, 0, 0, 0)
+    pbRigContainer.AutomaticSize      = Enum.AutomaticSize.Y
+    pbRigContainer.BackgroundTransparency = 1
+    pbRigContainer.LayoutOrder        = 3
+    pbRigContainer.Parent             = playbackSec
+    listLayout(pbRigContainer, Enum.FillDirection.Vertical, 2)
+    self._pbRigContainer = pbRigContainer
+
+    -- Rig mode constants (used by _rebuildPlaybackRigRows)
+    local RIG_MODES = {
+        { key = "fixed",        label = "Fixed rig"          },
+        { key = "localClone",   label = "LocalPlayer—clone"  },
+        { key = "localDirect",  label = "LocalPlayer—direct" },
+        { key = "userIdClone",  label = "UserId—clone"       },
+        { key = "userIdDirect", label = "UserId—direct"      },
+    }
+
+    -- Playback params row: FPS / Loop / Movie Mode
+    local pbParamRow = hrow(playbackSec, 4, 4)
+    lbl(pbParamRow, "FPS:", 28, 1)
+    local pbFPSBox = textBox(pbParamRow, "30", 34, 2)
+    self._pbFPSBox = pbFPSBox
+    local pbLoopBtn = btn(pbParamRow, "Loop: OFF", 3)
+    self._pbLoopBtn = pbLoopBtn
+    self._pbLoop = false
+    pbLoopBtn.MouseButton1Click:Connect(function()
+        self._pbLoop = not self._pbLoop
+        pbLoopBtn.Text = "Loop: " .. (self._pbLoop and "ON" or "OFF")
+        ePlaybackParams:Fire({ fps = tonumber(pbFPSBox.Text) or 30,
+            loop = self._pbLoop, movieMode = self._pbMovieMode })
+    end)
+    local pbMovieBtn = btn(pbParamRow, "Movie: OFF", 4)
+    self._pbMovieBtn = pbMovieBtn
+    self._pbMovieMode = false
+    pbMovieBtn.MouseButton1Click:Connect(function()
+        self._pbMovieMode = not self._pbMovieMode
+        pbMovieBtn.Text = "Movie: " .. (self._pbMovieMode and "ON" or "OFF")
+        ePlaybackParams:Fire({ fps = tonumber(pbFPSBox.Text) or 30,
+            loop = self._pbLoop, movieMode = self._pbMovieMode })
+    end)
+    pbFPSBox.FocusLost:Connect(function()
+        local n = tonumber(pbFPSBox.Text)
+        if n then
+            n = math.clamp(math.floor(n), 1, 999)
+            pbFPSBox.Text = tostring(n)
+        else
+            pbFPSBox.Text = "30"
+        end
+        ePlaybackParams:Fire({ fps = tonumber(pbFPSBox.Text) or 30,
+            loop = self._pbLoop, movieMode = self._pbMovieMode })
+    end)
+
+    -- Snippet label
+    local pbSnipHdr = hrow(playbackSec, 5, 2)
+    lbl(pbSnipHdr, "Lua snippet  (paste into a LocalScript)", nil, 1)
+
+    -- Snippet TextBox (multi-line, read-only display)
+    local pbSnipFrame = Instance.new("Frame")
+    pbSnipFrame.Name               = "PBSnipFrame"
+    pbSnipFrame.Size               = UDim2.new(1, -8, 0, 120)
+    pbSnipFrame.BackgroundColor3   = Color3.fromRGB(30, 30, 30)
+    pbSnipFrame.BorderSizePixel    = 0
+    pbSnipFrame.LayoutOrder        = 6
+    pbSnipFrame.Parent             = playbackSec
+    Instance.new("UICorner", pbSnipFrame).CornerRadius = UDim.new(0, 4)
+    Instance.new("UIPadding", pbSnipFrame).PaddingLeft = UDim.new(0, 4)
+
+    local pbSnipBox = Instance.new("TextBox")
+    pbSnipBox.Name              = "SnippetBox"
+    pbSnipBox.Size              = UDim2.new(1, 0, 1, 0)
+    pbSnipBox.BackgroundTransparency = 1
+    pbSnipBox.TextColor3        = Color3.fromRGB(200, 230, 200)
+    pbSnipBox.Text              = "-- select a scene above --"
+    pbSnipBox.TextSize          = 10
+    pbSnipBox.Font              = Enum.Font.Code
+    pbSnipBox.TextXAlignment    = Enum.TextXAlignment.Left
+    pbSnipBox.TextYAlignment    = Enum.TextYAlignment.Top
+    pbSnipBox.MultiLine         = true
+    pbSnipBox.TextWrapped       = false
+    pbSnipBox.ClearTextOnFocus  = false
+    pbSnipBox.Parent            = pbSnipFrame
+    self._pbSnipBox = pbSnipBox
+
+    -- Copy + Preview buttons
+    local pbActionRow = hrow(playbackSec, 7, 4)
+    local pbCopyBtn = btn(pbActionRow, "📋 Copy Snippet", 1)
+    pbCopyBtn.MouseButton1Click:Connect(function()
+        ePlaybackCopy:Fire(pbSnipBox.Text)
+    end)
+    local pbPreviewBtn = btn(pbActionRow, "▶ Preview", 2, true)
+    pbPreviewBtn.MouseButton1Click:Connect(function()
+        ePlaybackPreview:Fire()
+    end)
+
+    -- Closure that rebuilds per-rig rows when the scene changes.
+    -- `rigNames` is a sorted list of rig name strings from the scene.
+    -- `currentModes` is a {[rigName] = modeKey} table (persisted by init.server.lua).
+    self._rebuildPlaybackRigRows = function(rigNames, currentModes)
+        currentModes = currentModes or {}
+        for _, c in ipairs(pbRigContainer:GetChildren()) do
+            if not c:IsA("UIListLayout") then c:Destroy() end
+        end
+        self._pbRigModes = {}
+        for i, rigName in ipairs(rigNames) do
+            local row = hrow(pbRigContainer, i, 2)
+            lbl(row, rigName .. ":", 60, 1)
+            -- Mode cycle button
+            local curMode = currentModes[rigName] or "fixed"
+            local modeIdx = 1
+            for idx, m in ipairs(RIG_MODES) do if m.key == curMode then modeIdx = idx; break end end
+            self._pbRigModes[rigName] = RIG_MODES[modeIdx].key
+            local modeBtn = btn(row, RIG_MODES[modeIdx].label, 2)
+            modeBtn.MouseButton1Click:Connect(function()
+                modeIdx = (modeIdx % #RIG_MODES) + 1
+                local m = RIG_MODES[modeIdx]
+                modeBtn.Text = m.label
+                self._pbRigModes[rigName] = m.key
+                ePlaybackRig:Fire(rigName, m.key)
+            end)
+            -- UserId textbox (only relevant for userId* modes, but always shown)
+            local uidBox = textBox(row, "", 60, 3)
+            uidBox.PlaceholderText = "UserId"
+            self._pbRigUserIds = self._pbRigUserIds or {}
+            uidBox.FocusLost:Connect(function()
+                self._pbRigUserIds[rigName] = tonumber(uidBox.Text) or nil
+                ePlaybackRig:Fire(rigName, self._pbRigModes[rigName])
+            end)
+        end
+    end
+
     self._root = root
     return self
 end
@@ -1091,6 +1273,63 @@ end
 function Panel:addKeyframeMarker(rigName, frame)
     local lane = self._trackLanes[rigName]
     if lane then lane:addMarker(frame) end
+end
+
+-- ── Playback tab ──────────────────────────────────────────────────────────────
+
+-- Update the scene name display in the Playback tab.
+function Panel:setPlaybackSceneDisplay(name)
+    if self._pbSceneBox then
+        self._pbSceneBox.Text = name or "—"
+    end
+end
+
+-- Rebuild per-rig mapping rows for the given scene's rig names.
+-- currentModes: { [rigName] = modeKey } (persisted by init.server.lua).
+function Panel:rebuildPlaybackRigRows(rigNames, currentModes)
+    if self._rebuildPlaybackRigRows then
+        self._rebuildPlaybackRigRows(rigNames, currentModes)
+    end
+end
+
+-- Update the snippet TextBox content.
+function Panel:setPlaybackSnippet(text)
+    if self._pbSnipBox then
+        self._pbSnipBox.Text = text or ""
+    end
+end
+
+-- Update FPS display in the Playback tab.
+function Panel:setPlaybackFPSDisplay(fps)
+    if self._pbFPSBox then
+        self._pbFPSBox.Text = tostring(math.floor(fps or 30))
+    end
+end
+
+-- Push Loop state display.
+function Panel:setPlaybackLoopDisplay(on)
+    self._pbLoop = on and true or false
+    if self._pbLoopBtn then
+        self._pbLoopBtn.Text = "Loop: " .. (self._pbLoop and "ON" or "OFF")
+    end
+end
+
+-- Push MovieMode state display.
+function Panel:setPlaybackMovieModeDisplay(on)
+    self._pbMovieMode = on and true or false
+    if self._pbMovieBtn then
+        self._pbMovieBtn.Text = "Movie: " .. (self._pbMovieMode and "ON" or "OFF")
+    end
+end
+
+-- Return current rig mode table { [rigName] = modeKey }.
+function Panel:getPlaybackRigModes()
+    return self._pbRigModes or {}
+end
+
+-- Return current per-rig UserIds { [rigName] = userId | nil }.
+function Panel:getPlaybackRigUserIds()
+    return self._pbRigUserIds or {}
 end
 
 -- ── Effects ───────────────────────────────────────────────────────────────────
@@ -1427,9 +1666,10 @@ function Panel:getMode()
 end
 
 function Panel:_applyModeVisibility()
-    local isSimple = (self._mode == "simple")
-    self._advancedWrap.Visible = not isSimple
-    self._simpleSec.Visible    = isSimple
+    local m = self._mode
+    self._advancedWrap.Visible = (m == "advanced")
+    self._simpleSec.Visible    = (m == "simple")
+    self._playbackSec.Visible  = (m == "playback")
 end
 
 function Panel:_showNewOverlay()

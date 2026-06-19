@@ -40,7 +40,7 @@ while the panel is open.
 
 | Section | What's in it |
 |---|---|
-| **Mode toggle** | `Simple` / `Advanced` buttons, always visible above RIGS IN SCENE — switches the whole panel layout without losing session data. See §11, Simple Mode. |
+| **Mode toggle** | `Simple` / `Advanced` / `Playback` buttons, always visible — switches the whole panel layout without losing session data. See §11 Simple Mode, §12 Playback Tab. |
 | **RIGS IN SCENE** | One button per detected rig (exclusive select — exactly one active), plus `↺ Refresh`, `+ Rig`, `Save As`, `Load`, `New` |
 | **PROPS IN SCENE** | `Track Part` button + one toggle per tracked prop (multi-select), each with a `×` to untrack |
 | **TIMELINE** | One keyframe lane per rig (yellow dots), the Camera lane (orange/red dots), and one lane per prop (teal dots) |
@@ -377,7 +377,70 @@ the scene.
 
 ---
 
-## 12. Tips & Troubleshooting
+## 12. Playback Tab — Use Animations In-Game
+
+The **Playback** tab (third mode button) lets you select any saved scene and
+generate a Lua snippet ready to paste into a game `LocalScript`. It also
+supports animating a **player's actual character** (or a local clone of it)
+as one of the rigs.
+
+### How to set up in-game playback
+
+1. **Server side** — add a `Script` to `ServerScriptService`:
+   ```lua
+   require(game.ServerStorage.MultiAnimationData.MultiAnimDataServer).setup()
+   ```
+   Deploy `MultiAnimDataServer.lua` to `ServerStorage.MultiAnimationData` (via
+   `mcp deploy` or manual paste). This creates the `MultiAnimGetScene`
+   RemoteFunction that clients call to fetch scene data.
+
+2. **Client side** — deploy `CutscenePlayer.lua`, `PlayerRigProxy.lua`, and
+   `LetterboxGui.lua` to `ReplicatedStorage`.
+
+3. **Paste the snippet** from the Playback tab into a `LocalScript`. Example:
+   ```lua
+   local CutscenePlayer = require(game.ReplicatedStorage.CutscenePlayer)
+   local handle = CutscenePlayer.play(
+       "MyScene",
+       {
+           Rig1 = workspace.FIGURES.Rig1,
+           Rig2 = { player = game.Players.LocalPlayer, mode = "clone" },
+       },
+       { fps = 30, loop = false, movieMode = true }
+   )
+   -- handle.stop() to cancel early
+   ```
+
+### Rig mapping modes
+
+| Mode | What it does |
+|------|-------------|
+| **Fixed rig** | Uses the workspace rig as-is (default) |
+| **LocalPlayer — clone** | Clones the local player's character; strips scripts and Humanoid; hides the original during playback; restores on finish |
+| **LocalPlayer — direct** | Animates the player's real character; sets `PlatformStand = true` to suppress physics; restores on finish |
+| **UserId — clone** | Same as clone but looks up the player by UserId (must be in the same server) |
+| **UserId — direct** | Same as direct but by UserId |
+
+**R6 only** — R15 player characters are warned and skipped.
+
+### Parameters
+
+| Control | Effect |
+|---------|--------|
+| **◄ / ►** scene selector | Cycle through saved sessions |
+| **FPS box** | Override playback speed (1–999; default uses the scene's recorded fps) |
+| **Loop** | Restart automatically when the last frame is reached |
+| **Movie Mode** | Shows cinematic black bars (top/bottom 10%) during playback |
+
+### Movie Mode (letterbox)
+
+Toggling **Movie Mode** on adds two black bars that cover the top and bottom
+10% of the screen via a `ScreenGui` in `PlayerGui` (DisplayOrder 200). They
+are automatically removed when playback finishes or `handle.stop()` is called.
+
+---
+
+## 13. Tips & Troubleshooting
 
 | Symptom | Explanation / fix |
 |---|---|

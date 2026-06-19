@@ -126,7 +126,7 @@ local camGizmos      = {}     -- { [frame] = Part }
 local gizmoSyncing   = false  -- guards the gizmo CFrame-changed feedback loop
 
 -- Simple Mode state (mode toggle + camera-view-while-posing flag)
-local mode = "advanced"   -- "advanced" | "simple"
+local mode = "advanced"   -- "advanced" | "simple" | "playback"
 local simpleCameraOn = false
 local advancedFrameCount = nil   -- saved frameCount to restore when leaving Simple Mode
 
@@ -140,6 +140,15 @@ local simpleLookThroughOn   = false
 local savedSimpleCamState   = nil
 local simpleLookThroughConn = nil
 local setSimpleLookThroughOn -- forward declared; defined in the SIMPLE MODE section, used by setSimpleCameraOn below
+
+-- Playback tab state
+local playbackScene    = nil    -- string: selected scene name
+local playbackScenes   = {}     -- sorted list of saved scene names
+local playbackSceneIdx = 0      -- index into playbackScenes (1-based)
+local playbackRigModes = {}     -- { [rigName] = modeKey }
+local playbackFPS      = 30
+local playbackLoop     = false
+local playbackMovieMode= false
 
 -- FOV-frustum outline drawn on the SimpleCamera part — an apex (the part's
 -- origin) plus a far rectangle sized from the FOV, so aim and field of view
@@ -1332,12 +1341,98 @@ end)
 
 -- ── Simple Mode handlers ──────────────────────────────────────────────────────
 
+-- ── Playback tab helpers ──────────────────────────────────────────────────────
+
+local buildPlaybackSnippet  -- forward declaration; defined just after doPlaybackScan
+
+-- Refresh the playbackScenes list from saved sessions and push to panel.
+local function doPlaybackScan()
+    local idx = getIndex()
+    playbackScenes = {}
+    for _, entry in ipairs(idx) do
+        table.insert(playbackScenes, entry.name)
+    end
+    table.sort(playbackScenes)
+    -- Select first scene if current selection no longer exists or none yet
+    if #playbackScenes == 0 then
+        playbackScene    = nil
+        playbackSceneIdx = 0
+        panel:setPlaybackSceneDisplay("—")
+        panel:rebuildPlaybackRigRows({}, {})
+        panel:setPlaybackSnippet("-- no saved scenes --")
+        return
+    end
+    if not playbackScene then
+        playbackSceneIdx = 1
+        playbackScene    = playbackScenes[1]
+    else
+        playbackSceneIdx = 1
+        for i, n in ipairs(playbackScenes) do
+            if n == playbackScene then playbackSceneIdx = i; break end
+        end
+    end
+    panel:setPlaybackSceneDisplay(playbackScene)
+    -- Rebuild rig rows: use the exported scene's rig names if we can find them
+    -- from the session index (names not available without loading the scene,
+    -- so start with an empty row set — rows get rebuilt when scene is loaded).
+    panel:rebuildPlaybackRigRows({}, playbackRigModes)
+    buildPlaybackSnippet()
+end
+
+-- Build the Lua snippet string and push to the panel's TextBox.
+buildPlaybackSnippet = function()
+    if not playbackScene then
+        panel:setPlaybackSnippet("-- no scene selected --")
+        return
+    end
+    local rigLines = {}
+    for rigName, modeKey in pairs(playbackRigModes) do
+        local line
+        if modeKey == "fixed" then
+            line = string.format('        %s = workspace.FIGURES.%s,', rigName, rigName)
+        elseif modeKey == "localClone" then
+            line = string.format('        %s = { player = game.Players.LocalPlayer, mode = "clone" },', rigName)
+        elseif modeKey == "localDirect" then
+            line = string.format('        %s = { player = game.Players.LocalPlayer, mode = "direct" },', rigName)
+        elseif modeKey == "userIdClone" then
+            line = string.format('        -- Replace 0 with the target player\'s UserId\n        %s = { userId = 0, mode = "clone" },', rigName)
+        elseif modeKey == "userIdDirect" then
+            line = string.format('        -- Replace 0 with the target player\'s UserId\n        %s = { userId = 0, mode = "direct" },', rigName)
+        else
+            line = string.format('        %s = workspace.FIGURES.%s,', rigName, rigName)
+        end
+        table.insert(rigLines, line)
+    end
+    local rigBlock = #rigLines > 0
+        and table.concat(rigLines, "\n")
+        or '        -- no rigs — add rig slots here'
+    local snippet = string.format(
+        'local CutscenePlayer = require(game.ReplicatedStorage.CutscenePlayer)\n' ..
+        'local handle = CutscenePlayer.play(\n' ..
+        '    "%s",\n' ..
+        '    {\n' ..
+        '%s\n' ..
+        '    },\n' ..
+        '    { fps = %d, loop = %s, movieMode = %s }\n' ..
+        ')',
+        playbackScene,
+        rigBlock,
+        playbackFPS,
+        tostring(playbackLoop),
+        tostring(playbackMovieMode)
+    )
+    panel:setPlaybackSnippet(snippet)
+end
+
 panel.onModeChanged:Connect(function(newMode)
     if newMode == "simple" then
         advancedFrameCount = timeline:getFrameCount()
         mode = newMode
         clearCameraGizmos()
         doSimpleScan()
+    elseif newMode == "playback" then
+        mode = newMode
+        doPlaybackScan()
     else
         mode = newMode
         if advancedFrameCount then
@@ -1370,6 +1465,59 @@ end)
 panel.onSimpleFPSChanged:Connect(function(fps)
     timeline:setFps(fps)
     recorder:setFps(fps)
+end)
+
+-- ── Playback tab event handlers ───────────────────────────────────────────────
+
+panel.onPlaybackSceneChanged:Connect(function(name)
+    if name == "__prev__" then
+        if #playbackScenes == 0 then return end
+        playbackSceneIdx = ((playbackSceneIdx - 2) % #playbackScenes) + 1
+        playbackScene    = playbackScenes[playbackSceneIdx]
+        panel:setPlaybackSceneDisplay(playbackScene)
+        panel:rebuildPlaybackRigRows({}, playbackRigModes)
+        buildPlaybackSnippet()
+    elseif name == "__next__" then
+        if #playbackScenes == 0 then return end
+        playbackSceneIdx = (playbackSceneIdx % #playbackScenes) + 1
+        playbackScene    = playbackScenes[playbackSceneIdx]
+        panel:setPlaybackSceneDisplay(playbackScene)
+        panel:rebuildPlaybackRigRows({}, playbackRigModes)
+        buildPlaybackSnippet()
+    else
+        playbackScene = name
+        for i, n in ipairs(playbackScenes) do
+            if n == name then playbackSceneIdx = i; break end
+        end
+        panel:setPlaybackSceneDisplay(playbackScene)
+        panel:rebuildPlaybackRigRows({}, playbackRigModes)
+        buildPlaybackSnippet()
+    end
+end)
+
+panel.onPlaybackRigChanged:Connect(function(rigName, modeKey)
+    playbackRigModes[rigName] = modeKey
+    buildPlaybackSnippet()
+end)
+
+panel.onPlaybackParamsChanged:Connect(function(params)
+    if params.fps        ~= nil then playbackFPS       = math.clamp(math.floor(params.fps), 1, 999) end
+    if params.loop       ~= nil then playbackLoop      = params.loop end
+    if params.movieMode  ~= nil then playbackMovieMode = params.movieMode end
+    buildPlaybackSnippet()
+end)
+
+panel.onPlaybackCopySnippet:Connect(function(text)
+    -- Studio doesn't expose a clipboard API in plugin context.
+    -- We set the snippet box text (already set) and print to output as fallback.
+    print("[MultiAnimation] Snippet copied to Output — paste it into your LocalScript:\n" .. tostring(text))
+end)
+
+panel.onPlaybackPreview:Connect(function()
+    -- Preview: execute snippet in Client context via execute_luau is not possible
+    -- from plugin. Best UX: print a reminder and let the user run it manually.
+    print("[MultiAnimation] To preview, paste the snippet (see Output) into a LocalScript and run in Play mode.")
+    buildPlaybackSnippet()
 end)
 
 panel.onCopyKeyframeRequested:Connect(doCopyKeyframe)
@@ -2068,6 +2216,10 @@ local testBridge = TestBridge.start({
             panel:setMode(a.mode)
             clearCameraGizmos()
             doSimpleScan()
+        elseif a.mode == "playback" then
+            mode = a.mode
+            panel:setMode(a.mode)
+            doPlaybackScan()
         else
             mode = a.mode
             panel:setMode(a.mode)
@@ -2201,6 +2353,76 @@ local testBridge = TestBridge.start({
         panel:setFrameDisplay(f, timeline:getFrameCount())
         applyPosesAt(f, false)
         return f
+    end,
+
+    -- ── Playback tab TestBridge commands ─────────────────────────────────────
+    -- Switch to (or query) playback mode.
+    setPlaybackMode = function()
+        if mode ~= "playback" then
+            mode = "playback"
+            panel:setMode("playback")
+            doPlaybackScan()
+        end
+        return mode
+    end,
+
+    getPlaybackMode = function()
+        return mode
+    end,
+
+    -- Refresh the playback scene list from saved sessions.
+    refreshPlaybackScenes = function()
+        doPlaybackScan()
+        return { scene = playbackScene, scenes = playbackScenes }
+    end,
+
+    -- Select a specific scene by name.
+    setPlaybackScene = function(a)
+        playbackScene = a.name
+        for i, n in ipairs(playbackScenes) do
+            if n == a.name then playbackSceneIdx = i; break end
+        end
+        panel:setPlaybackSceneDisplay(playbackScene)
+        panel:rebuildPlaybackRigRows({}, playbackRigModes)
+        buildPlaybackSnippet()
+        return playbackScene
+    end,
+
+    getPlaybackScene = function()
+        return playbackScene
+    end,
+
+    -- Simulate cycling a rig's mode.
+    setPlaybackRigMode = function(a)
+        playbackRigModes[a.rigName] = a.mode
+        buildPlaybackSnippet()
+        return playbackRigModes[a.rigName]
+    end,
+
+    getPlaybackRigModes = function()
+        return playbackRigModes
+    end,
+
+    -- Set playback params.
+    setPlaybackParams = function(a)
+        if a.fps        ~= nil then playbackFPS       = math.clamp(math.floor(tonumber(a.fps) or 30), 1, 999) end
+        if a.loop       ~= nil then playbackLoop      = a.loop and true or false end
+        if a.movieMode  ~= nil then playbackMovieMode = a.movieMode and true or false end
+        panel:setPlaybackFPSDisplay(playbackFPS)
+        panel:setPlaybackLoopDisplay(playbackLoop)
+        panel:setPlaybackMovieModeDisplay(playbackMovieMode)
+        buildPlaybackSnippet()
+        return { fps = playbackFPS, loop = playbackLoop, movieMode = playbackMovieMode }
+    end,
+
+    getPlaybackParams = function()
+        return { fps = playbackFPS, loop = playbackLoop, movieMode = playbackMovieMode }
+    end,
+
+    -- Returns the current snippet text.
+    getPlaybackSnippet = function()
+        buildPlaybackSnippet()
+        return panel._pbSnipBox and panel._pbSnipBox.Text or ""
     end,
 })
 

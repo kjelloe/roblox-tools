@@ -12,7 +12,8 @@
 | 6 | Polish | ✅ Complete |
 | 7 | Prop Animation | ✅ Complete |
 | 8 | Camera Track & Cutscenes | ✅ Complete |
-| 9 | Quality of Life | 🔄 In Progress |
+| 9 | Quality of Life | ✅ Complete |
+| 10 | Playback Tab + Player Rig Substitution | ✅ Complete |
 
 ---
 
@@ -293,7 +294,7 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
 
 ---
 
-## Phase 9 — Quality of Life 🔄
+## Phase 9 — Quality of Life ✅
 
 ### Completed
 
@@ -465,6 +466,45 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
   - **New TestBridge commands:** `getSimpleFPS`, `setSimpleFPS {fps}`, `simpleNavigate {frame}`
     (simulates icon click with auto-capture logic).
   - **10 new test cases** in `test_ui_simple.lua` (suite: 365 cases across 19 files).
+
+- [x] **Phase 10 — Playback Tab + Player Rig Substitution (complete).**
+  - **Third "Playback" tab** in the plugin panel alongside Simple/Advanced, with:
+    - Scene selector (◄/► cycle through saved sessions)
+    - Per-rig mapping rows: Fixed / LocalPlayer clone / LocalPlayer direct / UserId clone / UserId direct
+    - FPS box, Loop toggle, Movie Mode toggle
+    - Multi-line Lua snippet `TextBox` (read-only display) that updates live as params change
+    - Copy Snippet button (prints to Output) + Preview button
+  - **Four new `game/` runtime modules** for in-game playback:
+    - `LetterboxGui.lua` — client-side cinematic black bars (top/bottom 10%, DisplayOrder 200)
+    - `PlayerRigProxy.lua` — resolves player entries into R6 rig models; clone mode (clones
+      character locally, hides original, strips scripts/Humanoid, teardown destroys clone +
+      restores original); direct mode (PlatformStand=true, teardown restores); R6-only with warn
+      for R15; `resolveAll` for batch resolution with combined teardown
+    - `MultiAnimDataServer.lua` — server-side `MultiAnimGetScene` RemoteFunction; parses KFS
+      instances + ScaleTracks/PropTracks/RootTracks/CameraTrack/EffectTracks ModuleScripts from
+      `ServerStorage.MultiAnimationData` into a serializable table; call `setup()` from a
+      Script in ServerScriptService
+    - `CutscenePlayer.lua` — client-side LocalScript module; `play(sceneName, rigMap, opts)`
+      returns a `handle.stop()`; Heartbeat loop drives Motor6D.Transform (joints), HRP.CFrame
+      (root track), Part.Size (scale), workspace.CurrentCamera (camera track); supports
+      FPS override, loop, movie mode letterbox; teardown restores camera type
+  - **Snippet generation:** `buildPlaybackSnippet()` builds a Lua string from current scene +
+    rig modes + FPS/loop/movieMode — updated live on any param change
+  - **New TestBridge commands:** `setPlaybackMode`, `getPlaybackMode`, `refreshPlaybackScenes`,
+    `setPlaybackScene`, `getPlaybackScene`, `setPlaybackRigMode`, `getPlaybackRigModes`,
+    `setPlaybackParams`, `getPlaybackParams`, `getPlaybackSnippet`; also `setMode` extended to
+    handle `"playback"` case (calls `doPlaybackScan`)
+  - **99 new test cases** across 2 new test files:
+    - `test_player_rig_proxy.lua` — 48 cases: module loads, fixed pass-through, nil/bad entry,
+      R6 detection, savePartStates/restore round-trip, clone mode (name/parent/Humanoid/HRP/hide/
+      teardown), direct mode (PlatformStand/teardown), R15 rejection, resolveAll mix, idempotent
+      teardown, destroyed-character teardown, anchor CFs, findPlayerByUserId in edit mode
+    - `test_ui_playback.lua` — 51 cases: mode switch, scene list, scene selection, rig mode
+      cycling (all 5 modes), FPS/Loop/MovieMode round-trips + clamping, getPlaybackParams,
+      snippet contains scene name + CutscenePlayer + workspace.FIGURES/LocalPlayer/userId/
+      mode strings + loop/movieMode/fps values, multi-rig snippet, partial param update
+      preservation, mode persistence
+  - **Suite total: 464 cases across 21 files, all passing.**
 
 ### Backlog
 
