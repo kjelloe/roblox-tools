@@ -1425,7 +1425,8 @@ end
 -- Keyboard shortcuts (fire when viewport is focused; ignored when a TextBox has focus).
 track(game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    if      input.KeyCode == Enum.KeyCode.K  then doAddKeyframe()
+    if      input.KeyCode == Enum.KeyCode.K  then
+        if mode == "simple" then doSimpleAddFrame() else doAddKeyframe() end
     elseif  input.KeyCode == Enum.KeyCode.L  then doStepFrame( 1)   -- L = step forward
     elseif  input.KeyCode == Enum.KeyCode.J  then doStepFrame(-1)   -- J = step back
     elseif  input.KeyCode == Enum.KeyCode.C  then doCameraCapture() -- C = camera keyframe
@@ -1504,7 +1505,14 @@ buildPlaybackSnippet = function()
     end
     local rigBlock = #rigLines > 0
         and table.concat(rigLines, "\n")
-        or '        -- no rigs — add rig slots here'
+        or table.concat({
+            '        -- No rig mappings configured. Examples:',
+            '        -- Rig1 = workspace.FIGURES.Rig1,                              -- fixed scene rig',
+            '        -- Rig1 = { player = game.Players.LocalPlayer, mode = "clone" },  -- current player (clone)',
+            '        -- Rig1 = { player = game.Players.LocalPlayer, mode = "direct" }, -- current player (direct)',
+            '        -- Rig1 = { userId = 1234567, mode = "clone" },                -- specific player by UserId',
+            '        -- Rig1 = game.Players:FindFirstChild("PlayerName").Character,  -- player by name',
+        }, "\n")
     local snippet = string.format(
         'local CutscenePlayer = require(game.ReplicatedStorage.CutscenePlayer)\n' ..
         'local handle = CutscenePlayer.play(\n' ..

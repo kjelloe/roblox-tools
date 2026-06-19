@@ -213,7 +213,7 @@ typing in a textbox. The legend at the bottom of the panel lists them too.
 
 | Key | Action |
 |-----|--------|
-| **`K`** | Add / update keyframe for all **active rigs and props** at the current frame |
+| **`K`** | **Advanced:** Add / update keyframe for all active rigs and props · **Simple:** same as `+ Add Frame` |
 | **`J`** | Step timeline **back** by Step frames (default 2) |
 | **`L`** | Step timeline **forward** by Step frames (default 2) |
 | **`C`** | Capture the viewport camera as a **camera keyframe** at the current frame |
