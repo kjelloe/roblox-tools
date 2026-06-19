@@ -506,6 +506,27 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
       preservation, mode persistence
   - **Suite total: 464 cases across 21 files, all passing.**
 
+- [x] **Phase 10 bug-fix pass: frameCount invariant + test regression guards.**
+  - **Root cause:** entering Playback mode did not save `advancedFrameCount` (unlike Simple
+    mode), so switching back to Advanced left the timeline at the small synthetic frameCount
+    from `doSimpleScan` or `doPlaybackScan`. Autosave could also fire while in Simple mode
+    and persist that small count, causing `doLoad` to start with e.g. 2 frames on the next
+    plugin load. This broke `test_ui_bridge` (setFrame 7 clamped to 2), `test_ui_camera`
+    (PARK_A negative → crash at `kfA.result.cf`), and `test_ui_simple` timing tests (animation
+    too short for 0.1 s mid-play window).
+  - **Fix 1:** All three Playback entry points (`onModeChanged`, `setMode` bridge cmd,
+    `setPlaybackMode` bridge cmd) now save `advancedFrameCount = timeline:getFrameCount()`
+    when entering, mirroring the existing Simple mode pattern.
+  - **Fix 2:** `serializeSession()` uses `advancedFrameCount or session.frameCount`, so
+    autosaves in Simple/Playback mode never persist the small synthetic count.
+  - **Fix 3:** `doLoad` clamps `frameCount` to `math.max(data.frameCount, 20)` as a safety
+    floor against corrupt saves.
+  - **Fix 4:** `test_ui_playback` cleanup always restores to "advanced" (not just if
+    `origMode ~= "playback"`), preventing stale mode state from leaking into subsequent tests.
+  - **2 new regression tests:** `test_ui_simple.lua` (+1, 60 total) and `test_ui_playback.lua`
+    (+1, 52 total) each verify that `frameCount` survives a full round-trip through their
+    respective non-advanced mode. **Suite total: 466 cases across 21 files, all passing.**
+
 ### Backlog
 
 - Multiple named cameras + switcher track (authoring sugar over Phase 8 cuts)

@@ -26,7 +26,8 @@ local function call(cmd, args)
 end
 
 -- ── Capture initial state so we can restore it at the end ────────────────────
-local origMode = call("getMode") or "advanced"
+local origMode       = call("getMode") or "advanced"
+local origFrameCount = call("getFrameCount") or 120
 
 -- ── 1. Mode switch to Playback ────────────────────────────────────────────────
 call("setPlaybackMode")
@@ -209,10 +210,16 @@ ok(gotParams.movieMode == true, "partial setPlaybackParams: movieMode preserved"
 -- ── 25. Playback tab stays in playback mode (no implicit mode switch) ─────────
 ok(call("getPlaybackMode") == "playback", "mode is still 'playback' at end of test")
 
--- ── Restore original state ────────────────────────────────────────────────────
--- Always leave in advanced (or original non-playback mode) so that subsequent
--- test files are not left with a tiny frameCount from the playback context.
+-- ── 26. frameCount preserved through playback→advanced round-trip ────────────
+-- Regression: entering playback used to skip saving advancedFrameCount, so the
+-- advanced frame count was lost when restoring (the restore branch found nil).
 call("setMode", { mode = (origMode and origMode ~= "playback") and origMode or "advanced" })
+local fcAfter = call("getFrameCount") or 0
+ok(fcAfter >= origFrameCount,
+    string.format("frameCount restored after playback→advanced (%d→%d)", origFrameCount, fcAfter))
+
+-- ── Restore original state ────────────────────────────────────────────────────
+-- (mode already restored in test 26 above)
 -- Reset playback state
 call("setPlaybackParams", { fps = 30, loop = false, movieMode = false })
 

@@ -47,9 +47,10 @@ end
 
 -- ── Save state to restore at the end ─────────────────────────────────────────
 
-local prevMode   = call("getMode")
-local prevFrame  = call("getCurrentFrame")
-local prevActive = call("getActiveRigs")
+local prevMode       = call("getMode")
+local prevFrame      = call("getCurrentFrame")
+local prevActive     = call("getActiveRigs")
+local prevFrameCount = call("getFrameCount")
 
 -- The Camera View camera is now a real, persistent Part (created on first
 -- toggle-on) rather than a flag with no scene effect — only destroy it at
@@ -479,13 +480,33 @@ do
     end
 end
 
+-- ── frameCount preserved through simple→advanced round-trip ──────────────────
+-- Regression: autosave fired while in simple mode used to persist the tiny
+-- simple-mode frameCount, so the next plugin load started with e.g. 2 frames.
+-- serializeSession now always uses advancedFrameCount when in simple mode.
+-- We start from advanced, do the full round-trip, then check preservation.
+do
+    local targetMode = prevMode.ok and prevMode.result or "advanced"
+    -- First get to advanced so advancedFrameCount is nil (clean state).
+    call("setMode", { mode = "advanced" })
+    local fc0 = (call("getFrameCount").ok and call("getFrameCount").result) or 20
+    -- Now do the round-trip that used to corrupt the count.
+    call("setMode", { mode = "simple" })
+    call("setMode", { mode = "advanced" })
+    local fcNow = (call("getFrameCount").ok and call("getFrameCount").result) or 0
+    ok("frameCount preserved through advanced→simple→advanced round-trip",
+        fcNow >= fc0, tostring(fc0) .. "→" .. tostring(fcNow))
+    -- Restore user mode last (already in advanced if prevMode was advanced).
+    if targetMode ~= "advanced" then call("setMode", { mode = targetMode }) end
+end
+
 -- ── Restore user state ────────────────────────────────────────────────────────
 
 if prevFrame.ok then call("setFrame", { frame = prevFrame.result }) end
 if prevActive.ok and prevActive.result[1] then
     call("setActiveRig", { name = prevActive.result[1] })
 end
-if prevMode.ok then call("setMode", { mode = prevMode.result }) end
+-- mode already restored in the regression test above
 
 if not preexistingSimpleCam then
     local fig = workspace:FindFirstChild("FIGURES")

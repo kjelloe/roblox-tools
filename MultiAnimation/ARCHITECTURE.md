@@ -431,6 +431,8 @@ Session data is stored in `plugin:GetSetting("session")` as a JSON string so it
 survives panel close/reopen within the same Studio session. It is cleared on explicit
 "New Session" or when the place file is closed.
 
+**frameCount persistence invariant:** `serializeSession()` saves `advancedFrameCount or session.frameCount`. This prevents the small synthetic frameCount that Simple/Playback mode writes into the recorder (`maxKF+1` or 1 for empty session) from being persisted to disk — autosave may fire while in those modes, but the saved value is always the real advanced-mode length. `doLoad` additionally clamps the loaded frameCount to `math.max(data.frameCount, 20)` as a safety floor against corrupt saves. All three entry points to Playback mode (UI button `onModeChanged`, `setMode` bridge command, `setPlaybackMode` bridge command) must save `advancedFrameCount = timeline:getFrameCount()` when entering, so the restoration on return to Advanced mode works correctly — same invariant as Simple mode entry.
+
 ### Whole-Model Movement (Root Track)
 
 `session.rigs[rigName].rootTrack[frame] = HumanoidRootPart.CFrame` — world-space CFrame captured alongside joint/scale data in every `addKeyframe` call.
@@ -513,7 +515,7 @@ locally-computed camera — accepted v1 trade-off.
 | `build.py` | Assembles `.rbxmx` from source files and copies to Plugins folder |
 | `watch.py` | Auto-build on save, with Studio compile-check first |
 | `devsync.py` + `plugin/devloader.lua` | Hot-reload the plugin on save — no Studio restart |
-| `run_tests.py` | Runs the full `tests/` suite (464 cases, 21 files) against live Studio |
+| `run_tests.py` | Runs the full `tests/` suite (466 cases, 21 files) against live Studio |
 | `hotpatch.py` | Push a single `game/` module without reload |
 | `mcp.py` (`mcp` alias) | CLI for everything: luau, console/tail, tree/inspect/read/grep, check, drift, test, deploy, playtest, gen, store, addrig, scene, daemon |
 | MCP daemon | Persistent StudioMCP proxy (auto-starts) — 0.07s/call vs ~7s |

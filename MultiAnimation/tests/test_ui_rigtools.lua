@@ -123,13 +123,10 @@ if occupied then
     return finish()
 end
 
--- Empty-clipboard paste is rejected cleanly (clipboard may hold older session
--- data, so only assert when it reports empty).
-r = call("getClipboard")
-if r.ok and r.result == nil then
-    r = call("pasteKeyframe", { mirrored = false })
-    ok("paste with empty clipboard returns false", r.ok and r.result == false, r.err)
-end
+-- Empty-clipboard paste is rejected cleanly; clear first to ensure determinism.
+call("clearClipboard")
+r = call("pasteKeyframe", { mirrored = false })
+ok("paste with empty clipboard returns false", r.ok and r.result == false, r.err)
 
 -- Record a source keyframe on rigA and give it a distinctive right-shoulder pose.
 call("setActiveRig", { name = rigA })

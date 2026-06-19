@@ -2123,6 +2123,12 @@ local testBridge = TestBridge.start({
         return { rig = kfClipboard.rig, frame = kfClipboard.frame }
     end,
 
+    clearClipboard = function()
+        kfClipboard = nil
+        panel:setClipboardDisplay(nil)
+        return true
+    end,
+
     getJointCF = function(a)
         local jd = recorder:getJointData(a.rig, a.frame)
         local cf = jd and jd[a.joint]
