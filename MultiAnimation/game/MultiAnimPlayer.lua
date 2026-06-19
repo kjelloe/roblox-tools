@@ -84,13 +84,12 @@ local function parseKFS(kfs)
 end
 
 -- Convert a {[frame]=data} table to sorted { {time, easing, data} } using fps.
--- Supports both old flat format and new {data=..., easing=...} wrapper.
-local function toSortedKFs(frameTable, fps, buildFn)
+-- easingsTable is an optional parallel {[frame]=easingString} table.
+local function toSortedKFs(frameTable, fps, buildFn, easingsTable)
     local out = {}
     for frame, raw in pairs(frameTable) do
-        local actualData = raw.data or raw
-        local easing = (type(raw.easing) == "string" and raw.easing) or "Linear"
-        table.insert(out, { time = (frame - 1) / fps, data = buildFn(actualData), easing = easing })
+        local easing = (easingsTable and easingsTable[frame]) or "Linear"
+        table.insert(out, { time = (frame - 1) / fps, data = buildFn(raw), easing = easing })
     end
     table.sort(out, function(a, b) return a.time < b.time end)
     return out
@@ -230,7 +229,7 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap)
                     parts[pName] = Vector3.new(arr[1], arr[2], arr[3])
                 end
                 return parts
-            end)
+            end, scaleTracks.easings and scaleTracks.easings[rigName])
             for _, kf in ipairs(state.scaleKFs) do
                 totalLength = math.max(totalLength, kf.time)
             end
@@ -242,7 +241,7 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap)
                                   arr[4],arr[5],arr[6],
                                   arr[7],arr[8],arr[9],
                                   arr[10],arr[11],arr[12])
-            end)
+            end, rootTracks.easings and rootTracks.easings[rigName])
             for _, kf in ipairs(state.rootKFs) do
                 totalLength = math.max(totalLength, kf.time)
             end
@@ -281,7 +280,7 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap)
                                   arr[4],arr[5],arr[6],
                                   arr[7],arr[8],arr[9],
                                   arr[10],arr[11],arr[12])
-            end)
+            end, propTracks.easings and propTracks.easings[propName])
             for _, kf in ipairs(kfs) do
                 totalLength = math.max(totalLength, kf.time)
             end

@@ -179,7 +179,34 @@ Trigger one-shot effects — particle bursts, sound cues, light flashes — exac
 
 ---
 
-## 7. Keyboard Shortcuts
+## 7. Keyframe Easing
+
+Every keyframe stores an **easing curve** that shapes the interpolation from that
+keyframe toward the next one. The default is Linear (constant speed). Six styles
+are available:
+
+| Style | Effect |
+|---|---|
+| **Linear** | Constant speed — the default |
+| **Ease In** | Starts slow, accelerates (cubic in) |
+| **Ease Out** | Arrives slow, decelerates (cubic out) |
+| **EaseInOut** | Slow start *and* end, faster in the middle |
+| **Constant** | Hold the pose until the next keyframe (step / hold) |
+| **Bounce** | Overshoots and bounces near the target |
+
+**Advanced mode:** right-click any keyframe dot (rig, prop, camera, or effect lane)
+to open a context menu with all six easing options and a Delete option. The menu
+appears at cursor position; clicking outside it (or any option) dismisses it.
+
+**Simple mode:** the **`Ease: Linear`** button (to the right of `+ Add Frame`) opens
+the same easing picker. The selected easing is stamped onto all rigs, props, and the
+camera when you press `+ Add Frame`. Navigating to a frame that already has a keyframe
+syncs the button to show its stored easing automatically.
+
+---
+
+## 8. Keyboard Shortcuts
+
 
 All shortcuts work while the viewport has focus and are ignored while you're
 typing in a textbox. The legend at the bottom of the panel lists them too.
@@ -195,7 +222,7 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 
 ---
 
-## 8. Mouse Interactions — Complete Reference
+## 9. Mouse Interactions — Complete Reference
 
 | Where | Action | Result |
 |---|---|---|
@@ -210,7 +237,7 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 | Prop button `×` | Click | Untrack prop (data kept) |
 | `Track Part` | Click | Track the viewport-selected BasePart as a prop |
 | Any keyframe dot | Left-click | Jump timeline to that frame |
-| Any keyframe dot | **Right-click** | **Delete** that keyframe (that lane only) |
+| Any keyframe dot (Advanced) | **Right-click** | Open context menu: set easing curve (6 styles) or Delete that keyframe |
 | Rig / prop lane | Double-click | Jump there + add keyframe for that rig/prop |
 | Camera lane | Double-click | Jump there + capture a camera keyframe |
 | Camera gizmo (viewport) | Click | Jump timeline to that camera keyframe |
@@ -223,6 +250,7 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 | Scrubber | Drag | Scrub; auto-updates an existing keyframe at the departure frame |
 | `\|◄` / `►\|` | Click | Jump to first / last frame |
 | `◄` / `►` | Click | Step one frame back / forward |
+| **Simple mode** `Ease: Linear` | Click | Open easing picker: Linear / Ease In / Ease Out / EaseInOut / Constant / Bounce. Sets the outgoing curve for the next frame capture. Auto-syncs when you navigate to an existing keyframe. |
 | **Simple mode** `+ Add Frame` | Click | Capture current frame's pose. At the blank end slot: grow the timeline by 1 and advance cursor. At an existing frame: update its data and advance cursor by 1 (no grow). |
 | **Simple mode** `+ Insert` | Click | Insert a blank frame at the current position, shift all subsequent frame data right by 1 |
 | **Simple mode** `▶ Play` / `■ Stop` | Click | Play from the current frame to the end, or stop mid-playback |
@@ -239,7 +267,7 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 
 ---
 
-## 9. Sessions: Save, Load, New
+## 10. Sessions: Save, Load, New
 
 - Everything auto-saves to an `_autosave` slot one second after any change.
 - **💾 Save** writes a quick-save to whatever name is in the scene box right
@@ -253,7 +281,7 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 
 ---
 
-## 10. Export & In-Game Playback
+## 11. Export & In-Game Playback
 
 Type a scene name (default `Scene_001`) and press **⬆ Export**. This writes to
 `ServerStorage.MultiAnimationData.<SceneName>`:
@@ -298,7 +326,7 @@ commit it with your code. `mcp scene push` restores it into Studio.
 
 ---
 
-## 11. Simple Mode (Quick Capture)
+## 12. Simple Mode (Quick Capture)
 
 A lighter, faster workflow for straightforward poses-on-a-timeline work —
 no rig selection, no manual prop tracking, no "Add Keyframe" button to
@@ -385,7 +413,7 @@ the scene.
 
 ---
 
-## 12. Playback Tab — Use Animations In-Game
+## 13. Playback Tab — Use Animations In-Game
 
 The **Playback** tab (third mode button) lets you select any saved scene and
 generate a Lua snippet ready to paste into a game `LocalScript`. It also
@@ -448,7 +476,7 @@ are automatically removed when playback finishes or `handle.stop()` is called.
 
 ---
 
-## 13. Tips & Troubleshooting
+## 14. Tips & Troubleshooting
 
 | Symptom | Explanation / fix |
 |---|---|

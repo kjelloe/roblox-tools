@@ -60,14 +60,14 @@
 | `core/TestBridge` | Core | CoreGui BindableFunction — lets execute_luau drive the live panel (UI tests) |
 | `core/CameraCapture` | Core | Reads/writes the Studio viewport camera (capture keyframes, Camera Preview) |
 | `core/Timeline` | Core | Frame counter, fps, prev/next KF helpers |
-| `core/Interpolator` | Core | Linear lerp between keyframes (joints, scale, props) |
+| `core/Interpolator` | Core | Per-keyframe easing lerp between keyframes (joints, scale, root, prop, camera); `easedAlpha` via TweenService |
 | `core/PoseApplier` | Core | Applies poses; manages ChangeHistoryService |
 | `core/Exporter` | Core | Builds KeyframeSequence (uses `Pose.CFrame`) + ScaleTracks + RootTracks + PropTracks |
 | `ui/Panel` | UI | Root layout; owns all sections and events |
 | `ui/RigSelector` | UI | Per-rig exclusive-select buttons (radio-button style) |
 | `ui/PropSelector` | UI | Per-prop multi-select toggle buttons + Track Part button |
 | `ui/TrackLane` | UI | One horizontal keyframe lane per rig or prop (colour-coded) |
-| `ui/KeyframeMarker` | UI | Individual dot on a TrackLane; left-click jumps, right-click deletes |
+| `ui/KeyframeMarker` | UI | Individual dot on a TrackLane; left-click jumps, right-click opens easing/delete context menu |
 | `ui/Scrubber` | UI | Horizontal drag slider for frame position |
 | `game/MultiAnimPlayer` | Game | In-game simultaneous playback — direct Motor6D.Transform Heartbeat loop |
 | `game/CutsceneServer` | Game | Synchronized cutscene start: plays anims, broadcasts camera track + timestamp |
@@ -128,7 +128,8 @@ init.server.lua
     ├── Timeline.lua        Tracks currentFrame, frameCount, fps
     │                       Interpolation helpers (lerp between keyframes)
     │
-    ├── Interpolator.lua    Linear lerp between keyframes (joints, scale, props)
+    ├── Interpolator.lua    Per-keyframe easing lerp (joints, scale, root, prop, camera)
+    │                       easedAlpha via TweenService:GetValue
     │                       getPropData, getAllPropFrames, getAllFrames
     │
     ├── PoseApplier.lua     Writes joint CFrames back to Motor6Ds (viewport preview)
@@ -269,13 +270,14 @@ Exporter.export(session, sceneName)
         │               each Pose.CFrame = captured Motor6D.Transform CFrame
         │       insert KeyframeSequence into scene folder
         │
-        ├── build ScaleTracks — { fps, rigs = { Rig1={[f]={part={x,y,z}}} } }
+        ├── build ScaleTracks — { fps, rigs={...}, easings={...} }
+        │       per-frame easing in parallel easings table (omitted if all Linear)
         │       serialise to ModuleScript source; insert into scene folder
         │
-        ├── build RootTracks — { fps, rigs = { Rig1={[f]={12-number array}} } }
+        ├── build RootTracks — { fps, rigs={...}, easings={...} }
         │       omitted if no rig has whole-model movement keyframes
         │
-        ├── build PropTracks — { fps, props = { Block={[f]={12-number array}} } }
+        ├── build PropTracks — { fps, props={...}, easings={...} }
         │       omitted if no props were tracked
         │
         ├── deploy MultiAnimPlayer ModuleScript into MultiAnimationData root
@@ -291,20 +293,25 @@ require(MultiAnimPlayer).play("Scene_001", rigMap, propMap?)
         ▼
 Load from ServerStorage.MultiAnimationData.Scene_001
         │
-        ├── parseKFS(Rig_Joints KeyframeSequence)   → sorted { {time, poses} }
-        ├── toSortedKFs(ScaleTracks.rigs[name])     → sorted { {time, parts=V3s} }
-        ├── toSortedKFs(RootTracks.rigs[name])      → sorted { {time, data=CFrame} }
-        ├── toSortedKFs(PropTracks.props[name])     → sorted { {time, data=CFrame} }
+        ├── parseKFS(Rig_Joints KeyframeSequence)   → sorted { {time, poses, easing} }
+        ├── toSortedKFs(ScaleTracks.rigs[name], fps, buildFn, easingsTable)
+        │     → sorted { {time, data=parts, easing} }
+        ├── toSortedKFs(RootTracks.rigs[name], fps, buildFn, easingsTable)
+        │     → sorted { {time, data=CFrame, easing} }
+        ├── toSortedKFs(PropTracks.props[name], fps, buildFn, easingsTable)
+        │     → sorted { {time, data=CFrame, easing} }
         │
         └── RunService.Heartbeat loop (startTime = tick()):
                 elapsed = tick() - startTime
                 for each rig:
                     surrounding(jointKFs, elapsed) → before, after
-                    motor.Transform = lerpCF(before.poses[j], after.poses[j], α)
-                    part.Size       = lerpV3(before.data[p],  after.data[p],  α)
-                    hrp.CFrame      = lerpCF(before.data,     after.data,     α)
+                    t = easedAlpha(alpha, before.easing)
+                    motor.Transform = lerpCF(before.poses[j], after.poses[j], t)
+                    part.Size       = lerpV3(before.data[p],  after.data[p],  t)
+                    hrp.CFrame      = lerpCF(before.data,     after.data,     t)
                 for each prop:
-                    part.CFrame     = lerpCF(before.data,     after.data,     α)
+                    t = easedAlpha(alpha, before.easing)
+                    part.CFrame     = lerpCF(before.data,     after.data,     t)
                 if elapsed >= totalLength → fireFinished(sceneName)
 ```
 
@@ -527,6 +534,35 @@ Ghost Parts use `Color3.fromRGB(255,80,80)` (red = previous frame) and `Color3.f
 
 `CameraType = Scriptable` is intentionally **not** set when Look Through is active, so Studio's built-in editor controls (right-click drag, WASD, scroll) remain functional. The Heartbeat copies `Camera.CFrame → simpleCameraPart` one-way so the gizmo follows the viewport.
 
+### Per-Keyframe Easing Curves
+
+Easing is stored **per frame per track** — the value at frame F controls the
+interpolation from F toward the next keyframe (the "outgoing" segment).
+
+**Storage:**
+- Rigs/props: `easingTrack[frame]` inside each rig/prop record in `Recorder`
+- Camera: inline `.easing` field on each keyframe record
+- Absent entries default to `"Linear"`
+
+**Plugin interpolation (`Interpolator.lua`):** uses `TweenService:GetValue(t, style, dir)`.
+
+**Game interpolation (`MultiAnimPlayer.lua`, `CutsceneCamera.lua`):** pure-math
+implementation (no TweenService — CLAUDE.md constraint). Identical outputs for the
+6 supported styles.
+
+**Export format:** KFS `Pose.EasingStyle`/`EasingDirection` set per frame. Scale/root/prop
+tracks use a parallel `easings = { [rigName] = { [frame] = "..." } }` table alongside
+the existing `rigs`/`props` data; omitted entirely when all frames are Linear (backward
+compat). Camera track gains an inline `easing` field on each frame record.
+
+**Context menu:** `KeyframeMarker` fires `onDeleteRequested(frame, absPos)` on right-click.
+`Panel._showContextMenu` builds a 6-easing + Delete menu positioned over a full-screen
+transparent overlay (ZIndex 40). Outside click dismisses via overlay `MouseButton1Click`.
+
+**Simple mode:** the "Ease: Linear" button (action row, col 5) opens the same menu with
+easing-only options. `simpleCurrentEasing` is stamped onto all tracks at capture time.
+Frame navigation syncs the button to the stored easing of the arrived-at keyframe.
+
 ### Plugin Play-Mode Guard
 
 `init.server.lua` begins with `if game:GetService("RunService"):IsRunning() then return end`. The root element of the plugin `.rbxmx` is a `Script` class, which Roblox also executes as a server script when play mode starts. This guard prevents the plugin from disconnecting Motor6D joints or interfering with runtime animation.
@@ -540,7 +576,7 @@ Ghost Parts use `Color3.fromRGB(255,80,80)` (red = previous frame) and `Color3.f
 | `build.py` | Assembles `.rbxmx` from source files and copies to Plugins folder |
 | `watch.py` | Auto-build on save, with Studio compile-check first |
 | `devsync.py` + `plugin/devloader.lua` | Hot-reload the plugin on save — no Studio restart |
-| `run_tests.py` | Runs the full `tests/` suite (475 cases, 21 files) against live Studio |
+| `run_tests.py` | Runs the full `tests/` suite (~507 cases, 23 files) against live Studio |
 | `hotpatch.py` | Push a single `game/` module without reload |
 | `mcp.py` (`mcp` alias) | CLI for everything: luau, console/tail, tree/inspect/read/grep, check, drift, test, deploy, playtest, gen, store, addrig, scene, daemon |
 | MCP daemon | Persistent StudioMCP proxy (auto-starts) — 0.07s/call vs ~7s |

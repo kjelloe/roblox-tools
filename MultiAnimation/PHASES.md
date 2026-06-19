@@ -561,10 +561,12 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
   - **Interpolator (plugin):** `easedAlpha(t, easing)` via `TweenService:GetValue`; applied in
     all 5 getters (joints, scale, root, prop, camera).
   - **MultiAnimPlayer + CutsceneCamera (game):** pure-math `easedAlpha` (no TweenService);
-    backward-compatible `toSortedKFs` (old `[frame]={data}` and new `{data=..., easing=...}`);
-    `parseKFS` reads `Pose.EasingStyle`/`EasingDirection` → easing string.
+    `toSortedKFs` accepts optional parallel `easingsTable` parameter (nil → all Linear for
+    backward compat); `parseKFS` reads `Pose.EasingStyle`/`EasingDirection` → easing string.
   - **Exporter:** KFS Pose `EasingStyle`/`EasingDirection` set from per-frame easing;
-    scale/root/prop/camera track source wrapped as `{data=..., easing="..."}`.
+    scale/root/prop tracks use a parallel `easings` table alongside the existing `rigs`/`props`
+    data (omitted entirely when all Linear — backward compat); camera KF records gain an inline
+    `easing` field alongside `cf`/`fov`/`cut`.
   - **Panel — Advanced mode:** right-click on any keyframe dot (rig/prop/camera/effect) shows
     a context menu with 6 easing options + Delete. Full-screen transparent overlay intercepts
     outside clicks to dismiss.

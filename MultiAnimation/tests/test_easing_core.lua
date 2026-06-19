@@ -182,34 +182,32 @@ check("Bounce non-negative", ok)
 check("Bounce t=1 → ~1", math.abs(easedAlpha(1, "Bounce") - 0.984375) < 0.02
     or math.abs(easedAlpha(1, "Bounce") - 1) < 0.02)
 
--- 13: toSortedKFs backward compat (old format has no .data wrapper)
-local function simulateToSortedKFs(frameTable, fps, buildFn)
+-- 13: toSortedKFs parallel easings format
+local function simulateToSortedKFs(frameTable, fps, buildFn, easingsTable)
     local out = {}
     for frame, raw in pairs(frameTable) do
-        local actualData = raw.data or raw
-        local easing = (type(raw.easing) == "string" and raw.easing) or "Linear"
-        out[#out+1] = { time = (frame-1)/fps, data = buildFn(actualData), easing = easing }
+        local easing = (easingsTable and easingsTable[frame]) or "Linear"
+        out[#out+1] = { time = (frame-1)/fps, data = buildFn(raw), easing = easing }
     end
     table.sort(out, function(a,b) return a.time < b.time end)
     return out
 end
 
-local oldFmt = { [1] = {1,2,3,0,1,0,0,0,1,0,0,0}, [5] = {4,5,6,1,0,0,0,1,0,0,0,1} }
-local parsed = simulateToSortedKFs(oldFmt, 24, function(arr)
+-- No easings table → all Linear (backward compat with old exported data)
+local frames = { [1] = {1,2,3,0,1,0,0,0,1,0,0,0}, [5] = {4,5,6,1,0,0,0,1,0,0,0,1} }
+local parsed = simulateToSortedKFs(frames, 24, function(arr)
     return CFrame.new(arr[1],arr[2],arr[3], arr[4],arr[5],arr[6], arr[7],arr[8],arr[9], arr[10],arr[11],arr[12])
 end)
-check("old format parsed", #parsed == 2)
-check("old format easing defaults Linear", parsed[1].easing == "Linear")
+check("no easings table: frame count correct", #parsed == 2)
+check("no easings table: easing defaults Linear", parsed[1].easing == "Linear")
 
-local newFmt = {
-    [1] = { easing="EaseIn",  data={1,2,3,0,1,0,0,0,1,0,0,0} },
-    [5] = { easing="Bounce", data={4,5,6,1,0,0,0,1,0,0,0,1} },
-}
-local parsed2 = simulateToSortedKFs(newFmt, 24, function(arr)
+-- Parallel easings table supplies non-Linear values
+local easings = { [1] = "EaseIn", [5] = "Bounce" }
+local parsed2 = simulateToSortedKFs(frames, 24, function(arr)
     return CFrame.new(arr[1],arr[2],arr[3], arr[4],arr[5],arr[6], arr[7],arr[8],arr[9], arr[10],arr[11],arr[12])
-end)
-check("new format easing EaseIn", parsed2[1].easing == "EaseIn")
-check("new format easing Bounce", parsed2[2].easing == "Bounce")
+end, easings)
+check("parallel easings: EaseIn at frame 1", parsed2[1].easing == "EaseIn")
+check("parallel easings: Bounce at frame 5", parsed2[2].easing == "Bounce")
 
 -- 14: multiple rigs independent easings
 local r3 = Rec.new()

@@ -36,6 +36,11 @@ session = {
                 },
                 [12] = { ... },
             },
+            easingTrack = {     -- per-keyframe easing (controls segment F → next KF)
+                -- absent entries default to "Linear"
+                [1]  = "EaseIn",
+                [12] = "Bounce",
+            },
         },
         ["Rig2"] = { ... },
     },
@@ -47,13 +52,16 @@ session = {
                 [10] = CFrame,
                 [50] = CFrame,
             },
+            easingTrack = {     -- per-keyframe easing for this prop
+                [1] = "EaseOut",
+            },
         },
     },
     camera = {                  -- Phase 8 — one camera track per session
         track = {
             -- key = frame number
-            [1]  = { cf = CFrame, fov = 70, mode = "move" },
-            [40] = { cf = CFrame, fov = 35, mode = "cut"  },
+            [1]  = { cf = CFrame, fov = 70, mode = "move", easing = "Linear"  },
+            [40] = { cf = CFrame, fov = 35, mode = "cut",  easing = "EaseInOut" },
         },
     },
 }
@@ -61,8 +69,15 @@ session = {
 
 `camera.track` keyframes: `cf` is the world-space viewport-camera CFrame, `fov`
 the FieldOfView, `mode` either `"move"` (interpolate from the previous keyframe)
-or `"cut"` (the previous shot holds until this frame, then jumps).
+or `"cut"` (the previous shot holds until this frame, then jumps), `easing` is the
+interpolation curve for the segment starting at this frame (see Easing Styles below).
 
+**Easing styles:** `"Linear"` (default) · `"EaseIn"` (cubic in) · `"EaseOut"` (cubic out) ·
+`"EaseInOut"` (cubic symmetric) · `"Constant"` (hold — α always 0) · `"Bounce"`.
+Easing at frame F applies to the segment from F toward the *next* keyframe. Absent entries
+or frames with no stored easing default to `"Linear"`.
+
+`easingTrack` is absent in sessions saved before the easing feature; all frames default to Linear.
 `props` is absent in sessions saved before Phase 7; consumers treat absence as `{}`.
 
 **CFrame values** in `propTrack` are world-space `Part.CFrame` (absolute position + rotation), not relative to any parent or joint.
@@ -85,31 +100,27 @@ CFrames and Vector3s are not JSON-native. They are serialised as arrays:
   "frameCount": 120,
   "rigs": {
     "Rig1": {
-      "jointTrack": {
-        "1": {
-          "RootJoint": [1,0,0, 0,1,0, 0,0,1, 0,0,0],
-          "Neck":      [1,0,0, 0,1,0, 0,0,1, 0,1.5,0]
-        }
-      },
-      "scaleTrack": {
-        "1": {
-          "Head":  [2, 2, 2],
-          "Torso": [2, 2, 1]
-        }
-      }
+      "joints": { "1": { "RootJoint": [1,0,0, 0,1,0, 0,0,1, 0,0,0], "Neck": [...] } },
+      "scales": { "1": { "Head": [2,2,2], "Torso": [2,2,1] } },
+      "roots":  { "1": [1,0,0, 0,1,0, 0,0,1, 0,0,0] },
+      "easings": { "1": "EaseIn", "12": "Bounce" }
     }
   },
   "props": {
     "Block": {
-      "propTrack": {
-        "1":  [1,0,0, 0,1,0, 0,0,1,  2, 5, 0],
-        "10": [1,0,0, 0,1,0, 0,0,1,  5, 7, -3],
-        "50": [1,0,0, 0,1,0, 0,0,1, -2, 5,  0]
-      }
+      "frames":  { "1":  [1,0,0, 0,1,0, 0,0,1,  2, 5, 0] },
+      "easings": { "1": "EaseOut" }
     }
+  },
+  "camera": {
+    "1":  { "cf": [...], "fov": 70, "mode": "move", "easing": "Linear"   },
+    "40": { "cf": [...], "fov": 35, "mode": "cut",  "easing": "EaseInOut" }
   }
 }
 ```
+
+`easings` objects are omitted when all frames are Linear. Old saves without `easings`
+are backward-compatible — all frames default to Linear on load.
 
 CFrame array layout: `[x,y,z, r00,r01,r02, r10,r11,r12, r20,r21,r22]`  
 (position first — matches the order `CFrame:GetComponents()` returns)  
@@ -148,8 +159,16 @@ KeyframeSequence  (Name = "Rig1_Joints", Loop = false, AuthoredHipHeight = 0)
 
 Each `Pose.CFrame` = the captured `Motor6D.Transform` CFrame for that joint.
 (`Pose.Transform` was renamed to `Pose.CFrame` in a Roblox Studio update.)
-`Pose.EasingStyle` = `Enum.PoseEasingStyle.Linear` (v1).
-`Pose.EasingDirection` = `Enum.PoseEasingDirection.Out`.
+`Pose.EasingStyle` and `Pose.EasingDirection` are set from the per-keyframe easing:
+
+| Plugin easing string | Pose.EasingStyle | Pose.EasingDirection |
+|---|---|---|
+| `"Linear"` | `PoseEasingStyle.Linear` | `PoseEasingDirection.Out` |
+| `"EaseIn"` | `PoseEasingStyle.Cubic` | `PoseEasingDirection.In` |
+| `"EaseOut"` | `PoseEasingStyle.Cubic` | `PoseEasingDirection.Out` |
+| `"EaseInOut"` | `PoseEasingStyle.Cubic` | `PoseEasingDirection.InOut` |
+| `"Constant"` | `PoseEasingStyle.Constant` | `PoseEasingDirection.Out` |
+| `"Bounce"` | `PoseEasingStyle.Bounce` | `PoseEasingDirection.Out` |
 
 The Pose tree mirrors the R6 skeleton hierarchy so Roblox's `Animator` can resolve it.
 
@@ -166,16 +185,20 @@ return {
             -- [frameNumber] = { partName = {x, y, z} }
             [1]  = { Head={2,2,2}, Torso={2,2,1}, ["Left Arm"]={1,2,1}, ... },
             [12] = { Head={2,2,2}, Torso={2,2,1}, ... },
-            [24] = { Head={2,2,2}, Torso={2,2,1}, ... },
         },
-        Rig2 = {
-            [1]  = { ... },
+    },
+    -- easings omitted entirely when all frames are Linear (backward compat)
+    easings = {
+        Rig1 = {
+            [1] = "EaseIn",     -- only non-Linear frames appear
         },
     },
 }
 ```
 
 `MultiAnimPlayer` reconstructs `Vector3` values from the `{x,y,z}` arrays at runtime.
+`easings[rigName][frame]` is the easing for the segment from that frame to the next.
+Old ScaleTracks without an `easings` table treat all frames as Linear.
 
 ---
 
@@ -189,17 +212,25 @@ return {
     fps = 24,
     props = {
         Block = {
-            -- [frameNumber] = { r00,r01,r02, r10,r11,r12, r20,r21,r22, x,y,z }
-            [1]  = { 1,0,0, 0,1,0, 0,0,1,  2, 5,  0 },
-            [10] = { 1,0,0, 0,1,0, 0,0,1,  5, 7, -3 },
-            [50] = { 1,0,0, 0,1,0, 0,0,1, -2, 5,  0 },
+            -- [frameNumber] = { x,y,z, r00,r01,r02, r10,r11,r12, r20,r21,r22 }
+            [1]  = { 2, 5,  0,  1,0,0, 0,1,0, 0,0,1 },
+            [10] = { 5, 7, -3,  1,0,0, 0,1,0, 0,0,1 },
+            [50] = {-2, 5,  0,  1,0,0, 0,1,0, 0,0,1 },
+        },
+    },
+    -- easings omitted entirely when all frames are Linear (backward compat)
+    easings = {
+        Block = {
+            [1] = "EaseOut",
         },
     },
 }
 ```
 
 `MultiAnimPlayer` reconstructs `CFrame` values from the 12-number arrays at runtime using
-`CFrame.new(x, y, z, r00, r01, r02, r10, r11, r12, r20, r21, r22)`.
+`CFrame.new(arr[1]…arr[12])` (position first — matches `CFrame:GetComponents()` order).
+`easings[propName][frame]` is the easing for that segment. Old PropTracks without `easings`
+treat all frames as Linear.
 
 ---
 
@@ -212,15 +243,17 @@ Written when any camera keyframes were recorded; omitted otherwise.
 return {
     fps = 24,
     frames = {
-        -- [frameNumber] = { cf = {x,y,z, r00..r22}, fov = number, cut = bool }
-        [1]  = {cf = {3,12,-7, 1,0,0, 0,1,0, 0,0,1}, fov = 70, cut = false},
-        [40] = {cf = {0,8,20,  ...},                 fov = 35, cut = true},
+        -- [frameNumber] = { cf={x,y,z, r00..r22}, fov, cut, easing }
+        [1]  = {cf = {3,12,-7, 1,0,0, 0,1,0, 0,0,1}, fov = 70, cut = false, easing = "Linear" },
+        [40] = {cf = {0,8,20,  1,0,0, 0,1,0, 0,0,1}, fov = 35, cut = true,  easing = "EaseInOut"},
     },
 }
 ```
 
 `cut = true` means the previous shot holds until this frame, then jumps
-(no interpolation toward a cut keyframe). Keyframe time = `(frame - 1) / fps`.
+(no interpolation toward a cut keyframe). `easing` controls the camera
+path for move keyframes; absent in old exports (defaults to `"Linear"`).
+Keyframe time = `(frame - 1) / fps`.
 
 ---
 
@@ -293,6 +326,27 @@ end)
 
 ## Interpolation Rules
 
+### Easing
+
+All track types support per-keyframe easing. Between keyframes A and B, the raw
+linear `alpha` is transformed by the easing stored at keyframe A:
+
+```
+alpha(t)       = (t - tA) / (tB - tA)
+easedAlpha(t)  = applyEasing(alpha, A.easing)
+```
+
+| Easing string | Curve |
+|---|---|
+| `"Linear"` | `t` |
+| `"EaseIn"` | `t³` |
+| `"EaseOut"` | `1 − (1−t)³` |
+| `"EaseInOut"` | cubic symmetric (fast start/end, slower middle) |
+| `"Constant"` | always `0` — holds A's value until the next keyframe |
+| `"Bounce"` | overshoot bounce near the target |
+
+Plugin: uses `TweenService:GetValue`. Game modules: pure-math (no TweenService).
+
 ### Joints (in-game, via Motor6D.Transform)
 
 `MultiAnimPlayer` drives `Motor6D.Transform` directly in a `RunService.Heartbeat`
@@ -301,28 +355,22 @@ loop — the same mechanism `Animator` uses internally. `AnimationClipProvider:R
 Between any two adjacent keyframes A (time `tA`) and B (time `tB`):
 
 ```
-alpha(t) = (t - tA) / (tB - tA)   where t is current playback time in seconds
-motor.Transform = cfA:Lerp(cfB, alpha)
+t             = easedAlpha((elapsed - tA) / (tB - tA), A.easing)
+motor.Transform = cfA:Lerp(cfB, t)
 ```
 
 ### Scale (in-game, via Heartbeat loop)
 
-Same Heartbeat loop as joints. Between adjacent keyframes A and B:
-
 ```
-alpha(t) = (t - tA) / (tB - tA)
-size(t)  = sizeA:Lerp(sizeB, alpha)
-part.Size = size(t)
+t        = easedAlpha((elapsed - tA) / (tB - tA), A.easing)
+part.Size = sizeA:Lerp(sizeB, t)
 ```
 
 ### Props (in-game, via Heartbeat loop)
 
-Same loop as scale interpolation. For each pair of adjacent prop keyframes A and B:
-
 ```
-alpha(t) = (t - tA) / (tB - tA)
-cf(t)    = cfA:Lerp(cfB, alpha)
-part.CFrame = cf(t)
+t           = easedAlpha((elapsed - tA) / (tB - tA), A.easing)
+part.CFrame = cfA:Lerp(cfB, t)
 ```
 
 `CFrame:Lerp()` spherically interpolates rotation (slerp), giving smooth tumbling/spinning.
