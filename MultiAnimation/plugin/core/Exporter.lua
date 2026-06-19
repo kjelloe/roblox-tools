@@ -459,11 +459,17 @@ function Exporter.export(session, sceneName)
         fxModule.Parent       = sceneFolder
     end
 
-    -- Deploy game-side modules alongside the scene data so game scripts can
-    -- require them (MultiAnimPlayer + the cutscene pair).
+    -- Deploy game-side modules.
+    -- Server-side (ServerStorage.MultiAnimationData): MultiAnimPlayer, CutsceneServer,
+    --   CutsceneCamera, MultiAnimDataServer.
+    -- Client-side (ReplicatedStorage): CutscenePlayer, CutsceneCamera, PlayerRigProxy,
+    --   LetterboxGui — siblings so CutscenePlayer's require() finds them.
     local gameFolder = script.Parent.Parent:FindFirstChild("game")
     if gameFolder then
-        for _, modName in ipairs({ "MultiAnimPlayer", "CutsceneServer", "CutsceneCamera" }) do
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local serverMods = { "MultiAnimPlayer", "CutsceneServer", "CutsceneCamera", "MultiAnimDataServer" }
+        local clientMods = { "CutscenePlayer", "CutsceneCamera", "PlayerRigProxy", "LetterboxGui" }
+        for _, modName in ipairs(serverMods) do
             local src = gameFolder:FindFirstChild(modName)
             if src then
                 local prev = mad:FindFirstChild(modName)
@@ -471,10 +477,21 @@ function Exporter.export(session, sceneName)
                 src:Clone().Parent = mad
             end
         end
+        for _, modName in ipairs(clientMods) do
+            local src = gameFolder:FindFirstChild(modName)
+            if src then
+                local prev = ReplicatedStorage:FindFirstChild(modName)
+                if prev then prev:Destroy() end
+                src:Clone().Parent = ReplicatedStorage
+            end
+        end
     end
 
     print(string.format(
-        "[Exporter] Scene '%s' exported — %d rig(s) — ServerStorage.MultiAnimationData",
+        "[Exporter] Scene '%s' exported — %d rig(s)\n" ..
+        "  Server: ServerStorage.MultiAnimationData (MultiAnimPlayer, CutsceneServer, CutsceneCamera, MultiAnimDataServer)\n" ..
+        "  Client: ReplicatedStorage (CutscenePlayer, CutsceneCamera, PlayerRigProxy, LetterboxGui)\n" ..
+        "  Note: call MultiAnimDataServer.setup() once from a Script in ServerScriptService",
         sceneName, kfsCount
     ))
     return true, sceneName

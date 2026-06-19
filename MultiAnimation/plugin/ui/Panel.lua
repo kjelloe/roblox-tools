@@ -877,13 +877,22 @@ function Panel.new(widget)
     local simpleSceneRow = hrow(simpleSec, 6, 4)
     lbl(simpleSceneRow, "Scene:", 42, 1)
     local simpleSceneBox = textBox(simpleSceneRow, "Scene_001", 80, 2)
+    self._simpleSceneBox = simpleSceneBox
     local simpleSaveBtn   = btn(simpleSceneRow, "💾 Save",   3)
     local simpleExportBtn = btn(simpleSceneRow, "⬆  Export", 4, true)
+    local simpleSaveAsBtn = btn(simpleSceneRow, "Save As",   5)
+    local simpleLoadBtn   = btn(simpleSceneRow, "Load",      6)
     simpleSaveBtn.MouseButton1Click:Connect(function()
         if not self._isPlaying then eSave:Fire(simpleSceneBox.Text) end
     end)
     simpleExportBtn.MouseButton1Click:Connect(function()
         if not self._isPlaying then eExport:Fire(simpleSceneBox.Text) end
+    end)
+    simpleSaveAsBtn.MouseButton1Click:Connect(function()
+        if not self._isPlaying then self:_showSaveOverlay() end
+    end)
+    simpleLoadBtn.MouseButton1Click:Connect(function()
+        if not self._isPlaying then eReload:Fire() end
     end)
 
     -- ── Save As overlay ───────────────────────────────────────────────────────
@@ -928,6 +937,9 @@ function Panel.new(widget)
         local name = saveOvBox.Text:match("^%s*(.-)%s*$")
         if name ~= "" then
             self._lastSaveName = name
+            -- keep both scene name boxes in sync with the saved name
+            if self._sceneNameBox    then self._sceneNameBox.Text    = name end
+            if self._simpleSceneBox  then self._simpleSceneBox.Text  = name end
             saveOv.Visible = false
             eSave:Fire(name)
         end
@@ -1886,7 +1898,11 @@ function Panel:_showNewOverlay()
 end
 
 function Panel:_showSaveOverlay()
-    self._saveOvBox.Text = self._lastSaveName or "Scene_001"
+    local currentName = (self._mode == "simple" and self._simpleSceneBox and self._simpleSceneBox.Text)
+        or (self._sceneNameBox and self._sceneNameBox.Text)
+        or self._lastSaveName
+        or "Scene_001"
+    self._saveOvBox.Text = currentName
     self._saveOverlay.Visible = true
     task.defer(function()
         if self._saveOvBox and self._saveOvBox.Parent then

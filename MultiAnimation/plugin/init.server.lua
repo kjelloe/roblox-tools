@@ -1414,8 +1414,8 @@ local function doStepFrame(direction)
         scheduleAutoSave()
     end
 
-    -- Step to new frame
-    local step     = panel:getStepSize()
+    -- Step to new frame (Simple mode always steps 1 frame)
+    local step     = (mode == "simple") and 1 or panel:getStepSize()
     local newFrame = math.clamp(departureFrame + direction * step, 1, timeline:getFrameCount())
     local f = timeline:setCurrent(newFrame)
     panel:setFrameDisplay(f, timeline:getFrameCount())
@@ -1514,14 +1514,18 @@ buildPlaybackSnippet = function()
             '        -- Rig1 = game.Players:FindFirstChild("PlayerName").Character,  -- player by name',
         }, "\n")
     local snippet = string.format(
-        'local CutscenePlayer = require(game.ReplicatedStorage.CutscenePlayer)\n' ..
+        '-- LocalScript in StarterPlayerScripts (or StarterCharacterScripts)\n' ..
+        '-- Requires: MultiAnimDataServer.setup() called once from a server Script\n' ..
+        'local RS = game:GetService("ReplicatedStorage")\n' ..
+        'local CutscenePlayer = require(RS:WaitForChild("CutscenePlayer"))\n' ..
         'local handle = CutscenePlayer.play(\n' ..
         '    "%s",\n' ..
         '    {\n' ..
         '%s\n' ..
         '    },\n' ..
         '    { fps = %d, loop = %s, movieMode = %s }\n' ..
-        ')',
+        ')\n' ..
+        '-- handle.stop()  -- call to cancel early',
         playbackScene,
         rigBlock,
         playbackFPS,
