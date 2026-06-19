@@ -108,6 +108,7 @@ local function applyJoints(rig, poses)
             local joint = torso:FindFirstChild(jName)
                        or rig:FindFirstChild(jName, true)
             if joint and joint:IsA("Motor6D") then
+                if joint.Part0 == nil then joint.Part0 = joint.Parent end
                 joint.Transform = cf
             end
         end

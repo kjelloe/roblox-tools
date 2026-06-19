@@ -56,6 +56,11 @@ local function findJoints(rig)
         if container then
             local motor = container:FindFirstChild(jointName)
             if motor and motor:IsA("Motor6D") then
+                -- Plugin disconnects motors in edit mode (Part0 = nil). Reconnect
+                -- if the simulation starts with disconnected joints.
+                if motor.Part0 == nil then
+                    motor.Part0 = container
+                end
                 joints[jointName] = motor
             end
         end
