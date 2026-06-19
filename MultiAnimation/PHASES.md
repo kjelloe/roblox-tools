@@ -551,10 +551,37 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
     `test_ui_simple.lua` +6 (onion skin toggle on/off, folder/ghost lifecycle, frame-change
     refresh, cleanup). **Suite total: 475 cases across 21 files, all passing.**
 
+- [x] **Per-keyframe easing curve selector.**
+  - **Easing stored per segment:** easing at frame F controls the interpolation from F to F+1.
+    6 styles: Linear (default), EaseIn (cubic in), EaseOut (cubic out), EaseInOut,
+    Constant (hold-until-next), Bounce.
+  - **Recorder:** `easingTrack[frame]` on each rig and prop; inline `.easing` field on camera
+    keyframe records; `getEasing/setEasing`, `getPropEasing/setPropEasing`,
+    `getCameraEasing/setCameraEasing`. All shift/delete/clear operations include easingTrack.
+  - **Interpolator (plugin):** `easedAlpha(t, easing)` via `TweenService:GetValue`; applied in
+    all 5 getters (joints, scale, root, prop, camera).
+  - **MultiAnimPlayer + CutsceneCamera (game):** pure-math `easedAlpha` (no TweenService);
+    backward-compatible `toSortedKFs` (old `[frame]={data}` and new `{data=..., easing=...}`);
+    `parseKFS` reads `Pose.EasingStyle`/`EasingDirection` → easing string.
+  - **Exporter:** KFS Pose `EasingStyle`/`EasingDirection` set from per-frame easing;
+    scale/root/prop/camera track source wrapped as `{data=..., easing="..."}`.
+  - **Panel — Advanced mode:** right-click on any keyframe dot (rig/prop/camera/effect) shows
+    a context menu with 6 easing options + Delete. Full-screen transparent overlay intercepts
+    outside clicks to dismiss.
+  - **Panel — Simple mode:** "Ease: Linear" button (column 5 of action row) opens the same
+    easing-only menu. Frame navigation auto-syncs the button to the stored easing of the
+    current keyframe. `panel:setSimpleEasingDisplay(easing)` method.
+  - **init.server.lua:** `simpleCurrentEasing` variable; stamped onto all tracks at
+    `doSimpleCaptureFrame`; `panel.onMarkerEasingChanged` / `panel.onSimpleEasingChanged`
+    handlers; serialization + deserialization (backward compat: old saves load as Linear).
+  - **Bridge commands:** `setEasing`, `getEasing`, `setPropEasing`, `getPropEasing`,
+    `setCameraEasing`, `getCameraEasing`, `setSimpleEasing`, `getSimpleEasing`.
+  - **Tests:** `test_easing_core.lua` (20 cases, headless), `test_ui_easing.lua` (12 cases,
+    live Studio). **Suite total: ~507 cases across 23 files.**
+
 ### Backlog
 
 - Multiple named cameras + switcher track (authoring sugar over Phase 8 cuts)
-- Per-keyframe easing curve selector
 - R15 rig support
 - Audio track sync
 - Upload to Roblox asset catalogue

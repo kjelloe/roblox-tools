@@ -1,8 +1,24 @@
--- Interpolator — linear interpolation between captured keyframes.
+-- Interpolator — eased interpolation between captured keyframes.
 --
 -- Works against a Recorder instance; does not own data.
 -- Returns interpolated joint CFrames and scale Vector3s for any
 -- fractional frame position between recorded keyframes.
+
+local TweenService = game:GetService("TweenService")
+
+local EASING_MAP = {
+    EaseIn    = { Enum.EasingStyle.Cubic,  Enum.EasingDirection.In    },
+    EaseOut   = { Enum.EasingStyle.Cubic,  Enum.EasingDirection.Out   },
+    EaseInOut = { Enum.EasingStyle.Cubic,  Enum.EasingDirection.InOut },
+    Bounce    = { Enum.EasingStyle.Bounce, Enum.EasingDirection.Out   },
+}
+
+local function easedAlpha(t, easing)
+    if easing == "Constant" then return 0 end
+    if not easing or easing == "Linear" then return t end
+    local info = EASING_MAP[easing]
+    return info and TweenService:GetValue(t, info[1], info[2]) or t
+end
 
 local Interpolator = {}
 
@@ -45,10 +61,13 @@ function Interpolator.getJointData(recorder, rigName, queryFrame)
     local dataB = recorder:getJointData(rigName, fB)
     if not dataB then return dataA end
 
+    local t = easedAlpha(alpha, recorder:getEasing(rigName, fA))
+    if t == 0 then return dataA end
+
     local result = {}
     for joint, cfA in pairs(dataA) do
         local cfB = dataB[joint]
-        result[joint] = cfB and cfA:Lerp(cfB, alpha) or cfA
+        result[joint] = cfB and cfA:Lerp(cfB, t) or cfA
     end
     return result
 end
@@ -68,10 +87,13 @@ function Interpolator.getScaleData(recorder, rigName, queryFrame)
     local dataB = recorder:getScaleData(rigName, fB)
     if not dataB then return dataA end
 
+    local t = easedAlpha(alpha, recorder:getEasing(rigName, fA))
+    if t == 0 then return dataA end
+
     local result = {}
     for part, sA in pairs(dataA) do
         local sB = dataB[part]
-        result[part] = sB and sA:Lerp(sB, alpha) or sA
+        result[part] = sB and sA:Lerp(sB, t) or sA
     end
     return result
 end
@@ -106,7 +128,7 @@ function Interpolator.getRootData(recorder, rigName, queryFrame)
     local cfB = recorder:getRootData(rigName, fB)
     if not cfB then return cfA end
 
-    return cfA:Lerp(cfB, alpha)
+    return cfA:Lerp(cfB, easedAlpha(alpha, recorder:getEasing(rigName, fA)))
 end
 
 -- Returns interpolated CFrame for propName at queryFrame, or nil if no data.
@@ -123,7 +145,7 @@ function Interpolator.getPropData(recorder, propName, queryFrame)
     local cfB = recorder:getPropData(propName, fB)
     if not cfB then return cfA end
 
-    return cfA:Lerp(cfB, alpha)
+    return cfA:Lerp(cfB, easedAlpha(alpha, recorder:getPropEasing(propName, fA)))
 end
 
 -- Returns interpolated camera {cf, fov} at queryFrame, or nil if no camera
@@ -153,9 +175,10 @@ function Interpolator.getCameraData(recorder, queryFrame)
         return { cf = dataA.cf, fov = dataA.fov }
     end
 
+    local t = easedAlpha(alpha, recorder:getCameraEasing(fA))
     return {
-        cf  = dataA.cf:Lerp(dataB.cf, alpha),
-        fov = dataA.fov + (dataB.fov - dataA.fov) * alpha,
+        cf  = dataA.cf:Lerp(dataB.cf, t),
+        fov = dataA.fov + (dataB.fov - dataA.fov) * t,
     }
 end
 

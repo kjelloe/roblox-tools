@@ -138,6 +138,7 @@ local simpleCameraPart      = nil
 local simpleCameraFOV       = 70
 local simpleLookThroughOn   = false
 local simpleOnionOn         = false
+local simpleCurrentEasing   = "Linear"
 local savedSimpleCamState   = nil
 local simpleLookThroughConn = nil
 local setSimpleLookThroughOn -- forward declared; defined in the SIMPLE MODE section, used by setSimpleCameraOn below
@@ -359,7 +360,7 @@ local function serializeSession()
     local savedFC = advancedFrameCount or session.frameCount
     local out = { fps = session.fps, frameCount = savedFC, rigs = {}, props = {} }
     for rigName, rigData in pairs(session.rigs) do
-        local jOut, sOut = {}, {}
+        local jOut, sOut, rOut, eOut = {}, {}, {}, {}
         for frame, jointData in pairs(rigData.jointTrack) do
             local jd = {}
             for jName, cf in pairs(jointData) do
@@ -375,25 +376,31 @@ local function serializeSession()
             end
             sOut[tostring(frame)] = sd
         end
-        local rOut = {}
         for frame, cf in pairs(rigData.rootTrack or {}) do
             rOut[tostring(frame)] = { cf:GetComponents() }
         end
-        out.rigs[rigName] = { joints = jOut, scales = sOut, roots = rOut }
+        for frame, easing in pairs(rigData.easingTrack or {}) do
+            eOut[tostring(frame)] = easing
+        end
+        out.rigs[rigName] = { joints = jOut, scales = sOut, roots = rOut, easings = eOut }
     end
     for propName, propData in pairs(session.props or {}) do
-        local pOut = {}
+        local pOut, peOut = {}, {}
         for frame, cf in pairs(propData.propTrack) do
             pOut[tostring(frame)] = { cf:GetComponents() }
         end
-        out.props[propName] = pOut
+        for frame, easing in pairs(propData.easingTrack or {}) do
+            peOut[tostring(frame)] = easing
+        end
+        out.props[propName] = { frames = pOut, easings = peOut }
     end
     out.camera = {}
     for frame, kf in pairs((session.camera and session.camera.track) or {}) do
         out.camera[tostring(frame)] = {
-            cf   = { kf.cf:GetComponents() },
-            fov  = kf.fov,
-            mode = kf.mode,
+            cf     = { kf.cf:GetComponents() },
+            fov    = kf.fov,
+            mode   = kf.mode,
+            easing = kf.easing,
         }
     end
     out.effects = {}
@@ -497,9 +504,17 @@ local function applySessionData(data)
                 ))
             end
         end
+        for frameStr, easing in pairs(rigData.easings or {}) do
+            local frame = tonumber(frameStr)
+            if frame then recorder:setEasing(rigName, frame, easing) end
+        end
     end
     -- Restore prop data; attempt to re-link parts by name from Workspace
-    for propName, propFrames in pairs(data.props or {}) do
+    for propName, propData in pairs(data.props or {}) do
+        -- Backward compat: old format stored frame dict directly; new format wraps in {frames,easings}
+        local propFrames = (type(propData) == "table" and type(propData.frames) == "table")
+            and propData.frames or propData
+        local propEasings = (type(propData) == "table" and propData.easings) or {}
         for frameStr, arr in pairs(propFrames) do
             local frame = tonumber(frameStr)
             if frame then
@@ -508,6 +523,10 @@ local function applySessionData(data)
                     arr[7], arr[8], arr[9], arr[10], arr[11], arr[12]
                 ))
             end
+        end
+        for frameStr, easing in pairs(propEasings) do
+            local frame = tonumber(frameStr)
+            if frame then recorder:setPropEasing(propName, frame, easing) end
         end
         -- Try to find the part in Workspace so it can be re-linked
         local part = workspace:FindFirstChild(propName, true)
@@ -531,7 +550,7 @@ local function applySessionData(data)
                 kf.cf[4],  kf.cf[5],  kf.cf[6],
                 kf.cf[7],  kf.cf[8],  kf.cf[9],
                 kf.cf[10], kf.cf[11], kf.cf[12]
-            ), kf.fov, kf.mode)
+            ), kf.fov, kf.mode, kf.easing)
         end
     end
 
@@ -1090,13 +1109,20 @@ end
 local function doSimpleCaptureFrame(frame)
     if next(allRigs) ~= nil or next(allProps) ~= nil then
         recorder:addKeyframe(frame, allRigs, allProps)
-        for rigName in pairs(allRigs) do panel:addKeyframeMarker(rigName, frame) end
-        for propName in pairs(allProps) do panel:addPropKeyframeMarker(propName, frame) end
+        for rigName in pairs(allRigs) do
+            panel:addKeyframeMarker(rigName, frame)
+            recorder:setEasing(rigName, frame, simpleCurrentEasing)
+        end
+        for propName in pairs(allProps) do
+            panel:addPropKeyframeMarker(propName, frame)
+            recorder:setPropEasing(propName, frame, simpleCurrentEasing)
+        end
     end
     -- Camera is captured whenever the part exists, not gated by Camera View
     -- toggle, so the pose is always recorded along with rigs/props.
     if simpleCameraPart and simpleCameraPart.Parent then
-        recorder:addCameraKeyframe(frame, simpleCameraPart.CFrame, simpleCameraFOV, "move")
+        recorder:addCameraKeyframe(frame, simpleCameraPart.CFrame, simpleCameraFOV, "move",
+            simpleCurrentEasing)
         panel:addCameraKeyframeMarker(frame, "move")
         -- No updateCameraGizmo here: the SimpleCamera Part in FIGURES is the
         -- visual for Simple Mode. Advanced-mode orange markers would pile up at
@@ -1747,6 +1773,16 @@ panel.onFrameChanged:Connect(function(newFrame)
     panel:setFrameDisplay(f, timeline:getFrameCount())
     applyPosesAt(f, false)
     if simpleOnionOn and mode == "simple" then updateOnionSkin() end
+    if mode == "simple" then
+        for rName in pairs(allRigs) do
+            if recorder:hasKeyframe(rName, f) then
+                local fe = recorder:getEasing(rName, f)
+                simpleCurrentEasing = fe
+                panel:setSimpleEasingDisplay(fe)
+                break
+            end
+        end
+    end
 end)
 
 panel.onScrubBegan:Connect(function()
@@ -1899,6 +1935,20 @@ panel.onPropMarkerDeleteRequested:Connect(function(propName, frame)
     recorder:deletePropKeyframe(propName, frame)
     panel:removePropKeyframeMarker(propName, frame)
     print(string.format("[MultiAnimation] Deleted prop keyframe at frame %d for %s", frame, propName))
+end)
+
+panel.onMarkerEasingChanged:Connect(function(trackType, name, frame, easing)
+    if trackType == "rig" then
+        recorder:setEasing(name, frame, easing)
+    elseif trackType == "prop" then
+        recorder:setPropEasing(name, frame, easing)
+    elseif trackType == "camera" then
+        recorder:setCameraEasing(frame, easing)
+    end
+end)
+
+panel.onSimpleEasingChanged:Connect(function(easing)
+    simpleCurrentEasing = easing
 end)
 
 panel.onNewSessionConfirmed:Connect(function()
@@ -2433,6 +2483,43 @@ local testBridge = TestBridge.start({
         return timeline:getFps()
     end,
 
+    -- Easing bridge commands
+    setEasing = function(a)
+        recorder:setEasing(a.rig, a.frame, a.easing)
+        return true
+    end,
+
+    getEasing = function(a)
+        return recorder:getEasing(a.rig, a.frame)
+    end,
+
+    setPropEasing = function(a)
+        recorder:setPropEasing(a.prop, a.frame, a.easing)
+        return true
+    end,
+
+    getPropEasing = function(a)
+        return recorder:getPropEasing(a.prop, a.frame)
+    end,
+
+    setCameraEasing = function(a)
+        return recorder:setCameraEasing(a.frame, a.easing)
+    end,
+
+    getCameraEasing = function(a)
+        return recorder:getCameraEasing(a.frame)
+    end,
+
+    setSimpleEasing = function(a)
+        simpleCurrentEasing = a.easing
+        panel:setSimpleEasingDisplay(a.easing)
+        return simpleCurrentEasing
+    end,
+
+    getSimpleEasing = function()
+        return simpleCurrentEasing
+    end,
+
     setSimpleFPS = function(a)
         local fps = math.clamp(math.floor(tonumber(a.fps) or 30), 1, 999)
         timeline:setFps(fps)
@@ -2455,6 +2542,16 @@ local testBridge = TestBridge.start({
         local f = timeline:setCurrent(targetFrame)
         panel:setFrameDisplay(f, timeline:getFrameCount())
         applyPosesAt(f, false)
+        if mode == "simple" then
+            for rName in pairs(allRigs) do
+                if recorder:hasKeyframe(rName, f) then
+                    local fe = recorder:getEasing(rName, f)
+                    simpleCurrentEasing = fe
+                    panel:setSimpleEasingDisplay(fe)
+                    break
+                end
+            end
+        end
         return f
     end,
 

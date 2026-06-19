@@ -63,7 +63,7 @@ local function findJoints(rig)
     return joints
 end
 
--- Parse a KeyframeSequence into sorted { {time, poses={[jointName]=CFrame}} }.
+-- Parse a KeyframeSequence into sorted { {time, easing, poses={[jointName]=CFrame}} }.
 local function parseKFS(kfs)
     local out = {}
     for _, kf in ipairs(kfs:GetKeyframes()) do
@@ -76,17 +76,21 @@ local function parseKFS(kfs)
             local jName = POSE_TO_JOINT[child.Name]
             if jName then poses[jName] = child.CFrame end
         end
-        table.insert(out, { time = kf.Time, poses = poses })
+        local easing = poseEasingToStr(torsoPose.EasingStyle, torsoPose.EasingDirection)
+        table.insert(out, { time = kf.Time, poses = poses, easing = easing })
     end
     table.sort(out, function(a, b) return a.time < b.time end)
     return out
 end
 
--- Convert a {[frame]=data} table to sorted { {time, data} } using fps.
+-- Convert a {[frame]=data} table to sorted { {time, easing, data} } using fps.
+-- Supports both old flat format and new {data=..., easing=...} wrapper.
 local function toSortedKFs(frameTable, fps, buildFn)
     local out = {}
     for frame, raw in pairs(frameTable) do
-        table.insert(out, { time = (frame - 1) / fps, data = buildFn(raw) })
+        local actualData = raw.data or raw
+        local easing = (type(raw.easing) == "string" and raw.easing) or "Linear"
+        table.insert(out, { time = (frame - 1) / fps, data = buildFn(actualData), easing = easing })
     end
     table.sort(out, function(a, b) return a.time < b.time end)
     return out
@@ -108,6 +112,46 @@ local function lerpV3(a, b, t) return a:Lerp(b, t) end
 
 local function alpha(before, after, elapsed)
     return math.clamp((elapsed - before.time) / (after.time - before.time), 0, 1)
+end
+
+local function easedAlpha(t, easing)
+    if easing == "Constant" then return 0 end
+    if easing == "EaseIn"   then return t * t * t end
+    if easing == "EaseOut"  then local u = 1 - t; return 1 - u * u * u end
+    if easing == "EaseInOut" then
+        if t < 0.5 then return 4 * t * t * t end
+        local u = -2 * t + 2; return 1 - u * u * u / 2
+    end
+    if easing == "Bounce" then
+        local n1, d1 = 7.5625, 2.75
+        if t < 1/d1 then
+            return n1 * t * t
+        elseif t < 2/d1 then
+            t = t - 1.5/d1; return n1 * t * t + 0.75
+        elseif t < 2.5/d1 then
+            t = t - 2.25/d1; return n1 * t * t + 0.9375
+        else
+            t = t - 2.625/d1; return n1 * t * t + 0.984375
+        end
+    end
+    return t
+end
+
+local POSE_EASING_TO_STR = {}
+POSE_EASING_TO_STR[Enum.PoseEasingStyle.Linear]   = { default = "Linear" }
+POSE_EASING_TO_STR[Enum.PoseEasingStyle.Constant]  = { default = "Constant" }
+POSE_EASING_TO_STR[Enum.PoseEasingStyle.Bounce]    = { default = "Bounce" }
+POSE_EASING_TO_STR[Enum.PoseEasingStyle.Cubic]     = {
+    [Enum.PoseEasingDirection.In]    = "EaseIn",
+    [Enum.PoseEasingDirection.Out]   = "EaseOut",
+    [Enum.PoseEasingDirection.InOut] = "EaseInOut",
+    default = "EaseOut",
+}
+
+local function poseEasingToStr(style, dir)
+    local m = POSE_EASING_TO_STR[style]
+    if not m then return "Linear" end
+    return m[dir] or m.default or "Linear"
 end
 
 local function clearActive()
@@ -318,12 +362,18 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap)
             -- Joint poses via Motor6D.Transform
             if #state.jointKFs > 1 then
                 local b, a = surrounding(state.jointKFs, elapsed)
-                local t = (b == a or a.time <= b.time) and 1 or alpha(b, a, elapsed)
-                for jName, motor in pairs(state.joints) do
-                    local cfB = b.poses[jName]
-                    if cfB then
-                        motor.Transform = (b == a) and cfB
-                            or lerpCF(cfB, a.poses[jName] or cfB, t)
+                if b ~= a and a.time > b.time then
+                    local t = easedAlpha(alpha(b, a, elapsed), b.easing)
+                    for jName, motor in pairs(state.joints) do
+                        local cfB = b.poses[jName]
+                        if cfB then
+                            motor.Transform = lerpCF(cfB, a.poses[jName] or cfB, t)
+                        end
+                    end
+                else
+                    for jName, motor in pairs(state.joints) do
+                        local p = b.poses[jName]
+                        if p then motor.Transform = p end
                     end
                 end
             elseif #state.jointKFs == 1 then
@@ -336,13 +386,16 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap)
             -- Scale
             if #state.scaleKFs > 0 then
                 local b, a = surrounding(state.scaleKFs, elapsed)
-                for pName, sizeB in pairs(b.data) do
-                    local part = state.model:FindFirstChild(pName)
-                    if not part then continue end
-                    if b == a or a.time <= b.time then
-                        part.Size = sizeB
-                    else
-                        part.Size = lerpV3(sizeB, a.data[pName] or sizeB, alpha(b, a, elapsed))
+                if b ~= a and a.time > b.time then
+                    local t = easedAlpha(alpha(b, a, elapsed), b.easing)
+                    for pName, sizeB in pairs(b.data) do
+                        local part = state.model:FindFirstChild(pName)
+                        if part then part.Size = lerpV3(sizeB, a.data[pName] or sizeB, t) end
+                    end
+                else
+                    for pName, sizeB in pairs(b.data) do
+                        local part = state.model:FindFirstChild(pName)
+                        if part then part.Size = sizeB end
                     end
                 end
             end
@@ -350,8 +403,12 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap)
             -- Root position
             if #state.rootKFs > 0 then
                 local b, a = surrounding(state.rootKFs, elapsed)
-                local cf = (b == a or a.time <= b.time) and b.data
-                    or lerpCF(b.data, a.data, alpha(b, a, elapsed))
+                local cf
+                if b ~= a and a.time > b.time then
+                    cf = lerpCF(b.data, a.data, easedAlpha(alpha(b, a, elapsed), b.easing))
+                else
+                    cf = b.data
+                end
                 local hrp = state.model:FindFirstChild("HumanoidRootPart")
                 if hrp then hrp.CFrame = cf end
             end
@@ -361,10 +418,12 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap)
         for _, state in pairs(propStates) do
             if #state.kfs > 0 then
                 local b, a = surrounding(state.kfs, elapsed)
-                local cf = (b == a or a.time <= b.time) and b.data
-                    or lerpCF(b.data, a.data, alpha(b, a, elapsed))
                 if state.part and state.part.Parent then
-                    state.part.CFrame = cf
+                    if b ~= a and a.time > b.time then
+                        state.part.CFrame = lerpCF(b.data, a.data, easedAlpha(alpha(b, a, elapsed), b.easing))
+                    else
+                        state.part.CFrame = b.data
+                    end
                 end
             end
         end

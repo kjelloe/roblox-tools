@@ -37,6 +37,15 @@ local CAMERA_COLOUR     = Color3.fromRGB(255, 150, 40)   -- orange: camera "move
 local CAMERA_CUT_COLOUR = Color3.fromRGB(255, 80, 80)    -- red: camera "cut" keyframes
 local EFFECT_COLOUR     = Color3.fromRGB(190, 120, 255)  -- purple: effect event dots
 
+local EASING_OPTIONS = {
+    { text = "Linear",    easing = "Linear"    },
+    { text = "Ease In",   easing = "EaseIn"    },
+    { text = "Ease Out",  easing = "EaseOut"   },
+    { text = "EaseInOut", easing = "EaseInOut" },
+    { text = "Constant",  easing = "Constant"  },
+    { text = "Bounce",    easing = "Bounce"    },
+}
+
 -- Simple Mode frame icon strip
 local SIMPLE_ICON_W  = 28   -- px per frame slot (icon + scrubber share this grid)
 local SIMPLE_ICON_H  = 24   -- px height of the icon row
@@ -384,6 +393,16 @@ function Panel.new(widget)
     self._eFxDel = eFxDel
     table.insert(evts, eFxDel)
 
+    local eMarkerEasing = Instance.new("BindableEvent")
+    self.onMarkerEasingChanged = eMarkerEasing.Event     -- fires (trackType, name, frame, easing)
+    self._eMarkerEasing = eMarkerEasing
+    table.insert(evts, eMarkerEasing)
+
+    local eSimpleEasing = Instance.new("BindableEvent")
+    self.onSimpleEasingChanged = eSimpleEasing.Event     -- fires (easing)
+    self._eSimpleEasing = eSimpleEasing
+    table.insert(evts, eSimpleEasing)
+
     self._evts = evts
     self._lastSaveName = nil
 
@@ -712,6 +731,25 @@ function Panel.new(widget)
     local simpleAddBtn = btn(simpleActionRow, "+ Add Frame", 4)
     simpleAddBtn.MouseButton1Click:Connect(function()
         if not self._isPlaying then eSimpleAddFrame:Fire() end
+    end)
+    local simpleEaseBtn = btn(simpleActionRow, "Ease: Linear", 5)
+    self._simpleEaseBtn = simpleEaseBtn
+    simpleEaseBtn.MouseButton1Click:Connect(function()
+        if self._isPlaying then return end
+        local absPos = simpleEaseBtn.AbsolutePosition
+        local items = {}
+        for _, opt in ipairs(EASING_OPTIONS) do
+            local easing = opt.easing
+            table.insert(items, {
+                text = opt.text,
+                action = function()
+                    simpleEaseBtn.Text = "  Ease: " .. easing .. "  "
+                    eSimpleEasing:Fire(easing)
+                end,
+            })
+        end
+        self:_showMenu(items, absPos.X - self._ctxOverlay.AbsolutePosition.X,
+            absPos.Y + simpleEaseBtn.AbsoluteSize.Y + 2 - self._ctxOverlay.AbsolutePosition.Y)
     end)
 
     -- Frame icon strip: one clickable chip per keyframed frame, above the scrubber.
@@ -1175,6 +1213,37 @@ function Panel.new(widget)
         end
     end
 
+    -- ── Context menu overlay (parented to widget, covers full panel) ─────────
+    local ctxOverlay = Instance.new("TextButton")
+    ctxOverlay.Name              = "CtxOverlay"
+    ctxOverlay.Size              = UDim2.new(1, 0, 1, 0)
+    ctxOverlay.BackgroundTransparency = 1
+    ctxOverlay.Text              = ""
+    ctxOverlay.AutoButtonColor   = false
+    ctxOverlay.ZIndex            = 40
+    ctxOverlay.Visible           = false
+    ctxOverlay.Parent            = widget
+    self._ctxOverlay = ctxOverlay
+
+    local ctxMenu = Instance.new("Frame")
+    ctxMenu.Name              = "CtxMenu"
+    ctxMenu.Size              = UDim2.new(0, 140, 0, 0)
+    ctxMenu.AutomaticSize     = Enum.AutomaticSize.Y
+    ctxMenu.BackgroundColor3  = Color3.fromRGB(55, 55, 55)
+    ctxMenu.BorderSizePixel   = 0
+    ctxMenu.ZIndex            = 41
+    ctxMenu.Visible           = false
+    ctxMenu.Parent            = widget
+    Instance.new("UICorner", ctxMenu).CornerRadius = UDim.new(0, 4)
+    local ctxLayout = Instance.new("UIListLayout")
+    ctxLayout.SortOrder      = Enum.SortOrder.LayoutOrder
+    ctxLayout.FillDirection  = Enum.FillDirection.Vertical
+    ctxLayout.Padding        = UDim.new(0, 0)
+    ctxLayout.Parent         = ctxMenu
+    self._ctxMenu = ctxMenu
+
+    ctxOverlay.MouseButton1Click:Connect(function() self:_hideMenu() end)
+
     self._root = root
     return self
 end
@@ -1193,8 +1262,8 @@ function Panel:setRigs(rigs)
         lane.onMarkerClicked:Connect(function(frame)
             self._evts[4]:Fire(name, frame)   -- eMarker
         end)
-        lane.onMarkerDeleteRequested:Connect(function(frame)
-            self._eMarkerDel:Fire(name, frame)
+        lane.onMarkerDeleteRequested:Connect(function(frame, pos)
+            self:_showContextMenu("rig", name, frame, pos)
         end)
         lane.onDoubleClicked:Connect(function(frame)
             self._eTimeDbl:Fire(name, frame)
@@ -1254,8 +1323,8 @@ function Panel:addProp(propName, part)
         lane.onMarkerClicked:Connect(function(frame)
             self._evts[4]:Fire(propName, frame)   -- eMarker (shared with rigs)
         end)
-        lane.onMarkerDeleteRequested:Connect(function(frame)
-            self._ePropMarkerDel:Fire(propName, frame)
+        lane.onMarkerDeleteRequested:Connect(function(frame, pos)
+            self:_showContextMenu("prop", propName, frame, pos)
         end)
         lane.onDoubleClicked:Connect(function(frame)
             self._ePropDbl:Fire(propName, frame)
@@ -1414,8 +1483,8 @@ function Panel:addEffect(effectName, action)
         lane.onMarkerClicked:Connect(function(frame)
             self._eFxMarker:Fire(effectName, frame)
         end)
-        lane.onMarkerDeleteRequested:Connect(function(frame)
-            self._eFxDel:Fire(effectName, frame)
+        lane.onMarkerDeleteRequested:Connect(function(frame, pos)
+            self:_showContextMenu("effect", effectName, frame, pos)
         end)
         lane.onDoubleClicked:Connect(function(frame)
             self._eFxDbl:Fire(effectName, frame)
@@ -1466,8 +1535,8 @@ function Panel:_ensureCameraLane()
     lane.onMarkerClicked:Connect(function(frame)
         self._eCamMarker:Fire(frame)
     end)
-    lane.onMarkerDeleteRequested:Connect(function(frame)
-        self._eCamDel:Fire(frame)
+    lane.onMarkerDeleteRequested:Connect(function(frame, pos)
+        self:_showContextMenu("camera", nil, frame, pos)
     end)
     lane.onDoubleClicked:Connect(function(frame)
         self._eCamDbl:Fire(frame)
@@ -1525,6 +1594,93 @@ function Panel:setSimpleFPSDisplay(fps)
     if self._simpleFPSBox then
         self._simpleFPSBox.Text = tostring(math.floor(fps))
     end
+end
+
+function Panel:setSimpleEasingDisplay(easing)
+    if self._simpleEaseBtn then
+        self._simpleEaseBtn.Text = "  Ease: " .. (easing or "Linear") .. "  "
+    end
+end
+
+function Panel:_hideMenu()
+    if self._ctxOverlay then self._ctxOverlay.Visible = false end
+    if self._ctxMenu then
+        self._ctxMenu.Visible = false
+        for _, c in ipairs(self._ctxMenu:GetChildren()) do
+            if not c:IsA("UIListLayout") and not c:IsA("UICorner") then c:Destroy() end
+        end
+    end
+end
+
+function Panel:_showMenu(items, posX, posY)
+    self:_hideMenu()
+    local menu = self._ctxMenu
+    if not menu then return end
+    local menuW = 140
+    for i, item in ipairs(items) do
+        local r = Instance.new("TextButton")
+        r.Size             = UDim2.new(0, menuW, 0, 24)
+        r.BackgroundColor3 = item.isDelete and Color3.fromRGB(65, 40, 40) or Color3.fromRGB(55, 55, 55)
+        r.BorderSizePixel  = 0
+        r.TextColor3       = item.isDelete and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(210, 210, 210)
+        r.Text             = "  " .. item.text
+        r.TextSize         = 12
+        r.Font             = Enum.Font.Gotham
+        r.TextXAlignment   = Enum.TextXAlignment.Left
+        r.AutoButtonColor  = false
+        r.ZIndex           = 41
+        r.LayoutOrder      = i
+        r.Parent           = menu
+        local defBg = r.BackgroundColor3
+        r.MouseEnter:Connect(function() r.BackgroundColor3 = Color3.fromRGB(75, 75, 75) end)
+        r.MouseLeave:Connect(function() r.BackgroundColor3 = defBg end)
+        if item.action then
+            r.MouseButton1Click:Connect(function()
+                self:_hideMenu()
+                item.action()
+            end)
+        end
+    end
+    menu.Position = UDim2.new(0, posX, 0, posY)
+    self._ctxOverlay.Visible = true
+    menu.Visible = true
+end
+
+function Panel:_showContextMenu(trackType, name, frame, absPos)
+    local overlay = self._ctxOverlay
+    if not overlay then return end
+    local ox = overlay.AbsolutePosition.X
+    local oy = overlay.AbsolutePosition.Y
+    local items = {}
+    for _, opt in ipairs(EASING_OPTIONS) do
+        local easing = opt.easing
+        table.insert(items, {
+            text = opt.text,
+            action = function()
+                self._eMarkerEasing:Fire(trackType, name, frame, easing)
+            end,
+        })
+    end
+    table.insert(items, {
+        text = "─────────────",
+        action = nil,
+    })
+    table.insert(items, {
+        text = "Delete Keyframe",
+        isDelete = true,
+        action = function()
+            if trackType == "rig" then
+                self._eMarkerDel:Fire(name, frame)
+            elseif trackType == "prop" then
+                self._ePropMarkerDel:Fire(name, frame)
+            elseif trackType == "camera" then
+                self._eCamDel:Fire(frame)
+            elseif trackType == "effect" then
+                self._eFxDel:Fire(name, frame)
+            end
+        end,
+    })
+    self:_showMenu(items, absPos.X - ox, absPos.Y - oy + 8)
 end
 
 -- Shows the mode of the camera keyframe at the current frame ("move"/"cut"),

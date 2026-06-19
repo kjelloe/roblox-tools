@@ -120,7 +120,7 @@ python3 devsync.py uninstall   # back to build.py + manual reload
 ### Other dev scripts
 
 ```bash
-python3 run_tests.py [pattern] [-v]   # full suite (475 cases), or `mcp test`
+python3 run_tests.py [pattern] [-v]   # full suite (~507 cases), or `mcp test`
 python3 watch.py                      # auto-build on save (when not using devsync)
 python3 hotpatch.py game/MultiAnimPlayer.lua   # push one game/ module, or `mcp deploy`
 mcp check <file.lua>                  # compile-check in Studio without executing
@@ -213,8 +213,10 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 | `test_ui_simple.lua` | Simple Mode bridge integration: mode toggle, Add/Insert/Delete Frame management, Camera View capture-on-add, Play/Stop toggle, manipulable camera object (FOV, frustum gizmo, Look Through guard/snap/free-fly-mirrors-to-gizmo/restore, capture-from-gizmo), FIGURES auto-track/untrack, FPS box round-trip, auto-capture-on-navigate, onion skin toggle, frameCount round-trip regression (66 cases) |
 | `test_player_rig_proxy.lua` | PlayerRigProxy: fixed pass-through, R6 detection, clone/direct/teardown round-trips, R15 rejection, resolveAll mix, anchor CFs (48 cases) |
 | `test_ui_playback.lua` | Playback tab bridge integration: mode switch, scene list, rig modes (all 5), FPS/Loop/MovieMode clamping + round-trip, snippet generation (scene name, CutscenePlayer, mode strings, params), multi-rig snippet, partial param update, frameCount round-trip regression (52 cases) |
+| `test_easing_core.lua` | Recorder easing CRUD (rig/prop/camera), shiftFrames/deleteRigKeyframe/deletePropKeyframe include easingTrack, easedAlpha boundary values (Linear/EaseIn/EaseOut/EaseInOut/Constant/Bounce), toSortedKFs backward compat (20 cases, headless) |
+| `test_ui_easing.lua` | Live bridge: rig easing all-6-styles round-trip, camera easing CRUD, simple mode easing state, capture stamps easing, frame navigation syncs display (12 cases) |
 
-Suite total: **475 cases** across 21 files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive).
+Suite total: **~507 cases** across 23 files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive).
 
 All tests inline their module logic (no `require()` to plugin modules) and return a PASS/FAIL string for `execute_luau`. Run with:
 

@@ -22,20 +22,44 @@ local CutsceneCamera = {}
 local conn        = nil    -- RenderStepped connection while playing
 local savedState  = nil    -- camera state to restore after the cutscene
 
+local function easedAlpha(t, easing)
+    if easing == "Constant" then return 0 end
+    if easing == "EaseIn"   then return t * t * t end
+    if easing == "EaseOut"  then local u = 1 - t; return 1 - u * u * u end
+    if easing == "EaseInOut" then
+        if t < 0.5 then return 4 * t * t * t end
+        local u = -2 * t + 2; return 1 - u * u * u / 2
+    end
+    if easing == "Bounce" then
+        local n1, d1 = 7.5625, 2.75
+        if t < 1/d1 then
+            return n1 * t * t
+        elseif t < 2/d1 then
+            t = t - 1.5/d1; return n1 * t * t + 0.75
+        elseif t < 2.5/d1 then
+            t = t - 2.25/d1; return n1 * t * t + 0.9375
+        else
+            t = t - 2.625/d1; return n1 * t * t + 0.984375
+        end
+    end
+    return t
+end
+
 local function cameraKeyframes(cameraData)
-    -- {fps, frames = {[n] = {cf = {12}, fov, cut}}} → sorted {time, cf, fov, cut}
+    -- {fps, frames = {[n] = {cf={12}, fov, cut, easing?}}} → sorted {time, cf, fov, cut, easing}
     local fps = cameraData.fps or 24
     local list = {}
     for frame, kf in pairs(cameraData.frames or {}) do
         table.insert(list, {
-            time = (frame - 1) / fps,
-            cf   = CFrame.new(
+            time   = (frame - 1) / fps,
+            cf     = CFrame.new(
                 kf.cf[1],  kf.cf[2],  kf.cf[3],
                 kf.cf[4],  kf.cf[5],  kf.cf[6],
                 kf.cf[7],  kf.cf[8],  kf.cf[9],
                 kf.cf[10], kf.cf[11], kf.cf[12]),
-            fov  = kf.fov or 70,
-            cut  = kf.cut == true,
+            fov    = kf.fov or 70,
+            cut    = kf.cut == true,
+            easing = kf.easing or "Linear",
         })
     end
     table.sort(list, function(a, b) return a.time < b.time end)
@@ -57,8 +81,8 @@ local function sample(kfs, elapsed)
             if b.cut then
                 return a.cf, a.fov   -- hold the shot until the cut lands
             end
-            local alpha = (elapsed - a.time) / (b.time - a.time)
-            return a.cf:Lerp(b.cf, alpha), a.fov + (b.fov - a.fov) * alpha
+            local t = easedAlpha((elapsed - a.time) / (b.time - a.time), a.easing)
+            return a.cf:Lerp(b.cf, t), a.fov + (b.fov - a.fov) * t
         end
     end
     return last.cf, last.fov

@@ -136,8 +136,8 @@ function TrackLane:addMarker(frame, colourOverride)
     marker.onClicked:Connect(function(f)
         self._markerClicked:Fire(f)
     end)
-    marker.onDeleteRequested:Connect(function(f)
-        self._markerDeleteRequested:Fire(f)
+    marker.onDeleteRequested:Connect(function(f, pos)
+        self._markerDeleteRequested:Fire(f, pos)
     end)
 
     self._markers[frame] = marker

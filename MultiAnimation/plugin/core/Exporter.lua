@@ -34,15 +34,25 @@ local LIMB_JOINT = {
     ["Left Leg"]  = "Left Hip",
 }
 
+local POSE_EASING_MAP = {
+    Linear    = { Enum.PoseEasingStyle.Linear,   Enum.PoseEasingDirection.Out   },
+    EaseIn    = { Enum.PoseEasingStyle.Cubic,    Enum.PoseEasingDirection.In    },
+    EaseOut   = { Enum.PoseEasingStyle.Cubic,    Enum.PoseEasingDirection.Out   },
+    EaseInOut = { Enum.PoseEasingStyle.Cubic,    Enum.PoseEasingDirection.InOut },
+    Constant  = { Enum.PoseEasingStyle.Constant, Enum.PoseEasingDirection.Out   },
+    Bounce    = { Enum.PoseEasingStyle.Bounce,   Enum.PoseEasingDirection.Out   },
+}
+
 -- ── helpers ───────────────────────────────────────────────────────────────────
 
-local function makePose(name, transform)
+local function makePose(name, transform, easing)
     local p           = Instance.new("Pose")
     p.Name            = name
     p.Weight          = 1
-    p.CFrame          = transform or CFrame.identity   -- Roblox renamed Pose.Transform → Pose.CFrame
-    p.EasingStyle     = Enum.PoseEasingStyle.Linear
-    p.EasingDirection = Enum.PoseEasingDirection.Out
+    p.CFrame          = transform or CFrame.identity
+    local em          = POSE_EASING_MAP[easing or "Linear"] or POSE_EASING_MAP.Linear
+    p.EasingStyle     = em[1]
+    p.EasingDirection = em[2]
     return p
 end
 
@@ -59,23 +69,24 @@ local function buildKeyframeSequence(rigName, rigData, fps)
     table.sort(sortedFrames)
 
     for _, frame in ipairs(sortedFrames) do
-        local jd   = rigData.jointTrack[frame]
-        local time = (frame - 1) / fps
+        local jd     = rigData.jointTrack[frame]
+        local easing = rigData.easingTrack and rigData.easingTrack[frame]
+        local time   = (frame - 1) / fps
 
         local kf  = Instance.new("Keyframe")
         kf.Time   = time
 
         -- Pose tree root — HumanoidRootPart has no inbound Motor6D; identity anchor
-        local hrpPose   = makePose("HumanoidRootPart", CFrame.identity)
+        local hrpPose   = makePose("HumanoidRootPart", CFrame.identity, easing)
 
         -- Torso is driven by RootJoint
-        local torsoPose = makePose("Torso", jd["RootJoint"])
+        local torsoPose = makePose("Torso", jd["RootJoint"], easing)
         torsoPose.Parent = hrpPose
 
         -- Limbs are children of Torso in the skeleton hierarchy
         for _, partName in ipairs(TORSO_LIMBS) do
             local jointName = LIMB_JOINT[partName]
-            local limbPose  = makePose(partName, jd[jointName])
+            local limbPose  = makePose(partName, jd[jointName], easing)
             limbPose.Parent = torsoPose
         end
 
@@ -121,6 +132,34 @@ local function buildScaleTracksSource(session)
     end
 
     add("    },")
+
+    -- Per-rig per-frame easing (parallel to rigs table; absent when all Linear)
+    local hasEasing = false
+    for _, rigData in pairs(session.rigs) do
+        if rigData.easingTrack and next(rigData.easingTrack) then
+            hasEasing = true; break
+        end
+    end
+    if hasEasing then
+        add("    easings = {")
+        for rigName, rigData in pairs(session.rigs) do
+            if not next(rigData.scaleTrack) then continue end
+            if not (rigData.easingTrack and next(rigData.easingTrack)) then continue end
+            add(string.format("        [%q] = {", rigName))
+            local ef = {}
+            for f in pairs(rigData.scaleTrack) do table.insert(ef, f) end
+            table.sort(ef)
+            for _, frame in ipairs(ef) do
+                local e = rigData.easingTrack[frame]
+                if e and e ~= "Linear" then
+                    add(string.format("            [%d] = %q,", frame, e))
+                end
+            end
+            add("        },")
+        end
+        add("    },")
+    end
+
     add("}")
     return table.concat(lines, "\n")
 end
@@ -159,6 +198,33 @@ local function buildRootTracksSource(session)
     end
 
     add("    },")
+
+    local hasEasing = false
+    for _, rigData in pairs(session.rigs) do
+        if rigData.easingTrack and next(rigData.easingTrack) then
+            hasEasing = true; break
+        end
+    end
+    if hasEasing then
+        add("    easings = {")
+        for rigName, rigData in pairs(session.rigs) do
+            if not (rigData.rootTrack and next(rigData.rootTrack)) then continue end
+            if not (rigData.easingTrack and next(rigData.easingTrack)) then continue end
+            add(string.format("        [%q] = {", rigName))
+            local ef = {}
+            for f in pairs(rigData.rootTrack) do table.insert(ef, f) end
+            table.sort(ef)
+            for _, frame in ipairs(ef) do
+                local e = rigData.easingTrack[frame]
+                if e and e ~= "Linear" then
+                    add(string.format("            [%d] = %q,", frame, e))
+                end
+            end
+            add("        },")
+        end
+        add("    },")
+    end
+
     add("}")
     return table.concat(lines, "\n")
 end
@@ -195,6 +261,33 @@ local function buildPropTracksSource(session)
     end
 
     add("    },")
+
+    local hasPropEasing = false
+    for _, propData in pairs(session.props or {}) do
+        if propData.easingTrack and next(propData.easingTrack) then
+            hasPropEasing = true; break
+        end
+    end
+    if hasPropEasing then
+        add("    easings = {")
+        for propName, propData in pairs(session.props or {}) do
+            if not next(propData.propTrack) then continue end
+            if not (propData.easingTrack and next(propData.easingTrack)) then continue end
+            add(string.format("        [%q] = {", propName))
+            local ef = {}
+            for f in pairs(propData.propTrack) do table.insert(ef, f) end
+            table.sort(ef)
+            for _, frame in ipairs(ef) do
+                local e = propData.easingTrack[frame]
+                if e and e ~= "Linear" then
+                    add(string.format("            [%d] = %q,", frame, e))
+                end
+            end
+            add("        },")
+        end
+        add("    },")
+    end
+
     add("}")
     return table.concat(lines, "\n")
 end
@@ -224,9 +317,9 @@ local function buildCameraTrackSource(session)
         local kf = track[frame]
         local x,y,z,r00,r01,r02,r10,r11,r12,r20,r21,r22 = kf.cf:GetComponents()
         add(string.format(
-            "        [%d] = {cf = {%g,%g,%g, %g,%g,%g, %g,%g,%g, %g,%g,%g}, fov = %g, cut = %s},",
+            "        [%d] = {cf = {%g,%g,%g, %g,%g,%g, %g,%g,%g, %g,%g,%g}, fov = %g, cut = %s, easing = %q},",
             frame, x,y,z, r00,r01,r02, r10,r11,r12, r20,r21,r22,
-            kf.fov or 70, tostring(kf.mode == "cut")
+            kf.fov or 70, tostring(kf.mode == "cut"), kf.easing or "Linear"
         ))
     end
 

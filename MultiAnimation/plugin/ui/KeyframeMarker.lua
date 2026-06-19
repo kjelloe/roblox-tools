@@ -50,7 +50,7 @@ function KeyframeMarker.new(parent, frame, colour)
         btn.BackgroundColor3 = self._baseColor
     end)
     btn.MouseButton2Click:Connect(function()
-        deleteRequested:Fire(frame)
+        deleteRequested:Fire(frame, btn.AbsolutePosition)
     end)
 
     btn.MouseButton1Click:Connect(function()

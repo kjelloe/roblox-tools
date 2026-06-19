@@ -53,7 +53,7 @@ end
 function Recorder:addKeyframe(frame, activeRigs, activeProps)
     for rigName, model in pairs(activeRigs) do
         if not self._session.rigs[rigName] then
-            self._session.rigs[rigName] = { jointTrack = {}, scaleTrack = {}, rootTrack = {} }
+            self._session.rigs[rigName] = { jointTrack = {}, scaleTrack = {}, rootTrack = {}, easingTrack = {} }
         end
 
         local rig = self._session.rigs[rigName]
@@ -132,6 +132,7 @@ function Recorder:deleteRigKeyframe(rigName, frame)
         rig.jointTrack[frame] = nil
         rig.scaleTrack[frame] = nil
         if rig.rootTrack then rig.rootTrack[frame] = nil end
+        if rig.easingTrack then rig.easingTrack[frame] = nil end
     end
 end
 
@@ -152,11 +153,24 @@ end
 
 function Recorder:setRootData(rigName, frame, cf)
     if not self._session.rigs[rigName] then
-        self._session.rigs[rigName] = { jointTrack = {}, scaleTrack = {}, rootTrack = {} }
+        self._session.rigs[rigName] = { jointTrack = {}, scaleTrack = {}, rootTrack = {}, easingTrack = {} }
     end
     local rig = self._session.rigs[rigName]
     rig.rootTrack = rig.rootTrack or {}
     rig.rootTrack[frame] = cf
+end
+
+function Recorder:getEasing(rigName, frame)
+    local rig = self._session.rigs[rigName]
+    return (rig and rig.easingTrack and rig.easingTrack[frame]) or "Linear"
+end
+
+function Recorder:setEasing(rigName, frame, easing)
+    local rig = self._session.rigs[rigName]
+    if rig then
+        rig.easingTrack = rig.easingTrack or {}
+        rig.easingTrack[frame] = easing
+    end
 end
 
 -- Prop track accessors.
@@ -184,7 +198,25 @@ end
 
 function Recorder:deletePropKeyframe(propName, frame)
     local prop = self._session.props and self._session.props[propName]
-    if prop then prop.propTrack[frame] = nil end
+    if prop then
+        prop.propTrack[frame] = nil
+        if prop.easingTrack then prop.easingTrack[frame] = nil end
+    end
+end
+
+function Recorder:getPropEasing(propName, frame)
+    local prop = self._session.props and self._session.props[propName]
+    return (prop and prop.easingTrack and prop.easingTrack[frame]) or "Linear"
+end
+
+function Recorder:setPropEasing(propName, frame, easing)
+    if not self._session.props then self._session.props = {} end
+    if not self._session.props[propName] then
+        self._session.props[propName] = { propTrack = {}, easingTrack = {} }
+    end
+    local prop = self._session.props[propName]
+    prop.easingTrack = prop.easingTrack or {}
+    prop.easingTrack[frame] = easing
 end
 
 function Recorder:deleteProp(propName)
@@ -196,12 +228,13 @@ end
 -- Camera track accessors. One track for the whole session;
 -- each keyframe = {cf, fov, mode} where mode is "move" (interpolate from the
 -- previous keyframe) or "cut" (hard jump at this frame).
-function Recorder:addCameraKeyframe(frame, cf, fov, mode)
+function Recorder:addCameraKeyframe(frame, cf, fov, mode, easing)
     self._session.camera = self._session.camera or { track = {} }
     self._session.camera.track[frame] = {
-        cf   = cf,
-        fov  = fov or 70,
-        mode = mode or "move",
+        cf     = cf,
+        fov    = fov or 70,
+        mode   = mode or "move",
+        easing = easing or "Linear",
     }
 end
 
@@ -222,6 +255,17 @@ end
 function Recorder:setCameraMode(frame, mode)
     local kf = self:getCameraData(frame)
     if kf then kf.mode = mode end
+    return kf ~= nil
+end
+
+function Recorder:getCameraEasing(frame)
+    local kf = self:getCameraData(frame)
+    return (kf and kf.easing) or "Linear"
+end
+
+function Recorder:setCameraEasing(frame, easing)
+    local kf = self:getCameraData(frame)
+    if kf then kf.easing = easing end
     return kf ~= nil
 end
 
@@ -289,14 +333,14 @@ end
 
 function Recorder:setJointData(rigName, frame, jointData)
     if not self._session.rigs[rigName] then
-        self._session.rigs[rigName] = { jointTrack = {}, scaleTrack = {}, rootTrack = {} }
+        self._session.rigs[rigName] = { jointTrack = {}, scaleTrack = {}, rootTrack = {}, easingTrack = {} }
     end
     self._session.rigs[rigName].jointTrack[frame] = jointData
 end
 
 function Recorder:setScaleData(rigName, frame, scaleData)
     if not self._session.rigs[rigName] then
-        self._session.rigs[rigName] = { jointTrack = {}, scaleTrack = {}, rootTrack = {} }
+        self._session.rigs[rigName] = { jointTrack = {}, scaleTrack = {}, rootTrack = {}, easingTrack = {} }
     end
     self._session.rigs[rigName].scaleTrack[frame] = scaleData
 end
@@ -318,9 +362,11 @@ function Recorder:shiftFrames(fromFrame, delta)
         shiftTrack(rig.jointTrack)
         shiftTrack(rig.scaleTrack)
         shiftTrack(rig.rootTrack)
+        shiftTrack(rig.easingTrack)
     end
     for _, prop in pairs(self._session.props or {}) do
-        shiftTrack(prop.track)
+        shiftTrack(prop.propTrack)
+        shiftTrack(prop.easingTrack)
     end
     local cam = self._session.camera
     if cam then shiftTrack(cam.track) end
@@ -335,9 +381,11 @@ function Recorder:deleteFrameAt(frame)
         rig.jointTrack[frame] = nil
         rig.scaleTrack[frame] = nil
         if rig.rootTrack then rig.rootTrack[frame] = nil end
+        if rig.easingTrack then rig.easingTrack[frame] = nil end
     end
     for _, prop in pairs(self._session.props or {}) do
-        if prop.track then prop.track[frame] = nil end
+        if prop.propTrack then prop.propTrack[frame] = nil end
+        if prop.easingTrack then prop.easingTrack[frame] = nil end
     end
     local cam = self._session.camera
     if cam and cam.track then cam.track[frame] = nil end
