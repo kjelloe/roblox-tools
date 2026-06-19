@@ -527,6 +527,30 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
     (+1, 52 total) each verify that `frameCount` survives a full round-trip through their
     respective non-advanced mode. **Suite total: 466 cases across 21 files, all passing.**
 
+- [x] **Simple Mode UX pass — slot-mapped scrubber, Look Through free-fly fix, onion skin.**
+  - **Slot-mapped icon strip:** `Panel:setSimpleSlots(sortedFrames)` replaces the old
+    `rebuildSimpleFrameIcons` + `setSimpleIconWidth` pair. Icons are packed consecutively
+    (no gaps between sparse frame numbers); scrubber width = keyframe count, not total
+    frameCount. `_simpleSlotFrames[i]` and `_simpleFrameToSlot[frame]` lookup tables
+    translate slot positions ↔ actual frame numbers throughout `onFrameChanged` and
+    `setFrameDisplay`. All call sites updated to `panel:setSimpleSlots(getSimpleKeyframedFrames())`.
+  - **Look Through free-fly fix:** removed `workspace.CurrentCamera.CameraType =
+    Enum.CameraType.Scriptable` from `setSimpleLookThroughOn`. Setting `Scriptable` in edit
+    mode blocks Studio's built-in editor camera controls (right-click drag, WASD, scroll).
+    With the line removed, Studio drives the viewport normally; the Heartbeat still copies
+    `Camera.CFrame → simpleCameraPart` each tick.
+  - **Onion skin toggle:** new "Onion Skin: OFF/ON" button (column 5 of the camera row).
+    `setSimpleOnionOn(isOn)` creates/destroys `workspace.__MultiAnimOnionSkin` (Archivable=false)
+    containing semi-transparent ghost Parts for the previous keyframe (red, 0.65 opacity)
+    and next keyframe (blue, 0.65 opacity). Ghost world CFrames are computed by
+    `JointCapture.computeWorldCFrames(rig, jointData)` — pure FK traversal of `APPLY_ORDER`
+    that writes to a local table without touching any real rig BaseParts. Panel: new
+    `setSimpleOnionState(isOn)` method and `onSimpleOnionToggled` event. Bridge commands:
+    `setSimpleOnion {on}`, `getSimpleOnion`.
+  - **9 new test cases:** `test_joint_capture.lua` +3 (inline FK chain, no module import),
+    `test_ui_simple.lua` +6 (onion skin toggle on/off, folder/ghost lifecycle, frame-change
+    refresh, cleanup). **Suite total: 475 cases across 21 files, all passing.**
+
 ### Backlog
 
 - Multiple named cameras + switcher track (authoring sugar over Phase 8 cuts)
@@ -534,5 +558,4 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
 - R15 rig support
 - Audio track sync
 - Upload to Roblox asset catalogue
-- Onion-skin ghost rendering
 - Prop property animation (emitter rate, transparency, colour)

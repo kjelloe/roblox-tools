@@ -169,6 +169,44 @@ hrp.CFrame   = hrp.CFrame   - Vector3.new(5, 0, 0)
 torso.CFrame = origTorsoCF
 rArm.CFrame  = origArmCF
 
+-- ── computeWorldCFrames (inline FK, mirrors JointCapture implementation) ─────
+-- Verify the FK formula gives sensible results and does not modify rig parts.
+do
+    local JOINTS_INFO = {
+        { motor = rootJoint,  parent = hrp,   child = torso },
+        { motor = rShoulder,  parent = torso, child = rArm  },
+    }
+    -- Inline FK: parent_CFrame * C0 * Transform * C1:Inv (motors already track state)
+    local computeFK = function(motor, parentCF, transform)
+        return parentCF * motor.C0 * transform * motor.C1:Inverse()
+    end
+
+    local snapshotsBefore = {}
+    for _, p in ipairs(rig:GetDescendants()) do
+        if p:IsA("BasePart") then snapshotsBefore[p] = p.CFrame end
+    end
+
+    -- Compute torso world CFrame from RootJoint transform (inline FK from HRP).
+    local rootTf  = computeTransform(rootJoint, hrp, torso)
+    local torsoCF = computeFK(rootJoint, hrp.CFrame, rootTf)
+
+    -- Compute right arm world CFrame from Right Shoulder transform (inline FK from Torso).
+    local rShTf   = computeTransform(rShoulder, torso, rArm)
+    local rArmCF  = computeFK(rShoulder, torsoCF, rShTf)
+
+    ok("FK from RootJoint: computed Torso CFrame near actual",
+        posDiff(torsoCF, torso.CFrame) < 0.05,
+        string.format("diff=%.4f", posDiff(torsoCF, torso.CFrame)))
+    ok("FK chain: Right Arm CFrame computed from Torso (no nil errors)", rArmCF ~= nil)
+
+    -- Verify nothing was modified.
+    local unchanged = true
+    for p, cf in pairs(snapshotsBefore) do
+        if p.Parent and posDiff(p.CFrame, cf) > 0.001 then unchanged = false end
+    end
+    ok("inline FK computation does not modify any rig BaseParts", unchanged)
+end
+
 -- ── Restore motors to their pre-test state ────────────────────────────────────
 -- Reconnected normally; left disconnected if a plugin session already had them
 -- disconnected (savedPart0 holds nil in that case — don't fight the plugin).

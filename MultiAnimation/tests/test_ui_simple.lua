@@ -480,6 +480,40 @@ do
     end
 end
 
+-- ── Onion skin toggle ─────────────────────────────────────────────────────────
+-- We're already in simple mode with no data; no mode switch needed (switching
+-- to simple while already in simple overwrites advancedFrameCount with the
+-- current small frameCount and corrupts the restore path).
+if frameOccupied(1) then
+    table.insert(out, "SKIP  onion skin tests (frame 1 already holds user data)")
+else
+    call("simpleAddFrame")   -- frame 1 gets data; cursor → 2
+    call("simpleAddFrame")   -- frame 2 gets data; cursor → 3
+
+    r = call("setSimpleOnion", { on = true })
+    ok("setSimpleOnion ON returns true", r.ok and r.result == true, r.err)
+
+    local folder = workspace:FindFirstChild("__MultiAnimOnionSkin")
+    ok("onion skin creates __MultiAnimOnionSkin folder", folder ~= nil)
+    ok("onion skin folder contains ghost Parts",
+        folder ~= nil and #folder:GetChildren() > 0)
+
+    -- Navigate to frame 1 (has a forward neighbour); ghosts should refresh.
+    call("setFrame", { frame = 1 })
+    folder = workspace:FindFirstChild("__MultiAnimOnionSkin")
+    ok("onion skin folder persists after frame change", folder ~= nil)
+
+    r = call("setSimpleOnion", { on = false })
+    ok("setSimpleOnion OFF returns false", r.ok and r.result == false, r.err)
+    folder = workspace:FindFirstChild("__MultiAnimOnionSkin")
+    ok("onion skin folder removed when toggled OFF", folder == nil)
+
+    -- Cleanup: delete the 2 frames we added (stay in simple mode).
+    call("setFrame", { frame = 1 })
+    call("simpleDeleteFrame")
+    call("simpleDeleteFrame")
+end
+
 -- ── frameCount preserved through simple→advanced round-trip ──────────────────
 -- Regression: autosave fired while in simple mode used to persist the tiny
 -- simple-mode frameCount, so the next plugin load started with e.g. 2 frames.

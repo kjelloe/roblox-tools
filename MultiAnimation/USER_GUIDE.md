@@ -231,6 +231,7 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 | **Simple mode** FOV box | Type + Tab/Enter | Set the `SimpleCamera`'s field of view (clamped 1–120) |
 | **Simple mode** `Look Through` | Click | Slave the viewport to the `SimpleCamera`'s view, then fly freely with Studio's normal edit-camera controls; toggle off to restore your original viewport exactly |
 | `SimpleCamera` part (viewport) | Move / rotate | Pose the camera like any rig or prop — captured the same way on step-forward; shows a wireframe FOV-frustum outline |
+| **Simple mode** `Onion Skin: OFF/ON` | Click | Toggle ghost poses: semi-transparent red = previous keyframe, blue = next keyframe; ghosts refresh on every frame change |
 | **Simple mode** FPS box (nav row) | Type + Tab/Enter | Set playback speed (1–999 fps, default 30). Affects `▶ Play` speed; saved with the session. |
 | `💾 Save` | Click | Quick-save the session under the current scene name (no dialog) |
 
@@ -370,6 +371,13 @@ live, so the gizmo doesn't fight your navigation. Toggle Look Through off to
 restore your own viewport exactly where it was *before* you turned it on
 (not wherever you flew to). Look Through is rejected (no-op) if Camera View
 isn't on yet.
+
+**Onion Skin:** click **Onion Skin: OFF** in the camera row to toggle ghost
+rendering. When on, the previous and next keyframed frames are shown as
+semi-transparent ghost poses overlaid on the real rigs — **red** for the
+frame behind and **blue** for the frame ahead. Ghosts update automatically
+each time you change frames. Toggle off to clear them. (Ghosts are never
+saved with the place file and vanish on plugin unload.)
 
 **Save / Export** work exactly as in Advanced mode, right there in the
 Simple panel — no need to switch modes just to save your work or export

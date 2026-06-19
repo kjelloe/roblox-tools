@@ -137,6 +137,7 @@ local SIMPLE_CAMERA_NAME    = "SimpleCamera"
 local simpleCameraPart      = nil
 local simpleCameraFOV       = 70
 local simpleLookThroughOn   = false
+local simpleOnionOn         = false
 local savedSimpleCamState   = nil
 local simpleLookThroughConn = nil
 local setSimpleLookThroughOn -- forward declared; defined in the SIMPLE MODE section, used by setSimpleCameraOn below
@@ -1071,8 +1072,7 @@ local function doSimpleScan()
     for _ in pairs(allRigs) do rigCount += 1 end
     for _ in pairs(allProps) do propCount += 1 end
     print(string.format("[MultiAnimation] Simple mode scan: %d rig(s), %d prop(s)", rigCount, propCount))
-    panel:rebuildSimpleFrameIcons(getSimpleKeyframedFrames())
-    panel:setSimpleIconWidth(timeline:getFrameCount())
+    panel:setSimpleSlots(getSimpleKeyframedFrames())
     panel:setSimpleFPSDisplay(timeline:getFps())
 end
 
@@ -1120,9 +1120,7 @@ local function rebuildAllSimpleMarkers()
         end
     end
     -- Camera gizmos are Advanced Mode only; skip rebuild in Simple Mode.
-    -- Rebuild icon strip and resize scrubber.
-    panel:rebuildSimpleFrameIcons(getSimpleKeyframedFrames())
-    panel:setSimpleIconWidth(timeline:getFrameCount())
+    panel:setSimpleSlots(getSimpleKeyframedFrames())
 end
 
 -- Capture current frame (always, overwriting any existing data), extend the
@@ -1132,19 +1130,19 @@ local function doSimpleAddFrame()
     local frame = timeline:getCurrent()
     local frameCount = timeline:getFrameCount()
     doSimpleCaptureFrame(frame)
-    panel:addSimpleFrameIcon(frame)
     if frame >= frameCount then
         -- Cursor is at the blank end slot — grow timeline and advance.
         local newCount = frameCount + 1
         timeline:setFrameCount(newCount)
         recorder:setFrameCount(newCount)
         panel:setFrameCount(newCount)
-        panel:setSimpleIconWidth(newCount)
+        panel:setSimpleSlots(getSimpleKeyframedFrames())
         local f = timeline:setCurrent(newCount)
         panel:setFrameDisplay(f, newCount)
         applyPosesAt(f, false)
     else
         -- Cursor is at an existing frame — update its data, advance one step.
+        panel:setSimpleSlots(getSimpleKeyframedFrames())
         local f = timeline:setCurrent(frame + 1)
         panel:setFrameDisplay(f, frameCount)
         applyPosesAt(f, false)
@@ -1226,9 +1224,11 @@ function setSimpleLookThroughOn(isOn)
         if simpleLookThroughOn then return true end
         simpleLookThroughOn = true
         savedSimpleCamState = CameraCapture.saveState()
-        -- Scriptable lets scripts drive the CFrame without Studio's editor
-        -- controller overriding it every frame. Restored by restoreState on toggle-off.
-        workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
+        -- Snap viewport camera to the SimpleCamera Part's position.
+        -- We intentionally do NOT set CameraType = Scriptable so Studio's
+        -- built-in editor controls (right-click-drag, WASD) remain active.
+        -- The Heartbeat copies Camera → Part, so wherever the user flies
+        -- the camera, the part tracks it.
         CameraCapture.apply(simpleCameraPart.CFrame, simpleCameraFOV)
         simpleLookThroughConn = RunService.Heartbeat:Connect(function()
             if simpleCameraPart and simpleCameraPart.Parent then
@@ -1250,6 +1250,73 @@ function setSimpleLookThroughOn(isOn)
         end
     end
     return simpleLookThroughOn
+end
+
+-- ── Onion-skin ghost rendering ────────────────────────────────────────────────
+
+local ONION_FOLDER = "__MultiAnimOnionSkin"
+-- Two ghost colours: previous frame = warm red, next frame = cool blue.
+local ONION_PREV_COLOR = Color3.fromRGB(255, 80, 80)
+local ONION_NEXT_COLOR = Color3.fromRGB(80, 80, 255)
+local ONION_TRANSPARENCY = 0.65
+
+local function clearOnionSkin()
+    local folder = workspace:FindFirstChild(ONION_FOLDER)
+    if folder then folder:Destroy() end
+end
+
+local function updateOnionSkin()
+    clearOnionSkin()
+    if not simpleOnionOn then return end
+
+    local frame = timeline:getCurrent()
+    -- Find the nearest keyframed frame before and after current.
+    local kfFrames = getSimpleKeyframedFrames()
+    local prevFrame, nextFrame
+    for _, f in ipairs(kfFrames) do
+        if f < frame then prevFrame = f end
+        if f > frame and not nextFrame then nextFrame = f; break end
+    end
+    if not prevFrame and not nextFrame then return end
+
+    local folder = Instance.new("Folder")
+    folder.Name        = ONION_FOLDER
+    folder.Archivable  = false
+    folder.Parent      = workspace
+
+    for _, spec in ipairs({
+        { prevFrame, ONION_PREV_COLOR },
+        { nextFrame, ONION_NEXT_COLOR },
+    }) do
+        local adjFrame, color = spec[1], spec[2]
+        if not adjFrame then continue end
+        for rigName, rigModel in pairs(allRigs) do
+            local jd = recorder:getJointData(rigName, adjFrame)
+            if not jd then continue end
+            local worldCFs = JointCapture.computeWorldCFrames(rigModel, jd)
+            for partName, cf in pairs(worldCFs) do
+                local orig = rigModel:FindFirstChild(partName)
+                if not orig or not orig:IsA("BasePart") then continue end
+                local ghost = Instance.new("Part")
+                ghost.Name             = rigName .. "_" .. partName
+                ghost.Size             = orig.Size
+                ghost.CFrame           = cf
+                ghost.Color            = color
+                ghost.Transparency     = ONION_TRANSPARENCY
+                ghost.CanCollide       = false
+                ghost.Anchored         = true
+                ghost.CastShadow       = false
+                ghost.Archivable       = false
+                ghost.Parent           = folder
+            end
+        end
+    end
+end
+
+local function setSimpleOnionOn(isOn)
+    simpleOnionOn = isOn
+    panel:setSimpleOnionState(isOn)
+    if isOn then updateOnionSkin() else clearOnionSkin() end
 end
 
 -- ── Panel event wiring ────────────────────────────────────────────────────────
@@ -1450,6 +1517,9 @@ panel.onModeChanged:Connect(function(newMode)
             panel:setFrameCount(advancedFrameCount)
             advancedFrameCount = nil
         end
+        -- Leaving simple mode: shut down onion skin.
+        if simpleOnionOn then setSimpleOnionOn(false) end
+        clearOnionSkin()
         rebuildCameraUI()
     end
 end)
@@ -1462,6 +1532,7 @@ panel.onSimpleLookThroughToggled:Connect(function(isOn)
     local result = setSimpleLookThroughOn(isOn)
     panel:setSimpleLookThroughState(result)
 end)
+panel.onSimpleOnionToggled:Connect(setSimpleOnionOn)
 panel.onSimpleFOVChanged:Connect(function(fov)
     simpleCameraFOV = fov
     if simpleCameraPart then
@@ -1675,6 +1746,7 @@ panel.onFrameChanged:Connect(function(newFrame)
     local f = timeline:setCurrent(newFrame)
     panel:setFrameDisplay(f, timeline:getFrameCount())
     applyPosesAt(f, false)
+    if simpleOnionOn and mode == "simple" then updateOnionSkin() end
 end)
 
 panel.onScrubBegan:Connect(function()
@@ -1926,7 +1998,11 @@ track(plugin.Unloading:Connect(function()
     if simpleLookThroughOn then
         setSimpleLookThroughOn(false)
     end
+    if simpleOnionOn then
+        setSimpleOnionOn(false)
+    end
     clearCameraGizmos()
+    clearOnionSkin()
     -- testBridge is declared below; guard for the unload-before-init edge.
     local bridge = game:GetService("CoreGui"):FindFirstChild("__MultiAnimTestBridge")
     if bridge then bridge:Destroy() end
@@ -2311,6 +2387,15 @@ local testBridge = TestBridge.start({
 
     getSimpleLookThrough = function()
         return simpleLookThroughOn
+    end,
+
+    setSimpleOnion = function(a)
+        setSimpleOnionOn(a.on and true or false)
+        return simpleOnionOn
+    end,
+
+    getSimpleOnion = function()
+        return simpleOnionOn
     end,
 
     setSimpleCameraFOV = function(a)

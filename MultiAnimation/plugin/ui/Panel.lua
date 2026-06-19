@@ -347,6 +347,7 @@ function Panel.new(widget)
     local eSimpleFOV        = mkEvent("onSimpleFOVChanged")
     local eSimpleLook       = mkEvent("onSimpleLookThroughToggled")
     local eSimpleFPS        = mkEvent("onSimpleFPSChanged")
+    local eSimpleOnion      = mkEvent("onSimpleOnionToggled")
 
     -- Playback tab events
     local ePlaybackSceneChanged   = mkEvent("onPlaybackSceneChanged")    -- fires (sceneName)
@@ -737,11 +738,15 @@ function Panel.new(widget)
     -- icon slot rather than landing on the slot's left edge.
     self._simpleScrubber = Scrubber.new(simpleScrubRow, 1, 1, widget,
         SIMPLE_ICON_W / 2, SIMPLE_ICON_W / 2)
-    self._simpleScrubber.onFrameChanged:Connect(function(f)
-        self._currentFrame = f
-        if frameBox then frameBox.Text = tostring(f) end
-        if self._simpleFrameBox then self._simpleFrameBox.Text = tostring(f) end
-        eFrame:Fire(f)
+    -- _simpleSlotFrames[slotIdx] = actualFrame (set by setSimpleSlots)
+    self._simpleSlotFrames   = {}
+    self._simpleFrameToSlot  = {}
+    self._simpleScrubber.onFrameChanged:Connect(function(slotIdx)
+        local frame = self._simpleSlotFrames[slotIdx] or slotIdx
+        self._currentFrame = frame
+        if frameBox then frameBox.Text = tostring(frame) end
+        if self._simpleFrameBox then self._simpleFrameBox.Text = tostring(frame) end
+        eFrame:Fire(frame)
     end)
     self._simpleScrubber.onDragBegan:Connect(function() eScrubBgn:Fire() end)
     self._simpleScrubber.onDragEnded:Connect(function() eScrubEnd:Fire() end)
@@ -821,6 +826,15 @@ function Panel.new(widget)
     simpleLookBtn.MouseButton1Click:Connect(function()
         eSimpleLook:Fire(not self._simpleLookOn)
     end)
+    local simpleOnionBtn = btn(simpleCamRow, "Onion Skin: OFF", 5)
+    self._simpleOnionBtn = simpleOnionBtn
+    self._simpleOnionOn  = false
+    simpleOnionBtn.MouseButton1Click:Connect(function()
+        self._simpleOnionOn = not self._simpleOnionOn
+        simpleOnionBtn.Text = "Onion Skin: " .. (self._simpleOnionOn and "ON" or "OFF")
+        eSimpleOnion:Fire(self._simpleOnionOn)
+    end)
+    self.onSimpleOnionToggled = eSimpleOnion.Event
 
     local simpleSceneRow = hrow(simpleSec, 6, 4)
     lbl(simpleSceneRow, "Scene:", 42, 1)
@@ -1492,6 +1506,13 @@ function Panel:setSimpleLookThroughState(isOn)
     end
 end
 
+function Panel:setSimpleOnionState(isOn)
+    self._simpleOnionOn = isOn
+    if self._simpleOnionBtn then
+        self._simpleOnionBtn.Text = "Onion Skin: " .. (isOn and "ON" or "OFF")
+    end
+end
+
 function Panel:setSimpleFOVDisplay(fov)
     self._simpleFOV = fov
     if self._simpleFOVBox then
@@ -1535,7 +1556,10 @@ function Panel:setFrameDisplay(current, total)
     if self._scrubber then self._scrubber:setFrame(current) end
     if self._simpleFrameBox then self._simpleFrameBox.Text = tostring(current) end
     if total and self._simpleTotalBox then self._simpleTotalBox.Text = tostring(total) end
-    if self._simpleScrubber then self._simpleScrubber:setFrame(current) end
+    if self._simpleScrubber then
+        local slot = (self._simpleFrameToSlot and self._simpleFrameToSlot[current]) or current
+        self._simpleScrubber:setFrame(slot)
+    end
     -- Update icon strip highlight
     if self._simpleIcons then
         local prevBtn = self._simpleIcons[prev]
@@ -1559,12 +1583,16 @@ end
 
 -- ── Simple Mode frame icon strip ─────────────────────────────────────────────
 
-function Panel:addSimpleFrameIcon(frame)
+-- Build one icon at slot position slotIdx (1-based).  slotIdx determines the
+-- pixel offset so that icons are always packed with no gaps even when the
+-- underlying frame numbers are non-consecutive.
+function Panel:addSimpleFrameIcon(frame, slotIdx)
     if not self._simpleIconRow or self._simpleIcons[frame] then return end
+    local slot = slotIdx or (self._simpleFrameToSlot and self._simpleFrameToSlot[frame]) or frame
     local b = Instance.new("TextButton")
     b.Name             = "FrameIcon_" .. frame
     b.Size             = UDim2.new(0, SIMPLE_ICON_W - 2, 0, SIMPLE_ICON_H)
-    b.Position         = UDim2.new(0, (frame - 1) * SIMPLE_ICON_W + 1, 0, 0)
+    b.Position         = UDim2.new(0, (slot - 1) * SIMPLE_ICON_W + 1, 0, 0)
     b.BackgroundColor3 = (frame == self._currentFrame) and C.btnAccent or C.btnBg
     b.BorderSizePixel  = 0
     b.Text             = tostring(frame)
@@ -1591,17 +1619,42 @@ function Panel:removeSimpleFrameIcon(frame)
     if b then b:Destroy(); self._simpleIcons[frame] = nil end
 end
 
--- Rebuild the entire icon strip from a sorted list of frame numbers.
-function Panel:rebuildSimpleFrameIcons(sortedFrames)
-    if not self._simpleIconRow then return end
-    for _, b in pairs(self._simpleIcons) do b:Destroy() end
-    self._simpleIcons = {}
-    for _, frame in ipairs(sortedFrames) do
-        self:addSimpleFrameIcon(frame)
+-- Set the slot mapping AND rebuild the icon strip AND resize the scrubber.
+-- sortedFrames: sorted list of all keyframed frame numbers.
+-- Icons are packed consecutively (slot 1 = leftmost) so there are no gaps
+-- even when frame numbers are non-consecutive.
+function Panel:setSimpleSlots(sortedFrames)
+    local n = #sortedFrames
+    -- Rebuild slot ↔ frame lookup tables
+    self._simpleSlotFrames  = {}
+    self._simpleFrameToSlot = {}
+    for i, f in ipairs(sortedFrames) do
+        self._simpleSlotFrames[i]  = f
+        self._simpleFrameToSlot[f] = i
+    end
+    -- Resize icon row and scrubber
+    local w = math.max(1, n) * SIMPLE_ICON_W
+    if self._simpleIconRow then
+        self._simpleIconRow.Size = UDim2.new(0, w, 0, SIMPLE_ICON_H)
+    end
+    if self._simpleScrubRow then
+        self._simpleScrubRow.Size = UDim2.new(0, w, 0, 0)
+    end
+    if self._simpleScrubber then
+        self._simpleScrubber:setFrameCount(math.max(1, n))
+    end
+    -- Rebuild icons at packed slot positions
+    if self._simpleIconRow then
+        for _, b in pairs(self._simpleIcons) do b:Destroy() end
+        self._simpleIcons = {}
+        for i, frame in ipairs(sortedFrames) do
+            self:addSimpleFrameIcon(frame, i)
+        end
     end
 end
 
--- Resize the icon row and scrubber row to fit frameCount slots.
+-- Legacy: resize only (no slot rebuild).  Kept so callers that already
+-- call setSimpleSlots don't also need to avoid setSimpleIconWidth.
 function Panel:setSimpleIconWidth(frameCount)
     local n = math.max(1, frameCount)
     local w = n * SIMPLE_ICON_W

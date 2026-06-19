@@ -54,7 +54,7 @@
 | `init.server.lua` | Entry | Toolbar, widget, event wiring, playback loop, Selection sync, play-mode guard |
 | `core/RigScanner` | Core | Detects R6 rigs in Workspace.FIGURES |
 | `core/Recorder` | Core | Session data storage; addKeyframe captures joints+scale+rootCFrame+props; deleteRigKeyframe/deletePropKeyframe |
-| `core/JointCapture` | Core | Reads/writes Motor6D.Transform; validate() checks joint health |
+| `core/JointCapture` | Core | Reads/writes Motor6D.Transform; validate() checks joint health; computeWorldCFrames() for onion skin FK |
 | `core/ScaleCapture` | Core | Reads/writes Part.Size |
 | `core/PropCapture` | Core | Reads/writes BasePart.CFrame (world space) |
 | `core/TestBridge` | Core | CoreGui BindableFunction — lets execute_luau drive the live panel (UI tests) |
@@ -110,6 +110,8 @@ init.server.lua
     │
     ├── JointCapture.lua    Reads Motor6D.Transform for all 6 R6 joints
     │                       validate(rig) → list of broken/missing Motor6Ds
+    │                       computeWorldCFrames(rig, jointData) → { [partName]=CFrame }
+    │                         (pure FK; does NOT modify any rig BaseParts — used for onion skin)
     │                       Returns: { [jointName] = CFrame }
     │
     ├── ScaleCapture.lua    Reads Part.Size for all 7 R6 body parts
@@ -502,6 +504,29 @@ animation on the same clock; each client's `CutsceneCamera` drives a
 the player camera afterwards. Rig motion replicates ~50–100 ms behind the
 locally-computed camera — accepted v1 trade-off.
 
+### Simple Mode — Slot-Mapped Icon Strip
+
+The Simple Mode frame icon strip maps *slot indices* (1, 2, 3…) to *actual frame numbers* (which may be sparse, e.g. 1, 4, 9…). This keeps the icon strip and scrubber width equal to the number of keyframed frames rather than the total frameCount.
+
+Two lookup tables are built by `Panel:setSimpleSlots(sortedFrames)` and kept in sync with every Add/Insert/Delete Frame operation:
+- `_simpleSlotFrames[slotIdx] = actualFrame`
+- `_simpleFrameToSlot[actualFrame] = slotIdx`
+
+The scrubber fires slot indices; the `onFrameChanged` callback translates to actual frame numbers via `_simpleSlotFrames`. `setFrameDisplay` translates back to slot indices via `_simpleFrameToSlot` so the scrubber thumb tracks the correct slot. All call sites use `panel:setSimpleSlots(getSimpleKeyframedFrames())` rather than the old `rebuildSimpleFrameIcons` + `setSimpleIconWidth` pair.
+
+### Simple Mode — Onion Skin
+
+When "Onion Skin" is ON, `updateOnionSkin()` creates a transient folder `workspace.__MultiAnimOnionSkin` (`Archivable = false`) containing ghost Parts for the previous and next keyframed frames relative to the current cursor position.
+
+Ghost CFrames are computed by `JointCapture.computeWorldCFrames(rig, jointData)`:
+- Walks `APPLY_ORDER` (same joint order as `apply()`)
+- Computes each part's world CFrame via `parentCF * motor.C0 * transform * motor.C1:Inverse()`
+- Writes results into a local table — **never modifies any real rig BasePart**
+
+Ghost Parts use `Color3.fromRGB(255,80,80)` (red = previous frame) and `Color3.fromRGB(80,80,255)` (blue = next frame), `Transparency = 0.65`, `CanCollide = false`, `Anchored = true`, `CastShadow = false`. The folder is destroyed and rebuilt on every frame change when onion skin is active, and on toggle-off or mode exit.
+
+`CameraType = Scriptable` is intentionally **not** set when Look Through is active, so Studio's built-in editor controls (right-click drag, WASD, scroll) remain functional. The Heartbeat copies `Camera.CFrame → simpleCameraPart` one-way so the gizmo follows the viewport.
+
 ### Plugin Play-Mode Guard
 
 `init.server.lua` begins with `if game:GetService("RunService"):IsRunning() then return end`. The root element of the plugin `.rbxmx` is a `Script` class, which Roblox also executes as a server script when play mode starts. This guard prevents the plugin from disconnecting Motor6D joints or interfering with runtime animation.
@@ -515,7 +540,7 @@ locally-computed camera — accepted v1 trade-off.
 | `build.py` | Assembles `.rbxmx` from source files and copies to Plugins folder |
 | `watch.py` | Auto-build on save, with Studio compile-check first |
 | `devsync.py` + `plugin/devloader.lua` | Hot-reload the plugin on save — no Studio restart |
-| `run_tests.py` | Runs the full `tests/` suite (466 cases, 21 files) against live Studio |
+| `run_tests.py` | Runs the full `tests/` suite (475 cases, 21 files) against live Studio |
 | `hotpatch.py` | Push a single `game/` module without reload |
 | `mcp.py` (`mcp` alias) | CLI for everything: luau, console/tail, tree/inspect/read/grep, check, drift, test, deploy, playtest, gen, store, addrig, scene, daemon |
 | MCP daemon | Persistent StudioMCP proxy (auto-starts) — 0.07s/call vs ~7s |

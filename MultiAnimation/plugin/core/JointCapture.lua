@@ -134,6 +134,28 @@ function JointCapture.apply(rig, jointData)
     end
 end
 
+-- Compute world-space CFrames for each R6 part given joint data, without
+-- modifying any actual instances.  Used by the onion-skin renderer.
+-- rootCF: optional world CFrame for HumanoidRootPart; falls back to its current CFrame.
+function JointCapture.computeWorldCFrames(rig, jointData, rootCF)
+    local hrp = rig:FindFirstChild("HumanoidRootPart")
+    local computed = {}
+    computed["HumanoidRootPart"] = rootCF or (hrp and hrp.CFrame) or CFrame.new()
+    for _, jointName in ipairs(APPLY_ORDER) do
+        local cf = jointData and jointData[jointName]
+        if not cf then continue end
+        local parentPartName = JOINT_PARENT[jointName]
+        local childPartName  = JOINT_CHILD[jointName]
+        local container = rig:FindFirstChild(parentPartName)
+        if not container then continue end
+        local motor = container:FindFirstChild(jointName)
+        if not motor then continue end
+        local parentCF = computed[parentPartName] or container.CFrame
+        computed[childPartName] = parentCF * motor.C0 * cf * motor.C1:Inverse()
+    end
+    return computed
+end
+
 -- Returns a list of missing motor/part names; empty list means rig is healthy.
 function JointCapture.validate(rig)
     local missing = {}
