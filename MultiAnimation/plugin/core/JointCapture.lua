@@ -1,4 +1,5 @@
--- JointCapture — captures and applies R6 joint poses.
+-- JointCapture — captures and applies joint poses for any rig type.
+-- Works with R6, R15, and custom rigs via dynamic Motor6D discovery.
 --
 -- MOTOR6D BEHAVIOUR IN STUDIO EDIT MODE
 --   Motor6D acts like a weld: setting any Part.CFrame moves the entire
@@ -13,99 +14,96 @@
 -- APPLY: sets each Part.CFrame using forward kinematics (motors disconnected,
 --   so only the target part moves).
 --   Part1.CFrame = Part0.CFrame * C0 * Transform * C1:Inv
---   Order: RootJoint first (sets Torso), then limbs (use Torso.CFrame).
+--
+-- DISCOVERY FILTER: a Motor6D belongs to the rig if:
+--   motor.Parent.Parent == rig   (container is a direct child of the rig model)
+--   AND motor.Part1.Parent == rig (Part1 is also a direct child)
+-- This excludes accessory welds and nested sub-model motors.
+-- motor.Parent is always the original Part0 container, even when Part0 == nil.
 
 local JointCapture = {}
 
--- Motor6D name → Part0 container (the part that holds the Motor6D instance).
-local JOINT_PARENT = {
-    RootJoint          = "HumanoidRootPart",
-    Neck               = "Torso",
-    ["Right Shoulder"] = "Torso",
-    ["Left Shoulder"]  = "Torso",
-    ["Right Hip"]      = "Torso",
-    ["Left Hip"]       = "Torso",
-}
+-- ── Discovery ─────────────────────────────────────────────────────────────────
 
--- Motor6D name → Part1 name (the part that gets moved).
-local JOINT_CHILD = {
-    RootJoint          = "Torso",
-    Neck               = "Head",
-    ["Right Shoulder"] = "Right Arm",
-    ["Left Shoulder"]  = "Left Arm",
-    ["Right Hip"]      = "Right Leg",
-    ["Left Hip"]       = "Left Leg",
-}
+local function discoverMotors(rig)
+    local motors = {}
+    for _, inst in ipairs(rig:GetDescendants()) do
+        if inst:IsA("Motor6D") then
+            local container = inst.Parent   -- always the original Part0 container
+            local p1        = inst.Part1
+            if container and container.Parent == rig
+               and p1 and p1.Parent == rig then
+                table.insert(motors, inst)
+            end
+        end
+    end
+    return motors
+end
 
--- Apply order: parent before children (Torso must be positioned before limbs).
-local APPLY_ORDER = {
-    "RootJoint",
-    "Neck",
-    "Right Shoulder",
-    "Left Shoulder",
-    "Right Hip",
-    "Left Hip",
-}
+-- Topological sort: apply parent joints before child joints so FK is correct.
+-- HumanoidRootPart is the implicit root (no inbound joint).
+local function buildApplyOrder(motors)
+    local positioned = { HumanoidRootPart = true }
+    local ordered    = {}
+    local remaining  = { table.unpack(motors) }
+    local maxIter    = (#motors + 1) * (#motors + 1)
+    local iter       = 0
+    while #remaining > 0 and iter < maxIter do
+        iter += 1
+        local next = {}
+        local progressed = false
+        for _, m in ipairs(remaining) do
+            if positioned[m.Parent.Name] then
+                table.insert(ordered, m)
+                positioned[m.Part1.Name] = true
+                progressed = true
+            else
+                table.insert(next, m)
+            end
+        end
+        remaining = next
+        if not progressed then break end
+    end
+    -- Append any unresolvable motors (cycle or disconnected sub-graph)
+    for _, m in ipairs(remaining) do table.insert(ordered, m) end
+    return ordered
+end
 
 -- ── Motor connection management ───────────────────────────────────────────────
 
--- Disconnect all Motor6D joints so parts can be posed independently.
--- Returns a state table { [jointName] = savedPart0 } for later reconnect.
+-- Disconnect all rig joints so parts can be posed independently.
+-- Returns an opaque state table for reconnectAll.
 function JointCapture.disconnectAll(rig)
     local state = {}
-    for jointName, parentPartName in pairs(JOINT_PARENT) do
-        local container = rig:FindFirstChild(parentPartName)
-        if container then
-            local motor = container:FindFirstChild(jointName)
-            if motor and motor:IsA("Motor6D") then
-                state[jointName] = motor.Part0   -- may be nil if already disconnected
-                motor.Part0 = nil
-            end
-        end
+    for _, motor in ipairs(discoverMotors(rig)) do
+        table.insert(state, { motor = motor, part0 = motor.Part0 })
+        motor.Part0 = nil
     end
     return state
 end
 
--- Restore Motor6D connections from a state table returned by disconnectAll.
+-- Restore Motor6D connections from the state returned by disconnectAll.
 function JointCapture.reconnectAll(rig, state)
-    for jointName, part0 in pairs(state) do
-        local parentPartName = JOINT_PARENT[jointName]
-        if parentPartName then
-            local container = rig:FindFirstChild(parentPartName)
-            if container then
-                local motor = container:FindFirstChild(jointName)
-                if motor and motor:IsA("Motor6D") then
-                    motor.Part0 = part0
-                end
-            end
+    for _, entry in ipairs(state) do
+        if entry.motor and entry.motor.Parent then
+            entry.motor.Part0 = entry.part0
         end
     end
 end
 
 -- ── Capture ───────────────────────────────────────────────────────────────────
 
-local function computeTransform(motor, container)
-    -- container = Part0 (passed separately because motor.Part0 may be nil)
-    local child = motor.Parent and motor.Parent.Parent
-        and motor.Parent.Parent:FindFirstChild(JOINT_CHILD[motor.Name])
-    -- Resolve Part1 from rig via JOINT_CHILD table instead of motor.Part1
-    return nil  -- placeholder; see capture() below
-end
-
--- Returns { [jointName] = CFrame } computed from current part positions.
--- Works correctly whether motors are connected or disconnected.
+-- Returns { [motorName] = CFrame } computed from current part CFrames.
+-- Works whether motors are connected or disconnected.
 function JointCapture.capture(rig)
     local result = {}
-    for jointName, parentPartName in pairs(JOINT_PARENT) do
-        local container = rig:FindFirstChild(parentPartName)
-        if not container then continue end
-        local motor = container:FindFirstChild(jointName)
-        if not motor or not motor:IsA("Motor6D") then continue end
-        local childPartName = JOINT_CHILD[jointName]
-        local child = rig:FindFirstChild(childPartName)
-        if not child then continue end
-        -- Use container.CFrame as Part0 (works even when motor.Part0 is nil)
-        result[jointName] = motor.C0:Inverse() * container.CFrame:Inverse() * child.CFrame * motor.C1
+    for _, motor in ipairs(discoverMotors(rig)) do
+        local container = motor.Parent   -- always the Part0 container
+        local child     = motor.Part1
+        result[motor.Name] = motor.C0:Inverse()
+                           * container.CFrame:Inverse()
+                           * child.CFrame
+                           * motor.C1
     end
     return result
 end
@@ -116,62 +114,47 @@ end
 
 -- ── Apply ─────────────────────────────────────────────────────────────────────
 
--- Apply joint data to the rig.  Assumes Motor6D joints are already disconnected
--- (via disconnectAll) so each CFrame assignment moves only that part.
+-- Apply joint data to the rig. Assumes motors are disconnected (via disconnectAll)
+-- so each CFrame assignment moves only that part.
 function JointCapture.apply(rig, jointData)
-    for _, jointName in ipairs(APPLY_ORDER) do
-        local cf = jointData[jointName]
+    local motors  = discoverMotors(rig)
+    local ordered = buildApplyOrder(motors)
+    for _, motor in ipairs(ordered) do
+        local cf = jointData[motor.Name]
         if not cf then continue end
-        local parentPartName = JOINT_PARENT[jointName]
-        local childPartName  = JOINT_CHILD[jointName]
-        local container = rig:FindFirstChild(parentPartName)
-        local child     = rig:FindFirstChild(childPartName)
-        if not (container and child) then continue end
-        local motor = container:FindFirstChild(jointName)
-        if not motor then continue end
-        -- Forward kinematics: Part1 = Part0 * C0 * Transform * C1:Inv
+        local container = motor.Parent
+        local child     = motor.Part1
         child.CFrame = container.CFrame * motor.C0 * cf * motor.C1:Inverse()
     end
 end
 
--- Compute world-space CFrames for each R6 part given joint data, without
--- modifying any actual instances.  Used by the onion-skin renderer.
--- rootCF: optional world CFrame for HumanoidRootPart; falls back to its current CFrame.
+-- Compute world-space CFrames for each rig part without modifying instances.
+-- Used by the onion-skin renderer.
+-- rootCF: optional world CFrame for HumanoidRootPart.
 function JointCapture.computeWorldCFrames(rig, jointData, rootCF)
     local hrp = rig:FindFirstChild("HumanoidRootPart")
     local computed = {}
     computed["HumanoidRootPart"] = rootCF or (hrp and hrp.CFrame) or CFrame.new()
-    for _, jointName in ipairs(APPLY_ORDER) do
-        local cf = jointData and jointData[jointName]
+    local motors  = discoverMotors(rig)
+    local ordered = buildApplyOrder(motors)
+    for _, motor in ipairs(ordered) do
+        local cf = jointData and jointData[motor.Name]
         if not cf then continue end
-        local parentPartName = JOINT_PARENT[jointName]
-        local childPartName  = JOINT_CHILD[jointName]
-        local container = rig:FindFirstChild(parentPartName)
-        if not container then continue end
-        local motor = container:FindFirstChild(jointName)
-        if not motor then continue end
-        local parentCF = computed[parentPartName] or container.CFrame
-        computed[childPartName] = parentCF * motor.C0 * cf * motor.C1:Inverse()
+        local containerName = motor.Parent.Name
+        local childName     = motor.Part1.Name
+        local parentCF = computed[containerName] or motor.Parent.CFrame
+        computed[childName] = parentCF * motor.C0 * cf * motor.C1:Inverse()
     end
     return computed
 end
 
--- Returns a list of missing motor/part names; empty list means rig is healthy.
+-- Returns a list of issues; empty list means rig has discoverable Motor6D joints.
 function JointCapture.validate(rig)
-    local missing = {}
-    for jointName, parentPartName in pairs(JOINT_PARENT) do
-        local container = rig:FindFirstChild(parentPartName)
-        if not container then
-            table.insert(missing, parentPartName .. " (missing)")
-        else
-            local motor = container:FindFirstChild(jointName)
-            if not motor or not motor:IsA("Motor6D") then
-                table.insert(missing, jointName .. " (Motor6D missing)")
-            end
-        end
+    local motors = discoverMotors(rig)
+    if #motors == 0 then
+        return { "no Motor6D joints found matching rig-joint filter" }
     end
-    table.sort(missing)
-    return missing
+    return {}
 end
 
 return JointCapture

@@ -1,8 +1,8 @@
 # MultiAnimation — User Guide
 
-A Roblox Studio plugin for animating **multiple R6 rigs, props, and a cutscene
-camera** on one shared timeline — entirely in edit mode — and playing the
-result back in-game, synchronized across all players.
+A Roblox Studio plugin for animating **multiple rigs (R6, R15, or custom), props,
+and a cutscene camera** on one shared timeline — entirely in edit mode — and playing
+the result back in-game, synchronized across all players.
 
 This guide is for the person *using* the plugin. For developer tooling
 (building, testing, hot-reload) see the repo `README.md`; for internals see
@@ -17,12 +17,13 @@ This guide is for the person *using* the plugin. For developer tooling
 After installing, restart Studio. The plugin appears in the **Plugins toolbar**
 (not in "Manage Plugins" — that's marketplace-only).
 
-**Scene setup:** put your R6 rigs in a folder called `FIGURES` in Workspace:
+**Scene setup:** put your rigs in a folder called `FIGURES` in Workspace (or use
+tag-based scenes — see Simple Mode below):
 
 ```
 Workspace
 └── FIGURES
-    ├── Rig1   (R6: Humanoid + Torso + Motor6Ds)
+    ├── Rig1   (R6: Humanoid + Torso + Motor6Ds, or R15: Humanoid + UpperTorso)
     └── Rig2
 ```
 
@@ -341,8 +342,8 @@ The panel collapses to just: a scrubber + frame counter, a nav row with
 box** (default 30), a **Camera View** toggle with FOV box and **Look Through**
 toggle, and a scene name + Save/Export row.
 
-**Everything in `Workspace.FIGURES` is tracked automatically** — R6 rigs the
-same way Advanced mode tracks them, and any other part/model gets its
+**Everything in `Workspace.FIGURES` is tracked automatically** — R6 and R15 rigs
+the same way Advanced mode tracks them, and any other part/model gets its
 world-space CFrame tracked like an Advanced-mode prop. There's no "Track
 Part" or "+ Rig" step; just put things in FIGURES.
 
@@ -457,7 +458,7 @@ as one of the rigs.
 | **UserId — clone** | Same as clone but looks up the player by UserId (must be in the same server) |
 | **UserId — direct** | Same as direct but by UserId |
 
-**R6 only** — R15 player characters are warned and skipped.
+Both R6 and R15 player characters are supported.
 
 ### Parameters
 

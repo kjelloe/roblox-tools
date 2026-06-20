@@ -26,19 +26,29 @@ local _finishedCb = nil
 local _heartbeat  = nil
 local _sceneName  = nil
 
--- ── constants ─────────────────────────────────────────────────────────────────
+-- ── helpers ───────────────────────────────────────────────────────────────────
 
-local JOINT_PARENT = {
-    RootJoint          = "HumanoidRootPart",
-    Neck               = "Torso",
-    ["Right Shoulder"] = "Torso",
-    ["Left Shoulder"]  = "Torso",
-    ["Right Hip"]      = "Torso",
-    ["Left Hip"]       = "Torso",
-}
+-- Discover all rig-owned Motor6Ds and return { [motorName] = motor }.
+-- Works for R6, R15, and custom rigs.
+-- Reconnects motors that the plugin left disconnected (Part0 = nil).
+local function findJoints(rig)
+    local joints = {}
+    for _, inst in ipairs(rig:GetDescendants()) do
+        if inst:IsA("Motor6D") then
+            local container = inst.Parent   -- always the original Part0 container
+            local p1        = inst.Part1
+            if container and container.Parent == rig
+               and p1 and p1.Parent == rig then
+                if inst.Part0 == nil then inst.Part0 = container end
+                joints[inst.Name] = inst
+            end
+        end
+    end
+    return joints
+end
 
--- KFS Pose child name → Motor6D name
-local POSE_TO_JOINT = {
+-- Legacy R6 KFS pose-name → motor name mapping (for backward-compat parsing).
+local LEGACY_POSE_TO_JOINT = {
     Torso         = "RootJoint",
     Head          = "Neck",
     ["Right Arm"] = "Right Shoulder",
@@ -46,27 +56,6 @@ local POSE_TO_JOINT = {
     ["Right Leg"] = "Right Hip",
     ["Left Leg"]  = "Left Hip",
 }
-
--- ── helpers ───────────────────────────────────────────────────────────────────
-
-local function findJoints(rig)
-    local joints = {}
-    for jointName, parentPartName in pairs(JOINT_PARENT) do
-        local container = rig:FindFirstChild(parentPartName)
-        if container then
-            local motor = container:FindFirstChild(jointName)
-            if motor and motor:IsA("Motor6D") then
-                -- Plugin disconnects motors in edit mode (Part0 = nil). Reconnect
-                -- if the simulation starts with disconnected joints.
-                if motor.Part0 == nil then
-                    motor.Part0 = container
-                end
-                joints[jointName] = motor
-            end
-        end
-    end
-    return joints
-end
 
 local POSE_EASING_TO_STR = {}
 POSE_EASING_TO_STR[Enum.PoseEasingStyle.Linear]   = { default = "Linear" }
@@ -85,20 +74,36 @@ local function poseEasingToStr(style, dir)
     return m[dir] or m.default or "Linear"
 end
 
--- Parse a KeyframeSequence into sorted { {time, easing, poses={[jointName]=CFrame}} }.
+-- Parse a KeyframeSequence into sorted { {time, easing, poses={[motorName]=CFrame}} }.
+-- Handles two formats:
+--   Legacy R6: HumanoidRootPart → Torso → (Head, Right Arm, ...)
+--   Flat (new): HumanoidRootPart → [motorName, ...]
 local function parseKFS(kfs)
     local out = {}
     for _, kf in ipairs(kfs:GetKeyframes()) do
         local hrpPose = kf:FindFirstChild("HumanoidRootPart")
         if not hrpPose then continue end
+        local poses  = {}
+        local easing = "Linear"
         local torsoPose = hrpPose:FindFirstChild("Torso")
-        if not torsoPose then continue end
-        local poses = { RootJoint = torsoPose.CFrame }
-        for _, child in ipairs(torsoPose:GetChildren()) do
-            local jName = POSE_TO_JOINT[child.Name]
-            if jName then poses[jName] = child.CFrame end
+        if torsoPose then
+            -- Legacy R6 hierarchy format
+            poses["RootJoint"] = torsoPose.CFrame
+            easing = poseEasingToStr(torsoPose.EasingStyle, torsoPose.EasingDirection)
+            for _, child in ipairs(torsoPose:GetChildren()) do
+                local jName = LEGACY_POSE_TO_JOINT[child.Name]
+                if jName then poses[jName] = child.CFrame end
+            end
+        else
+            -- Flat format: each child is a motor name directly
+            for _, child in ipairs(hrpPose:GetChildren()) do
+                poses[child.Name] = child.CFrame
+            end
+            local first = hrpPose:GetChildren()[1]
+            if first then
+                easing = poseEasingToStr(first.EasingStyle, first.EasingDirection)
+            end
         end
-        local easing = poseEasingToStr(torsoPose.EasingStyle, torsoPose.EasingDirection)
         table.insert(out, { time = kf.Time, poses = poses, easing = easing })
     end
     table.sort(out, function(a, b) return a.time < b.time end)

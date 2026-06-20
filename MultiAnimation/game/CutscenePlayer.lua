@@ -89,29 +89,29 @@ local function sampleScaleParts(kfs, time)
     return out
 end
 
--- Apply joint CFrames to a rig's Motor6D set.
-local JOINT_ORDER = { "RootJoint", "Neck", "Right Shoulder", "Left Shoulder", "Right Hip", "Left Hip" }
-local JOINT_PART  = {
-    RootJoint      = "Torso",
-    Neck           = "Torso",
-    ["Right Shoulder"] = "Torso",
-    ["Left Shoulder"]  = "Torso",
-    ["Right Hip"]      = "Torso",
-    ["Left Hip"]       = "Torso",
-}
-local function applyJoints(rig, poses)
-    local torso = rig:FindFirstChild("Torso")
-    if not torso then return end
-    for _, jName in ipairs(JOINT_ORDER) do
-        local cf = poses[jName]
-        if cf then
-            local joint = torso:FindFirstChild(jName)
-                       or rig:FindFirstChild(jName, true)
-            if joint and joint:IsA("Motor6D") then
-                if joint.Part0 == nil then joint.Part0 = joint.Parent end
-                joint.Transform = cf
+-- Build { [motorName] = motor } for all rig-owned Motor6Ds.
+-- Works for R6, R15, and custom rigs.
+-- Reconnects motors that the plugin left disconnected (Part0 = nil).
+local function buildJointMap(rig)
+    local map = {}
+    for _, inst in ipairs(rig:GetDescendants()) do
+        if inst:IsA("Motor6D") then
+            local container = inst.Parent   -- always the original Part0 container
+            local p1        = inst.Part1
+            if container and container.Parent == rig
+               and p1 and p1.Parent == rig then
+                if inst.Part0 == nil then inst.Part0 = container end
+                map[inst.Name] = inst
             end
         end
+    end
+    return map
+end
+
+local function applyJoints(jointMap, poses)
+    for motorName, motor in pairs(jointMap) do
+        local cf = poses[motorName]
+        if cf then motor.Transform = cf end
     end
 end
 
@@ -202,6 +202,12 @@ function CutscenePlayer.play(sceneName, rigMap, options)
     -- Letterbox
     if movieMode then LetterboxGui.show() end
 
+    -- Pre-build joint maps (rig:GetDescendants once, not per frame)
+    local jointMaps = {}
+    for rigName, rig in pairs(resolvedRigs) do
+        jointMaps[rigName] = buildJointMap(rig)
+    end
+
     -- Duration
     local duration = 0
     for _, rigData in pairs(sceneData.rigs) do
@@ -255,7 +261,7 @@ function CutscenePlayer.play(sceneName, rigMap, options)
             -- Joint transforms
             if rd.jointKFs and #rd.jointKFs > 0 then
                 local poses = sampleJointPoses(rd.jointKFs, t)
-                applyJoints(rig, poses)
+                applyJoints(jointMaps[rigName] or {}, poses)
             end
 
             -- Scale

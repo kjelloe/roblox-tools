@@ -67,6 +67,8 @@ MultiAnimation/
 - **Plugin output path:** `%LOCALAPPDATA%\Roblox\Plugins\MultiAnimation.rbxmx`
 
 R6 detection: `Humanoid` present AND part named `Torso` present (not `UpperTorso`).
+R15 detection: `Humanoid` present AND `UpperTorso` present.
+Joint discovery: dynamic (`discoverMotors`) — filter: `motor.Parent.Parent == rig AND motor.Part1.Parent == rig`. Works for R6, R15, and custom rigs without hardcoded joint tables.
 
 ---
 
@@ -120,7 +122,7 @@ python3 devsync.py uninstall   # back to build.py + manual reload
 ### Other dev scripts
 
 ```bash
-python3 run_tests.py [pattern] [-v]   # full suite (~507 cases), or `mcp test`
+python3 run_tests.py [pattern] [-v]   # full suite (~548 cases, 25 files), or `mcp test`
 python3 watch.py                      # auto-build on save (when not using devsync)
 python3 hotpatch.py game/MultiAnimPlayer.lua   # push one game/ module, or `mcp deploy`
 mcp check <file.lua>                  # compile-check in Studio without executing
@@ -191,6 +193,7 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 | File | What it covers |
 |------|---------------|
 | `test_joint_capture.lua` | Motor6D disconnect/capture/apply round-trip on Rig1; FK chain, computeWorldCFrames (20 cases) |
+| `test_r15_joints.lua` | Dynamic motor discovery: mock R6/R15/accessory exclusion, disconnect/reconnect, capture/apply round-trip, live R15 skip (21 cases) |
 | `test_interpolator.lua` | Timeline nav, `surrounding()` math, CFrame lerp |
 | `test_scrubber.lua` | Scrubber drag math |
 | `test_player.lua` | MultiAnimPlayer in-game playback (run in play mode) |
@@ -200,7 +203,7 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 | `test_prop_exporter.lua` | `buildPropTracksSource` → valid Lua → `require()` structural check (14 cases) |
 | `test_prop_serialization.lua` | CFrame `GetComponents()` round-trip; `Lerp` boundary + slerp (17 cases) |
 | `test_rig_root_motion.lua` | rootTrack capture/apply/interpolate; whole-model lift on real Rig1 (15 cases) |
-| `test_exporter.lua` | `Pose.CFrame` API; KFS structure; RootTracks whole-model positions (23 cases) |
+| `test_exporter.lua` | `Pose.CFrame` API; KFS structure; RootTracks whole-model positions; flat KFS format + parseKFS round-trip (36 cases) |
 | `test_ui_bridge.lua` | UI integration via CoreGui TestBridge — rig selection, frame nav, KF round-trip (18 cases) |
 | `test_camera_core.lua` | Camera keyframe CRUD; cut-vs-move interpolation; FOV lerp (17 cases) |
 | `test_camera_exporter.lua` | CameraTrack source builder; cut flags; omit-if-empty (16 cases) |
@@ -212,12 +215,12 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 | `test_ui_effects.lua` | Effect track bridge integration: track, cycle, add/delete events, fire, untrack (18 cases) |
 | `test_ui_simple.lua` | Simple Mode bridge integration: mode toggle, Add/Insert/Delete Frame management, Camera View capture-on-add, Play/Stop toggle, manipulable camera object (FOV, frustum gizmo, Look Through guard/snap/free-fly-mirrors-to-gizmo/restore, capture-from-gizmo), FIGURES auto-track/untrack, FPS box round-trip, auto-capture-on-navigate, onion skin toggle, frameCount round-trip regression, save/load slot round-trip regression (71 cases) |
 | `test_tag_scene.lua` | Tag-based scene organisation: getWorkspaceFolders, tagFolder rigs-only, getSceneTagged, scanByTag via doSimpleScan, clearSceneTags, empty-scene FIGURES fallback, AddTag idempotency (15 cases) |
-| `test_player_rig_proxy.lua` | PlayerRigProxy: fixed pass-through, R6 detection, clone/direct/teardown round-trips, R15 rejection, resolveAll mix, anchor CFs (48 cases) |
+| `test_player_rig_proxy.lua` | PlayerRigProxy: fixed pass-through, R6/R15 detection, clone/direct/teardown round-trips, R15 accepted, resolveAll mix, anchor CFs (48 cases) |
 | `test_ui_playback.lua` | Playback tab bridge integration: mode switch, scene list, rig modes (all 5), FPS/Loop/MovieMode clamping + round-trip, snippet generation (scene name, CutscenePlayer, mode strings, params), multi-rig snippet, partial param update, frameCount round-trip regression (52 cases) |
 | `test_easing_core.lua` | Recorder easing CRUD (rig/prop/camera), shiftFrames/deleteRigKeyframe/deletePropKeyframe include easingTrack, easedAlpha boundary values (Linear/EaseIn/EaseOut/EaseInOut/Constant/Bounce), toSortedKFs backward compat (20 cases, headless) |
 | `test_ui_easing.lua` | Live bridge: rig easing all-6-styles round-trip, camera easing CRUD, simple mode easing state, capture stamps easing, frame navigation syncs display (12 cases) |
 
-Suite total: **~527 cases** across 24 files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive).
+Suite total: **~561 cases** across 25 files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive).
 
 All tests inline their module logic (no `require()` to plugin modules) and return a PASS/FAIL string for `execute_luau`. Run with:
 

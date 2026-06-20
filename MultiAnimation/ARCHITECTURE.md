@@ -52,9 +52,9 @@
 | Module | Layer | Purpose |
 |--------|-------|---------|
 | `init.server.lua` | Entry | Toolbar, widget, event wiring, playback loop, Selection sync, play-mode guard |
-| `core/RigScanner` | Core | Detects R6 rigs; `scan()` scans Workspace.FIGURES (legacy); `scanByTag(scene)` scans by CollectionService tag; `isR6()` public predicate; `getWorkspaceFolders()` for tag-UI dropdown |
+| `core/RigScanner` | Core | Detects R6/R15/custom rigs; `scan()` scans Workspace.FIGURES (legacy); `scanByTag(scene)` scans by CollectionService tag; `isR6()`, `isR15()`, `isAnimatableRig()` public predicates; `getWorkspaceFolders()` for tag-UI dropdown |
 | `core/Recorder` | Core | Session data storage; addKeyframe captures joints+scale+rootCFrame+props; deleteRigKeyframe/deletePropKeyframe |
-| `core/JointCapture` | Core | Reads/writes Motor6D.Transform; validate() checks joint health; computeWorldCFrames() for onion skin FK |
+| `core/JointCapture` | Core | Dynamic Motor6D discovery (`discoverMotors`) works for R6, R15, and custom rigs; topological apply order; validate() checks joint health; computeWorldCFrames() for onion skin FK |
 | `core/ScaleCapture` | Core | Reads/writes Part.Size |
 | `core/PropCapture` | Core | Reads/writes BasePart.CFrame (world space) |
 | `core/TestBridge` | Core | CoreGui BindableFunction — lets execute_luau drive the live panel (UI tests) |
@@ -73,7 +73,7 @@
 | `game/CutsceneServer` | Game | Synchronized cutscene start: plays anims, broadcasts camera track + timestamp |
 | `game/CutsceneCamera` | Game | Client camera driver: Scriptable camera follows CameraTrack on a shared clock |
 | `game/LetterboxGui` | Game | Cinematic black bars (top/bottom 10%) in PlayerGui ScreenGui (Phase 10) |
-| `game/PlayerRigProxy` | Game | Resolves player entries into R6 rig models; clone/direct modes; R6-only (Phase 10) |
+| `game/PlayerRigProxy` | Game | Resolves player entries into R6 or R15 rig models; clone/direct modes (Phase 10) |
 | `game/MultiAnimDataServer` | Game | Server-side `MultiAnimGetScene` RemoteFunction — parses scene from ServerStorage (Phase 10) |
 | `game/CutscenePlayer` | Game | Client LocalScript orchestrator — Heartbeat loop for joints, root, scale, camera (Phase 10) |
 
@@ -110,11 +110,14 @@ init.server.lua
     ├── Recorder.lua        Owns session data; addKeyframe(frame, rigs, props)
     │                       captureRestPose stores joints+scale baseline for restore
     │
-    ├── JointCapture.lua    Reads Motor6D.Transform for all 6 R6 joints
-    │                       validate(rig) → list of broken/missing Motor6Ds
+    ├── JointCapture.lua    Dynamic Motor6D discovery; works for R6, R15, custom rigs
+    │                       discoverMotors(rig) → motors where both container and Part1
+    │                         are direct children of the rig model (excludes accessories)
+    │                       buildApplyOrder(motors) → topological sort for FK correctness
+    │                       validate(rig) → empty list if joints found, else error string
     │                       computeWorldCFrames(rig, jointData) → { [partName]=CFrame }
     │                         (pure FK; does NOT modify any rig BaseParts — used for onion skin)
-    │                       Returns: { [jointName] = CFrame }
+    │                       Returns: { [motorName] = CFrame }
     │
     ├── ScaleCapture.lua    Reads Part.Size for all 7 R6 body parts
     │                       Returns: { [partName] = Vector3 }
@@ -168,13 +171,13 @@ LetterboxGui.lua        ModuleScript — cinematic black bars
                         .show() / .hide() / .isVisible()
                         Creates ScreenGui in PlayerGui (DisplayOrder 200)
 
-PlayerRigProxy.lua      ModuleScript — resolves player→R6 rig for CutscenePlayer
+PlayerRigProxy.lua      ModuleScript — resolves player→rig (R6 or R15) for CutscenePlayer
                         .resolve(entry, anchorCF) → rig, teardownFn
                         .resolveAll(rigMap, anchorCFs) → resolvedMap, teardownFn
                         clone mode: character:Clone(), strip scripts/Humanoid,
                           hide original; teardown destroys clone + restores original
                         direct mode: PlatformStand=true; teardown restores it
-                        R6-only: warns + returns nil for R15
+                        Supports R6 and R15 player characters
 
 MultiAnimDataServer.lua ModuleScript — server bridge for client playback
                         .setup() — creates "MultiAnimGetScene" RemoteFunction in
@@ -355,10 +358,37 @@ they always are while the plugin is active — the simulation starts with discon
 joints. `MultiAnimPlayer.findJoints` / `CutscenePlayer.applyJoints` would set
 `Motor6D.Transform` on these dead joints with no visual effect.
 
-**Fix:** `MultiAnimPlayer.findJoints` now reconnects any motor with `Part0 == nil`
-by setting `motor.Part0 = container` (the parent part from `JOINT_PARENT`, which is
-the correct Part0 for all R6 joints). `CutscenePlayer.applyJoints` does the same via
-`joint.Part0 = joint.Parent`. Both apply lazily on first access — no separate init call.
+**Fix:** `MultiAnimPlayer.findJoints` and `CutscenePlayer.buildJointMap` now reconnect
+any motor with `Part0 == nil` by setting `motor.Part0 = motor.Parent` (the container
+part, which is always the original Part0 by Roblox convention). Both use dynamic motor
+discovery so they work for R6, R15, and custom rigs without hardcoded joint lists.
+
+### Dynamic Rig Support (R6, R15, Custom)
+
+All joint operations now use dynamic Motor6D discovery instead of hardcoded R6 tables.
+
+**Discovery filter** (`discoverMotors` in JointCapture): a Motor6D belongs to the rig if:
+- `motor.Parent.Parent == rig` — the container part is a direct child of the rig model
+- `motor.Part1.Parent == rig` — Part1 is also a direct child of the rig model
+
+This includes all canonical rig joints for R6 and R15 while excluding accessory welds
+(Handle is inside an Accessory model, not a direct child of the character).
+
+**Note:** `motor.Parent` is always the original Part0 container even when `motor.Part0 == nil`
+(Roblox convention). This is how discovery works correctly on disconnected motors.
+
+**Apply order** is topologically sorted: `buildApplyOrder` starts from HumanoidRootPart
+and processes motors whose container has already been positioned before moving to children.
+This gives correct FK order without hardcoding the skeleton structure.
+
+**Export format**: `Exporter.buildKeyframeSequence` now uses a flat format — each motor's
+transform is a Pose named by motor name, directly under HumanoidRootPart. `MultiAnimPlayer.parseKFS`
+detects the old R6 hierarchy format (Torso child present) for backward compat with existing
+exported scenes, and reads the new flat format otherwise.
+
+**RigScanner**: `isR15(inst)` added. `scan()` and `scanByTag()` use `isAnimatableRig()`
+(R6 or R15) instead of R6-only. `doTagAllIn` in init.server.lua uses `isAnimatableRig`
+for rig detection.
 
 ### Tag-Based Scene Organisation
 
@@ -622,7 +652,7 @@ Frame navigation syncs the button to the stored easing of the arrived-at keyfram
 | `build.py` | Assembles `.rbxmx` from source files and copies to Plugins folder |
 | `watch.py` | Auto-build on save, with Studio compile-check first |
 | `devsync.py` + `plugin/devloader.lua` | Hot-reload the plugin on save — no Studio restart |
-| `run_tests.py` | Runs the full `tests/` suite (~527 cases, 24 files) against live Studio |
+| `run_tests.py` | Runs the full `tests/` suite (~548 cases, 25 files) against live Studio |
 | `hotpatch.py` | Push a single `game/` module without reload |
 | `mcp.py` (`mcp` alias) | CLI for everything: luau, console/tail, tree/inspect/read/grep, check, drift, test, deploy, playtest, gen, store, addrig, scene, daemon |
 | MCP daemon | Persistent StudioMCP proxy (auto-starts) — 0.07s/call vs ~7s |

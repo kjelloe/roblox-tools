@@ -1,5 +1,6 @@
--- PlayerRigProxy — resolves rigMap player entries into R6 character Models for
+-- PlayerRigProxy — resolves rigMap player entries into character Models for
 -- local-only, client-side animation. Plain Instance entries pass through unchanged.
+-- Supports R6 and R15 player characters.
 --
 -- Entry formats in the rigMap:
 --   Instance (Model/BasePart)               → passed through, no teardown
@@ -7,18 +8,12 @@
 --   { player = Player,  mode = "direct" }   → animate player's own character
 --   { userId = number,  mode = "clone"|"direct" }  → look up player by UserId first
 --
--- R15 characters are not supported (returns nil + warning).
 -- Clone mode: original character is hidden + anchored; restored on teardown.
 -- Direct mode: PlatformStand suppresses Humanoid physics during animation.
 
 local PlayerRigProxy = {}
 
 local Players = game:GetService("Players")
-
-local function isR6(character)
-    return character:FindFirstChild("Torso") ~= nil
-        and character:FindFirstChild("UpperTorso") == nil
-end
 
 local function savePartStates(character)
     local saved = {}
@@ -96,12 +91,6 @@ function PlayerRigProxy.resolve(entry, anchorCF)
     local character = player.Character
     if not character then
         warn("[PlayerRigProxy] Player '" .. player.Name .. "' has no character yet")
-        return nil, function() end
-    end
-
-    if not isR6(character) then
-        warn("[PlayerRigProxy] Player '" .. player.Name .. "' is R15 — only R6 is supported."
-            .. " Slot will be skipped.")
         return nil, function() end
     end
 

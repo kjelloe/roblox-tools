@@ -122,16 +122,29 @@ architectural changes.
 
 ---
 
-## Rig Detection Rules (R6)
+## Rig Detection Rules
 
-A Model in `Workspace.FIGURES` is recognised as an R6 rig if it contains:
-- A `Humanoid` instance
-- A `Part` named `Torso` (R6 marker; R15 uses `UpperTorso`)
-- At least one `Motor6D` in the Torso
+**R6:** Model with `Humanoid` + `Part` named `Torso` (no `UpperTorso`) + at least one `Motor6D` in the Torso.
+
+**R15:** Model with `Humanoid` + `Part` named `UpperTorso` + at least one qualifying `Motor6D`.
+
+**Animatable rig (general):** R6 or R15 — used by `RigScanner.isAnimatableRig()`.
 
 ---
 
-## Motor6D Joints Captured (R6)
+## Motor6D Joint Discovery (Dynamic)
+
+The plugin dynamically discovers all Motor6Ds belonging to a rig using a filter:
+- `motor.Parent.Parent == rig` — the Motor6D's container part is a direct child of the rig Model
+- `motor.Part1.Parent == rig` — the target part is also a direct child of the rig Model
+
+This naturally captures all canonical rig joints for both R6 (6 joints) and R15 (15 joints)
+while excluding accessory welds (whose Handle is nested inside an Accessory model).
+
+Apply order is determined by topological sort: parent joints are applied before child joints,
+ensuring correct FK chain regardless of rig type.
+
+**R6 joints (for reference):**
 
 | Motor6D Name | Part0 | Part1 |
 |---|---|---|

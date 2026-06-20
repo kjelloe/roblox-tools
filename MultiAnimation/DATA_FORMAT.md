@@ -137,25 +137,25 @@ Deserialisation:
 
 ## Exported: KeyframeSequence (per rig)
 
-Standard Roblox `KeyframeSequence` instance written into `ServerStorage`.
+Standard Roblox `KeyframeSequence` instance written into `ServerStorage`. Uses a flat
+format where each motor's transform is a `Pose` named by motor name, directly under
+`HumanoidRootPart`. Works for R6, R15, and custom rigs.
 
 ```
 KeyframeSequence  (Name = "Rig1_Joints", Loop = false, AuthoredHipHeight = 0)
-├── Keyframe      (Time = 0.000)          ← frame 1 / fps
-│   └── Pose      (Name = "HumanoidRootPart", Weight = 1)
-│       └── Pose  (Name = "Torso",            Weight = 1)
-│           ├── Pose (Name = "Head",           Weight = 1)
-│           ├── Pose (Name = "Left Arm",       Weight = 1)
-│           ├── Pose (Name = "Right Arm",      Weight = 1)
-│           ├── Pose (Name = "Left Leg",       Weight = 1)
-│           └── Pose (Name = "Right Leg",      Weight = 1)
+├── Keyframe      (Time = 0.000)                   ← frame 1 / fps
+│   └── Pose      (Name = "HumanoidRootPart", Weight = 1, CFrame = identity)
+│       ├── Pose  (Name = "RootJoint",    Weight = 1, CFrame = <transform>)
+│       ├── Pose  (Name = "Neck",         Weight = 1, CFrame = <transform>)
+│       ├── Pose  (Name = "Right Shoulder", ...)
+│       └── ...   (one Pose per Motor6D, sorted alphabetically)
 │
-├── Keyframe      (Time = 0.458)          ← frame 12 / fps
-│   └── ...
-│
-└── Keyframe      (Time = 0.917)          ← frame 24 / fps (last)
+└── Keyframe      (Time = 0.458)
     └── ...
 ```
+
+Backward compat: the old R6 hierarchy format (Torso → limbs) is still parsed by
+`MultiAnimPlayer.parseKFS` for scenes exported before this format change.
 
 Each `Pose.CFrame` = the captured `Motor6D.Transform` CFrame for that joint.
 (`Pose.Transform` was renamed to `Pose.CFrame` in a Roblox Studio update.)
@@ -169,8 +169,6 @@ Each `Pose.CFrame` = the captured `Motor6D.Transform` CFrame for that joint.
 | `"EaseInOut"` | `PoseEasingStyle.Cubic` | `PoseEasingDirection.InOut` |
 | `"Constant"` | `PoseEasingStyle.Constant` | `PoseEasingDirection.Out` |
 | `"Bounce"` | `PoseEasingStyle.Bounce` | `PoseEasingDirection.Out` |
-
-The Pose tree mirrors the R6 skeleton hierarchy so Roblox's `Animator` can resolve it.
 
 ---
 

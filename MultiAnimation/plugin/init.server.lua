@@ -614,8 +614,8 @@ local function doTagAllIn(folderName, types)
     local tagged = 0
     for _, child in ipairs(folder:GetChildren()) do
         local shouldTag = false
-        if types.rigs    and RigScanner.isR6(child)             then shouldTag = true end
-        if types.props   and not RigScanner.isR6(child) then
+        if types.rigs    and RigScanner.isAnimatableRig(child)   then shouldTag = true end
+        if types.props   and not RigScanner.isAnimatableRig(child) then
             if child.Name ~= SIMPLE_CAMERA_NAME and getPropPart(child) then
                 shouldTag = true
             end
@@ -1075,7 +1075,7 @@ local function doSimpleScan()
         -- Prop discovery: tagged non-rig instances for this scene.
         local tag = "MAnim:" .. sceneName
         for _, inst in ipairs(CollectionService:GetTagged(tag)) do
-            if not RigScanner.isR6(inst) and inst.Name ~= SIMPLE_CAMERA_NAME then
+            if not RigScanner.isAnimatableRig(inst) and inst.Name ~= SIMPLE_CAMERA_NAME then
                 local part = getPropPart(inst)
                 if part then allProps[inst.Name] = part end
             end

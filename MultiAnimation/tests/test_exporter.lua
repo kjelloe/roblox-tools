@@ -278,6 +278,123 @@ end
 -- Note: AnimationClipProvider.RegisterKeyframeSequence is runtime-only and cannot
 -- be tested via execute_luau in edit mode. Test in play mode via test_player.lua.
 
+-- ── Part 4: flat KFS format (new export, rig-agnostic) ───────────────────────
+-- The actual Exporter now emits motor names as direct children of HumanoidRootPart
+-- instead of the R6 Torso hierarchy. Verify parseKFS reads both formats.
+
+do
+    local function buildFlatKFS(rigName, jointTrack, fps)
+        local kfs = Instance.new("KeyframeSequence")
+        kfs.Name = rigName .. "_Joints"
+        kfs.Loop = false
+        kfs.AuthoredHipHeight = 0
+        for frame, jd in pairs(jointTrack) do
+            local kf = Instance.new("Keyframe")
+            kf.Time = (frame - 1) / fps
+            local hrpPose = Instance.new("Pose")
+            hrpPose.Name = "HumanoidRootPart"; hrpPose.Weight = 1
+            hrpPose.CFrame = CFrame.identity
+            hrpPose.EasingStyle = Enum.PoseEasingStyle.Linear
+            hrpPose.EasingDirection = Enum.PoseEasingDirection.Out
+            local motorNames = {}
+            for n in pairs(jd) do table.insert(motorNames, n) end
+            table.sort(motorNames)
+            for _, motorName in ipairs(motorNames) do
+                local p = Instance.new("Pose")
+                p.Name = motorName; p.Weight = 1
+                p.CFrame = jd[motorName] or CFrame.identity
+                p.EasingStyle = Enum.PoseEasingStyle.Linear
+                p.EasingDirection = Enum.PoseEasingDirection.Out
+                p.Parent = hrpPose
+            end
+            hrpPose.Parent = kf
+            kf.Parent = kfs
+        end
+        return kfs
+    end
+
+    -- Inline parseKFS that handles both formats (mirrors MultiAnimPlayer)
+    local LEGACY_POSE_TO_JOINT = {
+        Torso = "RootJoint", Head = "Neck",
+        ["Right Arm"] = "Right Shoulder", ["Left Arm"] = "Left Shoulder",
+        ["Right Leg"] = "Right Hip",      ["Left Leg"] = "Left Hip",
+    }
+    local function parseKFS(kfs)
+        local out = {}
+        for _, kf in ipairs(kfs:GetKeyframes()) do
+            local hrp = kf:FindFirstChild("HumanoidRootPart")
+            if not hrp then continue end
+            local poses = {}
+            local torsoPose = hrp:FindFirstChild("Torso")
+            if torsoPose then
+                poses["RootJoint"] = torsoPose.CFrame
+                for _, child in ipairs(torsoPose:GetChildren()) do
+                    local jn = LEGACY_POSE_TO_JOINT[child.Name]
+                    if jn then poses[jn] = child.CFrame end
+                end
+            else
+                for _, child in ipairs(hrp:GetChildren()) do
+                    poses[child.Name] = child.CFrame
+                end
+            end
+            table.insert(out, { time = kf.Time, poses = poses })
+        end
+        table.sort(out, function(a, b) return a.time < b.time end)
+        return out
+    end
+
+    local rShCF = CFrame.Angles(0, math.pi / 4, 0)
+    local jointTrack = {
+        [1]  = { RootJoint = CFrame.identity, Neck = CFrame.identity,
+                 ["Right Shoulder"] = rShCF, ["Left Shoulder"] = CFrame.identity,
+                 ["Right Hip"] = CFrame.identity, ["Left Hip"] = CFrame.identity },
+        [13] = { RootJoint = CFrame.new(0,0.2,0), Neck = CFrame.identity,
+                 ["Right Shoulder"] = CFrame.identity, ["Left Shoulder"] = rShCF,
+                 ["Right Hip"] = CFrame.identity, ["Left Hip"] = CFrame.identity },
+    }
+    local flatKFS = buildFlatKFS("Rig1", jointTrack, 24)
+    ok("flat KFS created without error", flatKFS ~= nil)
+    ok("flat KFS name = Rig1_Joints", flatKFS.Name == "Rig1_Joints")
+    local kfList = flatKFS:GetKeyframes()
+    ok("flat KFS has 2 keyframes", #kfList == 2, tostring(#kfList))
+    local hrp1 = kfList[1]:FindFirstChild("HumanoidRootPart")
+    ok("flat KFS: HumanoidRootPart Pose exists", hrp1 ~= nil)
+    if hrp1 then
+        ok("flat KFS: no Torso child (flat format)", hrp1:FindFirstChild("Torso") == nil)
+        local rs = hrp1:FindFirstChild("Right Shoulder")
+        ok("flat KFS: Right Shoulder Pose exists", rs ~= nil)
+        if rs then
+            local same = (rs.CFrame.RightVector - rShCF.RightVector).Magnitude < 0.001
+            ok("flat KFS: Right Shoulder CFrame matches", same)
+        end
+    end
+
+    -- parseKFS round-trip: flat → parsed poses
+    local parsed = parseKFS(flatKFS)
+    ok("parseKFS flat: 2 entries", #parsed == 2, tostring(#parsed))
+    if #parsed >= 1 then
+        ok("parseKFS flat: RootJoint present",      parsed[1].poses["RootJoint"] ~= nil)
+        ok("parseKFS flat: Right Shoulder present", parsed[1].poses["Right Shoulder"] ~= nil)
+    end
+
+    -- parseKFS backward compat: legacy R6 format still parsed
+    local legacyJD = {
+        [1] = { RootJoint=CFrame.identity, Neck=CFrame.identity,
+                ["Right Shoulder"]=rShCF, ["Left Shoulder"]=CFrame.identity,
+                ["Right Hip"]=CFrame.identity, ["Left Hip"]=CFrame.identity },
+    }
+    local legacyKFS = buildKeyframeSequence("Rig1", { jointTrack = legacyJD }, 24)
+    local legacyParsed = parseKFS(legacyKFS)
+    ok("parseKFS legacy R6 format: 1 entry", #legacyParsed == 1, tostring(#legacyParsed))
+    if #legacyParsed >= 1 then
+        ok("parseKFS legacy: RootJoint present", legacyParsed[1].poses["RootJoint"] ~= nil)
+        ok("parseKFS legacy: Neck present",      legacyParsed[1].poses["Neck"] ~= nil)
+    end
+
+    flatKFS:Destroy()
+    legacyKFS:Destroy()
+end
+
 -- ── Cleanup ───────────────────────────────────────────────────────────────────
 
 tmp:Destroy()

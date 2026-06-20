@@ -476,10 +476,10 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
     - Copy Snippet button (prints to Output) + Preview button
   - **Four new `game/` runtime modules** for in-game playback:
     - `LetterboxGui.lua` — client-side cinematic black bars (top/bottom 10%, DisplayOrder 200)
-    - `PlayerRigProxy.lua` — resolves player entries into R6 rig models; clone mode (clones
-      character locally, hides original, strips scripts/Humanoid, teardown destroys clone +
-      restores original); direct mode (PlatformStand=true, teardown restores); R6-only with warn
-      for R15; `resolveAll` for batch resolution with combined teardown
+    - `PlayerRigProxy.lua` — resolves player entries into R6 or R15 rig models; clone mode
+      (clones character locally, hides original, strips scripts/Humanoid, teardown destroys
+      clone + restores original); direct mode (PlatformStand=true, teardown restores);
+      `resolveAll` for batch resolution with combined teardown
     - `MultiAnimDataServer.lua` — server-side `MultiAnimGetScene` RemoteFunction; parses KFS
       instances + ScaleTracks/PropTracks/RootTracks/CameraTrack/EffectTracks ModuleScripts from
       `ServerStorage.MultiAnimationData` into a serializable table; call `setup()` from a
@@ -604,14 +604,27 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
   sets `motor.Part0 = nil` for all R6 joints in edit mode (free-pose mode). When the
   user enters play mode (F5), Roblox copies this state into the simulation — joints
   remain disconnected, so `Motor6D.Transform` writes by `MultiAnimPlayer` and
-  `CutscenePlayer` have no visual effect. Fix: `MultiAnimPlayer.findJoints` reconnects
-  any motor with `Part0 == nil` (`motor.Part0 = container` from `JOINT_PARENT`).
-  `CutscenePlayer.applyJoints` does the same via `joint.Part0 = joint.Parent`.
+  `CutscenePlayer` have no visual effect. Fix: `MultiAnimPlayer.findJoints` and
+  `CutscenePlayer.buildJointMap` reconnect motors via `motor.Part0 = motor.Parent`
+  on discovery.
+
+- ✅ **R15 / dynamic rig support:** All joint operations now use dynamic Motor6D
+  discovery instead of hardcoded R6 tables. `JointCapture.discoverMotors(rig)` filters
+  by: `motor.Parent.Parent == rig AND motor.Part1.Parent == rig` — captures all
+  canonical rig joints for R6 (6), R15 (15), and custom rigs while excluding
+  accessory welds (Handle is inside an Accessory model, not a direct child).
+  `buildApplyOrder` gives topological FK ordering for both rig types.
+  `MultiAnimPlayer.findJoints`, `CutscenePlayer.buildJointMap` (pre-built at setup),
+  and `JointCapture` all use the same discovery path. `PlayerRigProxy` now accepts
+  R15 characters. `RigScanner` adds `isR15()` and `isAnimatableRig()` predicates;
+  `scan()` / `scanByTag()` include R15 rigs. KFS export changed to flat format
+  (motor-name Poses under HumanoidRootPart); `parseKFS` handles legacy R6 hierarchy
+  for backward compat. **New test file `test_r15_joints.lua` (21 cases). Suite:
+  ~548 cases, 25 files.**
 
 ### Backlog
 
 - Multiple named cameras + switcher track (authoring sugar over Phase 8 cuts)
-- R15 rig support
 - Audio track sync
 - Upload to Roblox asset catalogue
 - Prop property animation (emitter rate, transparency, colour)

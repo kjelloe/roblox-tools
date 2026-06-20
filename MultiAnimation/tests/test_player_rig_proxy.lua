@@ -87,10 +87,6 @@ function PlayerRigProxy.resolve(entry, anchorCF)
         warn("[PlayerRigProxy] Player has no character yet")
         return nil, function() end
     end
-    if not isR6(character) then
-        warn("[PlayerRigProxy] Player is R15 — only R6 is supported.")
-        return nil, function() end
-    end
     if mode == "clone" then
         local clone = character:Clone()
         clone.Name  = character.Name .. "_MultiAnimClone"
@@ -269,11 +265,12 @@ directTd()
 ok(directHum.PlatformStand == false, "direct teardown restores PlatformStand=false")
 directChar:Destroy()
 
--- 12. R15 character is rejected
+-- 12. R15 character is accepted (dynamic rig support)
 local r15src = makeR15Character("R15Src")
 local fakeR15Player = { Character = r15src }
-local r15Result, _ = PlayerRigProxy.resolve({ player = fakeR15Player, mode = "clone" }, nil)
-ok(r15Result == nil, "R15 character returns nil (not supported)")
+local r15Result, r15Td = PlayerRigProxy.resolve({ player = fakeR15Player, mode = "clone" }, nil)
+ok(r15Result ~= nil, "R15 character clone accepted (R15 now supported)")
+if r15Result then r15Td() end
 r15src:Destroy()
 
 -- 13. resolveAll with a mix of fixed + clone entries

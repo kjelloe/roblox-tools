@@ -12,27 +12,6 @@ local ServerStorage = game:GetService("ServerStorage")
 
 local Exporter = {}
 
--- R6: Motor6D joint name → the Part1 it drives
-local JOINT_TO_PART = {
-    RootJoint          = "Torso",
-    Neck               = "Head",
-    ["Right Shoulder"] = "Right Arm",
-    ["Left Shoulder"]  = "Left Arm",
-    ["Right Hip"]      = "Right Leg",
-    ["Left Hip"]       = "Left Leg",
-}
-
--- Limb parts that live under the Torso Pose (ordered for determinism)
-local TORSO_LIMBS = { "Head", "Right Arm", "Left Arm", "Right Leg", "Left Leg" }
-
--- Which joint drives each limb (inverse of JOINT_TO_PART for Torso's children)
-local LIMB_JOINT = {
-    Head          = "Neck",
-    ["Right Arm"] = "Right Shoulder",
-    ["Left Arm"]  = "Left Shoulder",
-    ["Right Leg"] = "Right Hip",
-    ["Left Leg"]  = "Left Hip",
-}
 
 local POSE_EASING_MAP = {
     Linear    = { Enum.PoseEasingStyle.Linear,   Enum.PoseEasingDirection.Out   },
@@ -57,6 +36,10 @@ local function makePose(name, transform, easing)
 end
 
 -- ── KeyframeSequence builder ──────────────────────────────────────────────────
+-- Flat format: all motor transforms stored as direct children of HumanoidRootPart.
+-- Pose name = motor name (e.g. "RootJoint", "Neck", "LeftShoulder").
+-- This is rig-agnostic and works for R6, R15, and custom rigs.
+-- Legacy R6 format (Torso hierarchy) is handled by the parser on the game side.
 
 local function buildKeyframeSequence(rigName, rigData, fps)
     local kfs             = Instance.new("KeyframeSequence")
@@ -73,21 +56,18 @@ local function buildKeyframeSequence(rigName, rigData, fps)
         local easing = rigData.easingTrack and rigData.easingTrack[frame]
         local time   = (frame - 1) / fps
 
-        local kf  = Instance.new("Keyframe")
-        kf.Time   = time
+        local kf      = Instance.new("Keyframe")
+        kf.Time       = time
 
-        -- Pose tree root — HumanoidRootPart has no inbound Motor6D; identity anchor
-        local hrpPose   = makePose("HumanoidRootPart", CFrame.identity, easing)
+        local hrpPose = makePose("HumanoidRootPart", CFrame.identity, easing)
 
-        -- Torso is driven by RootJoint
-        local torsoPose = makePose("Torso", jd["RootJoint"], easing)
-        torsoPose.Parent = hrpPose
-
-        -- Limbs are children of Torso in the skeleton hierarchy
-        for _, partName in ipairs(TORSO_LIMBS) do
-            local jointName = LIMB_JOINT[partName]
-            local limbPose  = makePose(partName, jd[jointName], easing)
-            limbPose.Parent = torsoPose
+        -- One Pose per motor, named by motor name, sorted for determinism
+        local motorNames = {}
+        for n in pairs(jd) do table.insert(motorNames, n) end
+        table.sort(motorNames)
+        for _, motorName in ipairs(motorNames) do
+            local pose = makePose(motorName, jd[motorName], easing)
+            pose.Parent = hrpPose
         end
 
         hrpPose.Parent = kf
