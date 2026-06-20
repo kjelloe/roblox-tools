@@ -978,6 +978,17 @@ function Panel.new(widget)
         if not self._isPlaying then eClearSceneTagsPreview:Fire() end
     end)
 
+    local manualTagLbl = lbl(simpleTagRow, "", nil, 7)
+    manualTagLbl.TextSize = 10
+    local function updateManualTagLbl()
+        local name = (simpleSceneBox and simpleSceneBox.Text) or "Scene_001"
+        manualTagLbl.Text = "  Manual tag: MAnim:" .. name
+    end
+    updateManualTagLbl()
+    if simpleSceneBox then
+        simpleSceneBox:GetPropertyChangedSignal("Text"):Connect(updateManualTagLbl)
+    end
+
     tagFolderBtn.MouseButton1Click:Connect(function()
         if self._isPlaying then return end
         -- Request a fresh folder list from init.server.lua, which will call
