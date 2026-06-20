@@ -711,7 +711,7 @@ function Panel.new(widget)
         end
     end)
 
-    -- ── SIMPLE MODE ──────────────────────────────────────────────────────────
+    do -- ── SIMPLE MODE ──────────────────────────────────────────────────────
     -- Self-contained controls: Delete Keyframe, scrubber, frame nav, Camera
     -- View toggle, Scene name + Save + Export. No rig/prop selection UI —
     -- everything in Workspace.FIGURES is auto-tracked (see init.server.lua).
@@ -1029,7 +1029,9 @@ function Panel.new(widget)
     function self:getSimpleSceneName()
         return simpleSceneBox and simpleSceneBox.Text or ""
     end
+    end -- ── end SIMPLE MODE ──────────────────────────────────────────────────
 
+    do -- ── OVERLAYS ─────────────────────────────────────────────────────────
     -- ── Save As overlay ───────────────────────────────────────────────────────
     local saveOv = Instance.new("Frame")
     saveOv.Name            = "SaveOverlay"
@@ -1264,8 +1266,9 @@ function Panel.new(widget)
 
     self._loadOverlay = loadOv
     self._loadScroll  = loadScroll
+    end -- ── end OVERLAYS ──────────────────────────────────────────────────────
 
-    -- ── PLAYBACK TAB ─────────────────────────────────────────────────────────
+    do -- ── PLAYBACK TAB ────────────────────────────────────────────────────
     -- Third mode: select a saved scene, map each rig slot to a workspace rig
     -- or a player (clone/direct), set FPS/Loop/MovieMode, then copy the
     -- generated Lua snippet or preview directly from the plugin.
@@ -1427,6 +1430,7 @@ function Panel.new(widget)
             end)
         end
     end
+    end -- ── end PLAYBACK TAB ────────────────────────────────────────────────
 
     -- ── Context menu overlay (parented to widget, covers full panel) ─────────
     local ctxOverlay = Instance.new("TextButton")

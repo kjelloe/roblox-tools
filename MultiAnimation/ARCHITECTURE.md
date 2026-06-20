@@ -406,16 +406,43 @@ for effects) via `CollectionService:AddTag`.
 - Scene name empty → legacy `RigScanner.scan()` (Workspace.FIGURES) — fully backward
   compatible with existing setups that don't use named scenes.
 
-**"Tag all in" helper (Simple Mode row):**
+**"Tag all in" row (top of Simple Mode section):**
 ```
-Tag: [FIGURES ▼]  [Rigs ✓]  [Props ✓]  [Effects □]  [Clear scene tags]
+Tag: [FIGURES ▼]  [Rigs ✓]  [Props ✓]  [Effects □]  [Clear scene tags]  Manual tag: MAnim:Scene_001
 ```
+- Row appears at the very top of Simple Mode (LayoutOrder 1) for immediate access.
 - Folder dropdown (`onTagFolderListRequested` event → `RigScanner.getWorkspaceFolders()`
   → `panel:openTagFolderDropdown(names)`) lists first-level workspace Folders/Models.
-- Checkboxes toggle which instance types to tag; selecting a folder immediately applies.
-- "Clear scene tags" removes `MAnim:<scene>` from all tagged instances and rescans.
+  Selecting a folder immediately tags qualifying instances and rescans.
+- Rigs / Props / Effects are standalone toggle buttons (default Rigs ON, Props ON,
+  Effects OFF). They are reset to defaults when "New" is pressed.
+- "Clear scene tags" shows a confirm overlay with the count of tagged rigs/props/effects
+  before removing `MAnim:<scene>` from all tagged instances and rescanning.
+- The muted "Manual tag: MAnim:Scene_001" hint updates live as the scene name box
+  changes, letting the user apply tags manually via Studio's Tag Editor.
 - Tagging is additive (`CollectionService:AddTag` is idempotent); `doClearSceneTags`
   is the explicit reset.
+
+**"New" button (scene row, next to Load):**
+- Auto-increments the scene name (`Scene_001` → `Scene_002`, `Foo` → `Foo_001`,
+  preserving zero-pad width).
+- Shows a confirm overlay listing tagged instance counts + keyframe count.
+- On confirm: clears current scene tags (`doClearSceneTags`), resets the full session
+  (props, camera, effects, recorder), rescans rigs, resets tag toggles to defaults,
+  updates the scene name box.
+
+**Generic tag-action confirm overlay (`panel:showTagConfirm(header, msg, onOkay)`):**
+- Reused by both "New" and "Clear scene tags".
+- Counts computed in init.server.lua via `getTagCounts(sceneName)` (CollectionService
+  query + `isAnimatableRig`/`EffectRunner.classify` categorisation) and
+  `getKeyframeCount()` (union of all rig/prop frame sets from the recorder session).
+
+**Lua 200-register limit — `do...end` blocks in Panel.new:**
+Panel.lua's `Panel.new` function was hitting Lua 5.1's 200-local-register limit.
+Fixed by wrapping the three largest sub-sections in `do...end` blocks (Simple Mode,
+Overlays, Playback Tab). Lua's compiler reuses freed registers after each block ends,
+so the peak concurrent register count stays under 200. Closures defined inside the
+blocks capture their upvalues on the heap (Lua's upvalue mechanism) — no data is lost.
 
 **Design consequence:** rigs can live anywhere in the workspace hierarchy (their actual
 game position) rather than being forced into a staging FIGURES folder. A rig gets

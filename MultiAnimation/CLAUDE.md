@@ -122,7 +122,7 @@ python3 devsync.py uninstall   # back to build.py + manual reload
 ### Other dev scripts
 
 ```bash
-python3 run_tests.py [pattern] [-v]   # full suite (~548 cases, 25 files), or `mcp test`
+python3 run_tests.py [pattern] [-v]   # full suite (~561 cases, 25 files), or `mcp test`
 python3 watch.py                      # auto-build on save (when not using devsync)
 python3 hotpatch.py game/MultiAnimPlayer.lua   # push one game/ module, or `mcp deploy`
 mcp check <file.lua>                  # compile-check in Studio without executing
@@ -214,7 +214,7 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 | `test_effect_exporter.lua` | EffectTracks source builder; loadstring round-trip; omit-if-empty (13 cases) |
 | `test_ui_effects.lua` | Effect track bridge integration: track, cycle, add/delete events, fire, untrack (18 cases) |
 | `test_ui_simple.lua` | Simple Mode bridge integration: mode toggle, Add/Insert/Delete Frame management, Camera View capture-on-add, Play/Stop toggle, manipulable camera object (FOV, frustum gizmo, Look Through guard/snap/free-fly-mirrors-to-gizmo/restore, capture-from-gizmo), FIGURES auto-track/untrack, FPS box round-trip, auto-capture-on-navigate, onion skin toggle, frameCount round-trip regression, save/load slot round-trip regression (71 cases) |
-| `test_tag_scene.lua` | Tag-based scene organisation: getWorkspaceFolders, tagFolder rigs-only, getSceneTagged, scanByTag via doSimpleScan, clearSceneTags, empty-scene FIGURES fallback, AddTag idempotency (15 cases) |
+| `test_tag_scene.lua` | Tag-based scene organisation: getWorkspaceFolders, tagFolder rigs-only, getSceneTagged, scanByTag via doSimpleScan, clearSceneTags, empty-scene FIGURES fallback, AddTag idempotency; New-button name increment, getTagCounts, confirm overlay flow (20 cases) |
 | `test_player_rig_proxy.lua` | PlayerRigProxy: fixed pass-through, R6/R15 detection, clone/direct/teardown round-trips, R15 accepted, resolveAll mix, anchor CFs (48 cases) |
 | `test_ui_playback.lua` | Playback tab bridge integration: mode switch, scene list, rig modes (all 5), FPS/Loop/MovieMode clamping + round-trip, snippet generation (scene name, CutscenePlayer, mode strings, params), multi-rig snippet, partial param update, frameCount round-trip regression (52 cases) |
 | `test_easing_core.lua` | Recorder easing CRUD (rig/prop/camera), shiftFrames/deleteRigKeyframe/deletePropKeyframe include easingTrack, easedAlpha boundary values (Linear/EaseIn/EaseOut/EaseInOut/Constant/Bounce), toSortedKFs backward compat (20 cases, headless) |

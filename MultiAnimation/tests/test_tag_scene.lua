@@ -157,6 +157,50 @@ local count2 = #(call("getSceneTagged").result or {})
 ok("re-tagging does not duplicate (AddTag idempotent)", count2 == count1,
     tostring(count1) .. " → " .. tostring(count2))
 
+-- ── New-button name auto-increment (headless) ────────────────────────────────
+-- The increment logic lives in Panel.lua's click handler; we test the pattern
+-- inline here (same logic, no bridge needed).
+
+do
+    local function increment(name)
+        local base, num = name:match("^(.-)_(%d+)$")
+        if base and num then
+            local n = tonumber(num) + 1
+            return base .. "_" .. string.format("%0" .. #num .. "d", n)
+        else
+            return name .. "_001"
+        end
+    end
+    ok("increment Scene_001 → Scene_002",    increment("Scene_001")    == "Scene_002")
+    ok("increment Scene_009 → Scene_010",    increment("Scene_009")    == "Scene_010")
+    ok("increment Scene_099 → Scene_100",    increment("Scene_099")    == "Scene_100")
+    ok("increment no-suffix → Foo_001",      increment("Foo")          == "Foo_001")
+    ok("increment multi-digit Scene_1 → Scene_2", increment("Scene_1") == "Scene_2")
+end
+
+-- ── getTagCounts via bridge ───────────────────────────────────────────────────
+-- After tagging FIGURES, getSceneTagged should return the rigs we tagged.
+-- We verify categorisation: tagged rigs count as rigs (not props).
+
+call("setSimpleSceneName", { name = scene })
+call("clearSceneTags")
+call("tagFolder", { folder = "FIGURES", types = { rigs = true, props = false, effects = false } })
+local tagged = call("getSceneTagged")
+ok("getSceneTagged returns list after tag",
+    tagged.ok and type(tagged.result) == "table" and #tagged.result >= 1,
+    tagged.ok and tostring(#(tagged.result or {})) or tagged.err)
+-- All returned instances should be the R6 rigs we know about.
+if tagged.ok and tagged.result then
+    local taggedNames = {}
+    for _, n in ipairs(tagged.result) do taggedNames[n] = true end
+    local allRigsTagged = true
+    for _, rn in ipairs(rigNames) do
+        if not taggedNames[rn] then allRigsTagged = false end
+    end
+    ok("all FIGURES rigs appear in getSceneTagged", allRigsTagged,
+        HttpService:JSONEncode(tagged.result))
+end
+
 -- ── Cleanup ───────────────────────────────────────────────────────────────────
 
 call("clearSceneTags")

@@ -622,6 +622,30 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
   for backward compat. **New test file `test_r15_joints.lua` (21 cases). Suite:
   ~548 cases, 25 files.**
 
+- ✅ **Tag UX improvements + bugfixes:**
+  - **Tag row repositioned** to the top of Simple Mode (LayoutOrder 1) for immediate
+    access on panel open.
+  - **Toggle button fix:** Rigs/Props/Effects toggles rebuilt as standalone
+    TextButtons — the original `btn()`-wrapper caused a double MouseLeave handler that
+    overwrote the active colour. Now visually correct on load (Rigs ON, Props ON,
+    Effects OFF by default) and toggle cleanly on click.
+  - **`doSimpleScan` forward declaration:** `doTagAllIn` and `doClearSceneTags` called
+    `doSimpleScan()` before its `local function` definition — fixed with `local
+    doSimpleScan` forward ref + `doSimpleScan = function()` assignment.
+  - **"New" button** (next to Load): auto-increments scene name, shows confirm overlay
+    with tagged instance + keyframe counts, then clears tags + full session + rescans.
+  - **"Clear scene tags" confirm overlay:** shows counts before removing tags.
+  - **"Manual tag" hint:** live-updating label `Manual tag: MAnim:Scene_001` to the
+    right of "Clear scene tags".
+  - **`panel:showTagConfirm(header, msg, onOkay)`:** generic confirm overlay reused by
+    both actions. Counts via `getTagCounts()` + `getKeyframeCount()` helpers in
+    init.server.lua.
+  - **Lua 200-register fix:** `Panel.new` exceeded Lua 5.1's 200-local-register limit.
+    Fixed by wrapping Simple Mode, Overlays, and Playback Tab in `do...end` blocks —
+    compiler reuses registers freed by each closed block.
+  - **`test_exporter.lua`** extended with 13 new flat-KFS-format cases (total 36).
+    **Suite: ~561 cases, 25 files.**
+
 ### Backlog
 
 - Multiple named cameras + switcher track (authoring sugar over Phase 8 cuts)

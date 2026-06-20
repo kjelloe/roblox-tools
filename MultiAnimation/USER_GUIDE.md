@@ -276,8 +276,10 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
   without committing to a new named snapshot.
 - **Save As** stores a named snapshot (up to 30, newest first); **Load** brings
   one back — including props (re-linked by name), the camera track, and all effect events.
-- **New** clears the whole session after a confirmation. Rigs are re-scanned;
-  rest poses re-captured.
+- **New** (Simple Mode only, next to Load) auto-increments the scene name
+  (`Scene_001` → `Scene_002`), shows a confirm overlay with the current tagged
+  instance count and keyframe count, then clears all tags, resets the full
+  session, and rescans rigs. Tag toggles reset to Rigs ON / Props ON / Effects OFF.
 - Sessions survive closing/reopening the panel within a Studio session.
 
 ---
@@ -337,15 +339,32 @@ remember.
 (switches back to **Advanced** any time — your session data is untouched
 either way).
 
-The panel collapses to just: a scrubber + frame counter, a nav row with
-**Del Frame**, **+ Insert**, **▶ Play/Stop**, **+ Add Frame**, and an **FPS
-box** (default 30), a **Camera View** toggle with FOV box and **Look Through**
-toggle, and a scene name + Save/Export row.
+The panel has two rows at the very top of the Simple section:
 
-**Everything in `Workspace.FIGURES` is tracked automatically** — R6 and R15 rigs
-the same way Advanced mode tracks them, and any other part/model gets its
-world-space CFrame tracked like an Advanced-mode prop. There's no "Track
-Part" or "+ Rig" step; just put things in FIGURES.
+**Tag row** (first row):
+```
+Tag: [FIGURES ▼]  [Rigs ✓]  [Props ✓]  [Effects □]  [Clear scene tags]  Manual tag: MAnim:Scene_001
+```
+- Choose a workspace folder from the dropdown — every qualifying instance inside is
+  tagged with `MAnim:<scene>` via CollectionService. Rigs and Props are ON by default.
+- **Clear scene tags** removes all `MAnim:<scene>` tags from tagged instances. A
+  confirm overlay shows how many rigs, props, and effects are currently tagged so you
+  can verify before clearing.
+- The muted **"Manual tag: MAnim:Scene_001"** hint updates live with the scene name —
+  copy it to apply tags yourself via Studio's Tag Editor (useful for instances
+  scattered across many folders).
+- Once tagged, the scene name drives the rig scan: non-empty scene name →
+  `scanByTag` (anywhere in workspace); empty → legacy FIGURES scan.
+
+**Scene row** (last row): `Scene:` box · `💾 Save` · `⬆ Export` · `Save As` · `Load` · `New`
+
+Then: scrubber + frame counter, nav row (**Del Frame** · **+ Insert** · **▶ Play/Stop**
+· **+ Add Frame** · **FPS box**), **Camera View** + **FOV** + **Look Through**, **Onion Skin**.
+
+**Everything in `Workspace.FIGURES` is tracked automatically** when no scene name is
+set — R6 and R15 rigs the same way Advanced mode tracks them, and any other part/model
+gets its world-space CFrame tracked like an Advanced-mode prop. With a scene name set,
+only tagged instances are tracked. There's no "Track Part" or "+ Rig" step.
 
 **The core workflow:**
 
@@ -490,3 +509,5 @@ are automatically removed when playback finishes or `handle.stop()` is called.
 | Exported playback ignores my latest edits | Re-export, or run `mcp drift` / `mcp deploy` from a terminal. |
 | In-game cutscene camera slightly ahead of rig motion | Known v1 caveat (~50–100 ms replication lag). |
 | Undo behaves oddly during preview | Preview suspends the undo history while playing; it resumes on Stop. |
+| Simple Mode shows no rigs after setting a scene name | Nothing is tagged yet — use the Tag row folder dropdown to tag your FIGURES folder, or apply `MAnim:<scene>` tags manually in Studio's Tag Editor. |
+| Toggle buttons (Rigs/Props/Effects) look stuck | They reset to defaults (Rigs ON, Props ON, Effects OFF) whenever you press **New**. Current state is always shown by the button's highlight colour. |
