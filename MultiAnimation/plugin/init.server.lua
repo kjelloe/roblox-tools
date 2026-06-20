@@ -2536,6 +2536,26 @@ local testBridge = TestBridge.start({
         return simpleCurrentEasing
     end,
 
+    -- Returns the sorted list of frames that have keyframe data, mirroring
+    -- what panel:setSimpleSlots receives. Used to verify load round-trips.
+    getSimpleSlots = function()
+        return getSimpleKeyframedFrames()
+    end,
+
+    -- Save/load session by name — exposes the same paths used by Save As / Load
+    -- buttons. Lets tests verify that the full serialize→deserialize round-trip
+    -- preserves session data and rebuilds the Simple Mode UI correctly.
+    saveSession = function(a)
+        saveNamed(a.name)
+        return true
+    end,
+
+    loadSession = function(a)
+        loadNamed(a.name)
+        if mode == "simple" then doSimpleScan() end
+        return true
+    end,
+
     setSimpleFPS = function(a)
         local fps = math.clamp(math.floor(tonumber(a.fps) or 30), 1, 999)
         timeline:setFps(fps)

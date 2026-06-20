@@ -581,6 +581,22 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
   - **Tests:** `test_easing_core.lua` (20 cases, headless), `test_ui_easing.lua` (12 cases,
     live Studio). **Suite total: ~507 cases across 23 files.**
 
+- ✅ **Bug fix — Simple Mode load drops frame slots:** `panel.onLoadNamedRequested`
+  was not calling `doSimpleScan()` after `applySessionData`, so the slot list UI was
+  never rebuilt from the loaded keyframe data. Fix: call `doSimpleScan()` when
+  `mode == "simple"` in the load handler (and duplicate in the `loadSession` bridge
+  command). Bridge cmds added: `saveSession {name}`, `loadSession {name}`,
+  `getSimpleSlots`. **5 new regression cases in `test_ui_simple.lua` (71 total).
+  Suite: ~512 cases across 23 files.**
+
+- ✅ **Bug fix — Motor6D disconnected in play mode, animation invisible:** The plugin
+  sets `motor.Part0 = nil` for all R6 joints in edit mode (free-pose mode). When the
+  user enters play mode (F5), Roblox copies this state into the simulation — joints
+  remain disconnected, so `Motor6D.Transform` writes by `MultiAnimPlayer` and
+  `CutscenePlayer` have no visual effect. Fix: `MultiAnimPlayer.findJoints` reconnects
+  any motor with `Part0 == nil` (`motor.Part0 = container` from `JOINT_PARENT`).
+  `CutscenePlayer.applyJoints` does the same via `joint.Part0 = joint.Parent`.
+
 ### Backlog
 
 - Multiple named cameras + switcher track (authoring sugar over Phase 8 cuts)

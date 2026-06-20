@@ -345,6 +345,19 @@ session start.  While disconnected:
 
 `reconnectAll()` restores `Part0` on plugin unload, leaving the rig in a clean state.
 
+### Motor6D Disconnect Survives Into Play Mode
+
+When the user presses F5, Roblox copies the current edit-mode workspace into the
+play simulation. If motors are disconnected (`Part0 = nil`) at that moment — which
+they always are while the plugin is active — the simulation starts with disconnected
+joints. `MultiAnimPlayer.findJoints` / `CutscenePlayer.applyJoints` would set
+`Motor6D.Transform` on these dead joints with no visual effect.
+
+**Fix:** `MultiAnimPlayer.findJoints` now reconnects any motor with `Part0 == nil`
+by setting `motor.Part0 = container` (the parent part from `JOINT_PARENT`, which is
+the correct Part0 for all R6 joints). `CutscenePlayer.applyJoints` does the same via
+`joint.Part0 = joint.Parent`. Both apply lazily on first access — no separate init call.
+
 ### Motor6D Transform vs. C0/C1
 
 Roblox animations store the joint deviation in `Pose.CFrame` (renamed from `Pose.Transform` in a Studio update) — the joint's deviation from its rest `C0 * C1:Inverse()` offset. We derive this value from actual part CFrames:
@@ -576,7 +589,7 @@ Frame navigation syncs the button to the stored easing of the arrived-at keyfram
 | `build.py` | Assembles `.rbxmx` from source files and copies to Plugins folder |
 | `watch.py` | Auto-build on save, with Studio compile-check first |
 | `devsync.py` + `plugin/devloader.lua` | Hot-reload the plugin on save — no Studio restart |
-| `run_tests.py` | Runs the full `tests/` suite (~507 cases, 23 files) against live Studio |
+| `run_tests.py` | Runs the full `tests/` suite (~512 cases, 23 files) against live Studio |
 | `hotpatch.py` | Push a single `game/` module without reload |
 | `mcp.py` (`mcp` alias) | CLI for everything: luau, console/tail, tree/inspect/read/grep, check, drift, test, deploy, playtest, gen, store, addrig, scene, daemon |
 | MCP daemon | Persistent StudioMCP proxy (auto-starts) — 0.07s/call vs ~7s |

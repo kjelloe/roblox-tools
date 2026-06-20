@@ -514,6 +514,60 @@ else
     call("simpleDeleteFrame")
 end
 
+-- ── Save/Load round-trip in Simple Mode ──────────────────────────────────────
+-- Regression: loading a named save while in Simple Mode used to leave the frame
+-- slot list empty because doSimpleScan() was not called after applySessionData.
+-- This test verifies the full round-trip: add frames → save → delete frames →
+-- load → slots should match original keyframe list.
+local SAVE_SLOT_NAME = "__test_simple_load_regression__"
+do
+    -- Start in simple mode with a clean two-frame session.
+    call("setMode", { mode = "simple" })
+    call("setFrame", { frame = 1 })
+    -- Ensure we're at frame 1 with no prior data by deleting to bare minimum.
+    local count0 = call("getFrameCount")
+    if count0.ok then
+        for _ = 1, (count0.result or 1) - 1 do call("simpleDeleteFrame") end
+    end
+    call("setFrame", { frame = 1 })
+    -- Add two frames so we have keyframes at [1, 2].
+    call("simpleAddFrame")
+    call("simpleAddFrame")
+    local slotsBefore = call("getSimpleSlots")
+    ok("getSimpleSlots: 2 frames before save",
+        slotsBefore.ok and #slotsBefore.result == 2,
+        slotsBefore.ok and HttpService:JSONEncode(slotsBefore.result) or slotsBefore.err)
+
+    -- Save then destroy both frames.
+    call("saveSession", { name = SAVE_SLOT_NAME })
+    call("setFrame", { frame = 1 })
+    call("simpleDeleteFrame")
+    -- Tolerate ending up with 1-frame minimum.
+    call("simpleDeleteFrame")
+    local slotsAfterDelete = call("getSimpleSlots")
+    ok("getSimpleSlots: ≤1 frame after delete",
+        slotsAfterDelete.ok and #slotsAfterDelete.result <= 1,
+        slotsAfterDelete.ok and HttpService:JSONEncode(slotsAfterDelete.result) or slotsAfterDelete.err)
+
+    -- Load the save — doSimpleScan must rebuild the slot list.
+    call("loadSession", { name = SAVE_SLOT_NAME })
+    local slotsAfterLoad = call("getSimpleSlots")
+    ok("getSimpleSlots: slots restored after load (was: empty)",
+        slotsAfterLoad.ok and #slotsAfterLoad.result == 2,
+        slotsAfterLoad.ok and HttpService:JSONEncode(slotsAfterLoad.result) or slotsAfterLoad.err)
+    ok("getSimpleSlots: first slot is frame 1 after load",
+        slotsAfterLoad.ok and slotsAfterLoad.result[1] == 1,
+        slotsAfterLoad.ok and tostring(slotsAfterLoad.result[1]) or slotsAfterLoad.err)
+    ok("getSimpleSlots: second slot is frame 2 after load",
+        slotsAfterLoad.ok and slotsAfterLoad.result[2] == 2,
+        slotsAfterLoad.ok and tostring(slotsAfterLoad.result[2]) or slotsAfterLoad.err)
+
+    -- Cleanup: delete the loaded frames.
+    call("setFrame", { frame = 1 })
+    call("simpleDeleteFrame")
+    call("simpleDeleteFrame")
+end
+
 -- ── frameCount preserved through simple→advanced round-trip ──────────────────
 -- Regression: autosave fired while in simple mode used to persist the tiny
 -- simple-mode frameCount, so the next plugin load started with e.g. 2 frames.
