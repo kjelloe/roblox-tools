@@ -359,8 +359,10 @@ function Panel.new(widget)
     local eSimpleOnion      = mkEvent("onSimpleOnionToggled")
     local eTagFolderReq     = mkEvent("onTagFolderListRequested")   -- fires ()
     local eTagAllIn         = mkEvent("onTagAllInRequested")        -- fires (folder, {rigs,props,effects})
-    local eClearSceneTags   = mkEvent("onClearSceneTagsRequested")  -- fires ()
-    local eNewAnimation     = mkEvent("onNewAnimationRequested")    -- fires (newName)
+    local eClearSceneTags        = mkEvent("onClearSceneTagsRequested")       -- fires ()
+    local eNewAnimation          = mkEvent("onNewAnimationRequested")         -- fires (newName)
+    local eClearSceneTagsPreview = mkEvent("onClearSceneTagsPreviewRequested")-- fires ()
+    local eNewAnimationPreview   = mkEvent("onNewAnimationPreviewRequested")  -- fires (newName)
 
     -- Playback tab events
     local ePlaybackSceneChanged   = mkEvent("onPlaybackSceneChanged")    -- fires (sceneName)
@@ -903,7 +905,7 @@ function Panel.new(widget)
         if self._isPlaying then return end
         local name = simpleSceneBox.Text or "Scene_001"
         -- Auto-increment: "Scene_001" → "Scene_002", "Foo" → "Foo_001"
-        local base, num, width = name:match("^(.-)_(%d+)$")
+        local base, num = name:match("^(.-)_(%d+)$")
         local newName
         if base and num then
             local n = tonumber(num) + 1
@@ -911,11 +913,11 @@ function Panel.new(widget)
         else
             newName = name .. "_001"
         end
-        simpleSceneBox.Text = newName
-        eNewAnimation:Fire(newName)
-        self:resetTagToggles()
+        eNewAnimationPreview:Fire(name, newName)
     end)
-    self.onNewAnimationRequested = eNewAnimation.Event
+    self.onNewAnimationRequested          = eNewAnimation.Event
+    self.onNewAnimationPreviewRequested   = eNewAnimationPreview.Event
+    self.onClearSceneTagsPreviewRequested = eClearSceneTagsPreview.Event
 
     -- ── Tag row ───────────────────────────────────────────────────────────────
     -- "Tag all in: [folder ▼] [Rigs] [Props] [Effects]  [Clear scene tags]"
@@ -973,7 +975,7 @@ function Panel.new(widget)
 
     local clearTagsBtn = btn(simpleTagRow, "Clear scene tags", 6)
     clearTagsBtn.MouseButton1Click:Connect(function()
-        if not self._isPlaying then eClearSceneTags:Fire() end
+        if not self._isPlaying then eClearSceneTagsPreview:Fire() end
     end)
 
     tagFolderBtn.MouseButton1Click:Connect(function()
@@ -1123,6 +1125,74 @@ function Panel.new(widget)
     end)
     newOvCancel.MouseButton1Click:Connect(function() newOv.Visible = false end)
     self._newOverlay = newOv
+
+    -- ── Generic tag-action confirm overlay ────────────────────────────────────
+    local tagConfOv = Instance.new("Frame")
+    tagConfOv.Name            = "TagConfirmOverlay"
+    tagConfOv.Size            = UDim2.new(0, 260, 0, 110)
+    tagConfOv.AnchorPoint     = Vector2.new(0.5, 0.5)
+    tagConfOv.Position        = UDim2.new(0.5, 0, 0.5, 0)
+    tagConfOv.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    tagConfOv.BorderSizePixel = 0
+    tagConfOv.ZIndex          = 50
+    tagConfOv.Visible         = false
+    tagConfOv.Parent          = widget
+    Instance.new("UICorner", tagConfOv).CornerRadius = UDim.new(0, 6)
+    local _tcStroke = Instance.new("UIStroke")
+    _tcStroke.Color     = Color3.fromRGB(90, 90, 90)
+    _tcStroke.Thickness = 1
+    _tcStroke.Parent    = tagConfOv
+    listLayout(tagConfOv, Enum.FillDirection.Vertical, 6)
+    addPadding(tagConfOv, 10, 10)
+
+    local tagConfHdr = Instance.new("TextLabel")
+    tagConfHdr.Size               = UDim2.new(1, 0, 0, 13)
+    tagConfHdr.BackgroundTransparency = 1
+    tagConfHdr.TextColor3         = C.header
+    tagConfHdr.Text               = ""
+    tagConfHdr.TextSize           = 10
+    tagConfHdr.Font               = Enum.Font.GothamBold
+    tagConfHdr.TextXAlignment     = Enum.TextXAlignment.Left
+    tagConfHdr.LayoutOrder        = 1
+    tagConfHdr.Parent             = tagConfOv
+
+    local tagConfMsg = Instance.new("TextLabel")
+    tagConfMsg.Size               = UDim2.new(1, 0, 0, 48)
+    tagConfMsg.BackgroundTransparency = 1
+    tagConfMsg.TextColor3         = C.muted
+    tagConfMsg.Text               = ""
+    tagConfMsg.TextSize           = 11
+    tagConfMsg.Font               = Enum.Font.Gotham
+    tagConfMsg.TextXAlignment     = Enum.TextXAlignment.Left
+    tagConfMsg.TextYAlignment     = Enum.TextYAlignment.Top
+    tagConfMsg.TextWrapped        = true
+    tagConfMsg.LayoutOrder        = 2
+    tagConfMsg.Parent             = tagConfOv
+
+    local tagConfRow    = hrow(tagConfOv, 3, 6)
+    local tagConfOk     = btn(tagConfRow, "OK",     1)
+    local tagConfCancel = btn(tagConfRow, "Cancel", 2)
+    local _tagConfCallback = nil
+    tagConfOk.MouseButton1Click:Connect(function()
+        tagConfOv.Visible = false
+        if _tagConfCallback then _tagConfCallback() end
+        _tagConfCallback = nil
+    end)
+    tagConfCancel.MouseButton1Click:Connect(function()
+        tagConfOv.Visible = false
+        _tagConfCallback  = nil
+    end)
+
+    function self:showTagConfirm(header, message, onOkay)
+        tagConfHdr.Text   = header
+        tagConfMsg.Text   = message
+        _tagConfCallback  = onOkay
+        tagConfOv.Visible = true
+    end
+
+    function self:setSimpleSceneName(name)
+        if self._simpleSceneBox then self._simpleSceneBox.Text = name end
+    end
 
     -- ── Load list overlay ─────────────────────────────────────────────────────
     local loadOv = Instance.new("Frame")

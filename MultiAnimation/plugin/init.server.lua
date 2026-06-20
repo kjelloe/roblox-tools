@@ -2090,10 +2090,37 @@ panel.onClearSceneTagsRequested:Connect(function()
     doClearSceneTags()
 end)
 
-panel.onNewAnimationRequested:Connect(function(newName)
-    -- Clear current scene's tags before resetting.
+local function getTagCounts(sceneName)
+    local tag = "MAnim:" .. sceneName
+    local rigs, props, effects = 0, 0, 0
+    for _, inst in ipairs(CollectionService:GetTagged(tag)) do
+        if RigScanner.isAnimatableRig(inst) then
+            rigs += 1
+        elseif EffectRunner.classify(inst) then
+            effects += 1
+        else
+            props += 1
+        end
+    end
+    return rigs, props, effects
+end
+
+local function getKeyframeCount()
+    local session = recorder:getSession()
+    local frames = {}
+    for _, rig in pairs(session.rigs or {}) do
+        for f in pairs(rig.jointTrack or {}) do frames[f] = true end
+    end
+    for _, prop in pairs(session.props or {}) do
+        for f in pairs(prop.track or {}) do frames[f] = true end
+    end
+    local n = 0
+    for _ in pairs(frames) do n += 1 end
+    return n
+end
+
+local function doFullSessionReset(newName)
     doClearSceneTags()
-    -- Full session reset (same as onNewSessionConfirmed).
     reconnectAllRigs()
     for propName in pairs(allProps) do panel:removeProp(propName) end
     allProps = {}
@@ -2108,9 +2135,51 @@ panel.onNewAnimationRequested:Connect(function(newName)
     allEffects = {}
     recorder:clearSession()
     timeline:setCurrent(1)
+    if newName then panel:setSimpleSceneName(newName) end
     doSimpleScan()
     panel:setFrameDisplay(1, timeline:getFrameCount())
-    print("[MultiAnimation] New animation: " .. newName)
+    panel:resetTagToggles()
+    print("[MultiAnimation] New animation: " .. tostring(newName))
+end
+
+panel.onClearSceneTagsPreviewRequested:Connect(function()
+    local sceneName = panel:getSimpleSceneName()
+    if not sceneName or sceneName == "" then doClearSceneTags(); return end
+    local rigs, props, effects = getTagCounts(sceneName)
+    local msg = string.format(
+        'Remove all "%s" tags?\n%d rig%s, %d prop%s, %d effect%s will be untagged.\nKeyframes and session data are kept.',
+        sceneName,
+        rigs,    rigs    == 1 and "" or "s",
+        props,   props   == 1 and "" or "s",
+        effects, effects == 1 and "" or "s"
+    )
+    panel:showTagConfirm("CLEAR SCENE TAGS", msg, function()
+        doClearSceneTags()
+    end)
+end)
+
+panel.onNewAnimationPreviewRequested:Connect(function(currentName, newName)
+    local rigs, props, effects = getTagCounts(currentName or "")
+    local kfCount = getKeyframeCount()
+    local tagLine = string.format('%d rig%s, %d prop%s, %d effect%s tagged as "%s".',
+        rigs,    rigs    == 1 and "" or "s",
+        props,   props   == 1 and "" or "s",
+        effects, effects == 1 and "" or "s",
+        currentName or ""
+    )
+    local msg = string.format(
+        '%s\n%d keyframe%s — all cleared.\nNew scene: "%s".',
+        tagLine,
+        kfCount, kfCount == 1 and "" or "s",
+        newName
+    )
+    panel:showTagConfirm("NEW ANIMATION", msg, function()
+        doFullSessionReset(newName)
+    end)
+end)
+
+panel.onNewAnimationRequested:Connect(function(newName)
+    doFullSessionReset(newName)
 end)
 
 panel.onExportRequested:Connect(function(sceneName)
