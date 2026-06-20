@@ -599,6 +599,8 @@ end
 -- Tags instances in a workspace folder with "MAnim:<sceneName>" so they are
 -- included in future tag-based scans.  Additive — existing tags are unchanged.
 
+local doSimpleScan  -- forward ref; defined below at doSimpleScan()
+
 local function doTagAllIn(folderName, types)
     local sceneName = panel:getSimpleSceneName()
     if not sceneName or sceneName == "" then
@@ -1051,7 +1053,7 @@ local function getSimpleKeyframedFrames()
     return sorted
 end
 
-local function doSimpleScan()
+doSimpleScan = function()
     reconnectAllRigs()
 
     -- Rig discovery: tag-based when a scene name is set, FIGURES fallback otherwise.
@@ -2086,6 +2088,29 @@ panel.onTagAllInRequested:Connect(function(folderName, types)
 end)
 panel.onClearSceneTagsRequested:Connect(function()
     doClearSceneTags()
+end)
+
+panel.onNewAnimationRequested:Connect(function(newName)
+    -- Clear current scene's tags before resetting.
+    doClearSceneTags()
+    -- Full session reset (same as onNewSessionConfirmed).
+    reconnectAllRigs()
+    for propName in pairs(allProps) do panel:removeProp(propName) end
+    allProps = {}
+    for _, f in ipairs(recorder:getSortedCameraFrames()) do
+        panel:removeCameraKeyframeMarker(f)
+    end
+    clearCameraGizmos()
+    panel:setCameraModeDisplay(nil)
+    for name in pairs(recorder:getSession().effects or {}) do
+        panel:removeEffect(name)
+    end
+    allEffects = {}
+    recorder:clearSession()
+    timeline:setCurrent(1)
+    doSimpleScan()
+    panel:setFrameDisplay(1, timeline:getFrameCount())
+    print("[MultiAnimation] New animation: " .. newName)
 end)
 
 panel.onExportRequested:Connect(function(sceneName)

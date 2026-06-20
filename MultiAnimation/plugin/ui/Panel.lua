@@ -360,6 +360,7 @@ function Panel.new(widget)
     local eTagFolderReq     = mkEvent("onTagFolderListRequested")   -- fires ()
     local eTagAllIn         = mkEvent("onTagAllInRequested")        -- fires (folder, {rigs,props,effects})
     local eClearSceneTags   = mkEvent("onClearSceneTagsRequested")  -- fires ()
+    local eNewAnimation     = mkEvent("onNewAnimationRequested")    -- fires (newName)
 
     -- Playback tab events
     local ePlaybackSceneChanged   = mkEvent("onPlaybackSceneChanged")    -- fires (sceneName)
@@ -716,7 +717,7 @@ function Panel.new(widget)
     simpleSec.Visible = false
     self._simpleSec = simpleSec
 
-    local simpleActionRow = hrow(simpleSec, 1, 4)
+    local simpleActionRow = hrow(simpleSec, 2, 4)
     local simpleDelFrameBtn = btn(simpleActionRow, "🗑 Del Frame", 1)
     simpleDelFrameBtn.MouseButton1Click:Connect(function()
         if not self._isPlaying then eSimpleDeleteFrame:Fire() end
@@ -761,7 +762,7 @@ function Panel.new(widget)
     simpleIconRow.Name             = "SimpleIconRow"
     simpleIconRow.Size             = UDim2.new(0, SIMPLE_ICON_W, 0, SIMPLE_ICON_H)
     simpleIconRow.BackgroundTransparency = 1
-    simpleIconRow.LayoutOrder      = 2
+    simpleIconRow.LayoutOrder      = 3
     simpleIconRow.Parent           = simpleSec
     self._simpleIconRow = simpleIconRow
     self._simpleIcons   = {}   -- [frame] = TextButton
@@ -771,7 +772,7 @@ function Panel.new(widget)
     simpleScrubRow.Size             = UDim2.new(0, SIMPLE_ICON_W, 0, 0)
     simpleScrubRow.AutomaticSize    = Enum.AutomaticSize.Y
     simpleScrubRow.BackgroundTransparency = 1
-    simpleScrubRow.LayoutOrder      = 3
+    simpleScrubRow.LayoutOrder      = 4
     simpleScrubRow.Parent           = simpleSec
     self._simpleScrubRow = simpleScrubRow
 
@@ -792,7 +793,7 @@ function Panel.new(widget)
     self._simpleScrubber.onDragBegan:Connect(function() eScrubBgn:Fire() end)
     self._simpleScrubber.onDragEnded:Connect(function() eScrubEnd:Fire() end)
 
-    local simpleNavRow = hrow(simpleSec, 4, 4)
+    local simpleNavRow = hrow(simpleSec, 5, 4)
     local simplePrevKFBtn = smallBtn(simpleNavRow, "|◄", 1)
     local simplePrevBtn   = smallBtn(simpleNavRow, "◄",  2)
     lbl(simpleNavRow, "Frame:", 38, 3)
@@ -840,7 +841,7 @@ function Panel.new(widget)
         end
     end)
 
-    local simpleCamRow = hrow(simpleSec, 5, 4)
+    local simpleCamRow = hrow(simpleSec, 6, 4)
     local simpleCamBtn = btn(simpleCamRow, "Camera View: OFF", 1)
     self._simpleCamOn = false
     simpleCamBtn.MouseButton1Click:Connect(function()
@@ -877,7 +878,7 @@ function Panel.new(widget)
     end)
     self.onSimpleOnionToggled = eSimpleOnion.Event
 
-    local simpleSceneRow = hrow(simpleSec, 6, 4)
+    local simpleSceneRow = hrow(simpleSec, 7, 4)
     lbl(simpleSceneRow, "Scene:", 42, 1)
     local simpleSceneBox = textBox(simpleSceneRow, "Scene_001", 80, 2)
     self._simpleSceneBox = simpleSceneBox
@@ -885,6 +886,7 @@ function Panel.new(widget)
     local simpleExportBtn = btn(simpleSceneRow, "⬆  Export", 4, true)
     local simpleSaveAsBtn = btn(simpleSceneRow, "Save As",   5)
     local simpleLoadBtn   = btn(simpleSceneRow, "Load",      6)
+    local simpleNewBtn    = btn(simpleSceneRow, "New",        7)
     simpleSaveBtn.MouseButton1Click:Connect(function()
         if not self._isPlaying then eSave:Fire(simpleSceneBox.Text) end
     end)
@@ -897,40 +899,77 @@ function Panel.new(widget)
     simpleLoadBtn.MouseButton1Click:Connect(function()
         if not self._isPlaying then eReload:Fire() end
     end)
+    simpleNewBtn.MouseButton1Click:Connect(function()
+        if self._isPlaying then return end
+        local name = simpleSceneBox.Text or "Scene_001"
+        -- Auto-increment: "Scene_001" → "Scene_002", "Foo" → "Foo_001"
+        local base, num, width = name:match("^(.-)_(%d+)$")
+        local newName
+        if base and num then
+            local n = tonumber(num) + 1
+            newName = base .. "_" .. string.format("%0" .. #num .. "d", n)
+        else
+            newName = name .. "_001"
+        end
+        simpleSceneBox.Text = newName
+        eNewAnimation:Fire(newName)
+        self:resetTagToggles()
+    end)
+    self.onNewAnimationRequested = eNewAnimation.Event
 
     -- ── Tag row ───────────────────────────────────────────────────────────────
     -- "Tag all in: [folder ▼] [Rigs] [Props] [Effects]  [Clear scene tags]"
-    local simpleTagRow = hrow(simpleSec, 7, 4)
+    local simpleTagRow = hrow(simpleSec, 1, 4)
     lbl(simpleTagRow, "Tag:", 30, 1)
 
     local tagFolderBtn = btn(simpleTagRow, "folder ▼", 2)
     self._tagFolderBtn    = tagFolderBtn
     self._tagFolderName   = nil   -- nil = nothing selected yet
 
-    -- Checkbox-style toggles: active = accent colour, inactive = normal.
+    -- Checkbox-style toggles: standalone TextButton owns all its handlers so
+    -- btn()'s static hover closures can't overwrite the dynamic active color.
+    -- Returns: button, getter(), setter(bool)
     local function toggleBtn(parent, text, order, default)
-        local b = btn(parent, text, order)
+        local b = Instance.new("TextButton")
+        b.Size             = UDim2.new(0, 0, 0, 24)
+        b.AutomaticSize    = Enum.AutomaticSize.X
+        b.BorderSizePixel  = 0
+        b.TextColor3       = C.btnText
+        b.Text             = "  " .. text .. "  "
+        b.TextSize         = 12
+        b.Font             = Enum.Font.Gotham
+        b.AutoButtonColor  = false
+        b.LayoutOrder      = order or 1
+        b.Parent           = parent
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
         local active = default
-        b.BackgroundColor3 = active and C.btnAccent or C.btnBg
-        b.MouseEnter:Connect(function()
-            b.BackgroundColor3 = active and C.btnAccHov or C.btnHover
-        end)
-        b.MouseLeave:Connect(function()
-            b.BackgroundColor3 = active and C.btnAccent or C.btnBg
-        end)
+        local function paint(hover)
+            b.BackgroundColor3 = active
+                and (hover and C.btnAccHov or C.btnAccent)
+                or  (hover and C.btnHover  or C.btnBg)
+        end
+        paint(false)
+        b.MouseEnter:Connect(function()  paint(true)  end)
+        b.MouseLeave:Connect(function()  paint(false) end)
         b.MouseButton1Click:Connect(function()
             active = not active
-            b.BackgroundColor3 = active and C.btnAccent or C.btnBg
+            paint(false)
         end)
-        return b, function() return active end
+        return b,
+            function()      return active end,
+            function(v) active = v; paint(false) end
     end
 
-    local tagRigsBtn,    getRigsOn    = toggleBtn(simpleTagRow, "Rigs",    3, true)
-    local tagPropsBtn,   getPropsOn   = toggleBtn(simpleTagRow, "Props",   4, true)
-    local tagEffectsBtn, getEffectsOn = toggleBtn(simpleTagRow, "Effects", 5, false)
+    local tagRigsBtn,    getRigsOn,    setRigsOn    = toggleBtn(simpleTagRow, "Rigs",    3, true)
+    local tagPropsBtn,   getPropsOn,   setPropsOn   = toggleBtn(simpleTagRow, "Props",   4, true)
+    local tagEffectsBtn, getEffectsOn, setEffectsOn = toggleBtn(simpleTagRow, "Effects", 5, false)
     self._tagRigsBtn    = tagRigsBtn
     self._tagPropsBtn   = tagPropsBtn
     self._tagEffectsBtn = tagEffectsBtn
+
+    function self:resetTagToggles()
+        setRigsOn(true); setPropsOn(true); setEffectsOn(false)
+    end
 
     local clearTagsBtn = btn(simpleTagRow, "Clear scene tags", 6)
     clearTagsBtn.MouseButton1Click:Connect(function()
