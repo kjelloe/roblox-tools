@@ -589,6 +589,17 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
   `getSimpleSlots`. **5 new regression cases in `test_ui_simple.lua` (71 total).
   Suite: ~512 cases across 23 files.**
 
+- ✅ **Tag-based scene organisation:** Multiple animations can share rigs without
+  duplication. Tag format: `MAnim:<sceneName>` via CollectionService. Simple Mode
+  gets a "Tag all in" row: folder dropdown (first-level workspace Folders/Models),
+  Rigs/Props/Effects checkboxes (Rigs+Props default ON), "Clear scene tags" button.
+  Selecting a folder from the dropdown immediately tags qualifying instances and
+  rescans. `doSimpleScan` uses `RigScanner.scanByTag(scene)` when scene name is
+  non-empty; falls back to legacy FIGURES scan when empty. New `RigScanner` exports:
+  `isR6`, `scanByTag`, `getWorkspaceFolders`. Bridge cmds: `setSimpleSceneName`,
+  `tagFolder {folder, types}`, `clearSceneTags`, `getSceneTagged`, `getWorkspaceFolders`.
+  **New test file `test_tag_scene.lua` (15 cases). Suite: ~527 cases, 24 files.**
+
 - ✅ **Bug fix — Motor6D disconnected in play mode, animation invisible:** The plugin
   sets `motor.Part0 = nil` for all R6 joints in edit mode (free-pose mode). When the
   user enters play mode (F5), Roblox copies this state into the simulation — joints

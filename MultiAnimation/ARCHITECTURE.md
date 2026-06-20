@@ -52,7 +52,7 @@
 | Module | Layer | Purpose |
 |--------|-------|---------|
 | `init.server.lua` | Entry | Toolbar, widget, event wiring, playback loop, Selection sync, play-mode guard |
-| `core/RigScanner` | Core | Detects R6 rigs in Workspace.FIGURES |
+| `core/RigScanner` | Core | Detects R6 rigs; `scan()` scans Workspace.FIGURES (legacy); `scanByTag(scene)` scans by CollectionService tag; `isR6()` public predicate; `getWorkspaceFolders()` for tag-UI dropdown |
 | `core/Recorder` | Core | Session data storage; addKeyframe captures joints+scale+rootCFrame+props; deleteRigKeyframe/deletePropKeyframe |
 | `core/JointCapture` | Core | Reads/writes Motor6D.Transform; validate() checks joint health; computeWorldCFrames() for onion skin FK |
 | `core/ScaleCapture` | Core | Reads/writes Part.Size |
@@ -102,8 +102,10 @@ init.server.lua
 │   └── Scrubber.lua        Horizontal drag slider; overlay Frame for cross-panel input
 │
 └── core/
-    ├── RigScanner.lua      Scans Workspace.FIGURES for R6 models
-    │                       Returns: { [name] = ModelInstance }
+    ├── RigScanner.lua      scan() — legacy: R6 rigs in Workspace.FIGURES
+    │                       scanByTag(scene) — rigs tagged "MAnim:<scene>" anywhere in workspace
+    │                       isR6(inst) — public R6 predicate
+    │                       getWorkspaceFolders() — sorted first-level Folder/Model names
     │
     ├── Recorder.lua        Owns session data; addKeyframe(frame, rigs, props)
     │                       captureRestPose stores joints+scale baseline for restore
@@ -358,6 +360,37 @@ by setting `motor.Part0 = container` (the parent part from `JOINT_PARENT`, which
 the correct Part0 for all R6 joints). `CutscenePlayer.applyJoints` does the same via
 `joint.Part0 = joint.Parent`. Both apply lazily on first access — no separate init call.
 
+### Tag-Based Scene Organisation
+
+Games with many animations need a way to share rigs across scenes (e.g., a MobBoss
+rig reused in five cutscenes without duplication) and to scope rig discovery to the
+rigs that participate in a specific animation.
+
+**Tag format:** `MAnim:<sceneName>` — e.g. `MAnim:intro_cutscene`. Applied to any
+workspace instance (Model for rigs, BasePart/Model for props, ParticleEmitter etc.
+for effects) via `CollectionService:AddTag`.
+
+**Scan behaviour (`doSimpleScan`):**
+- Scene name non-empty → `RigScanner.scanByTag(sceneName)` for rigs; prop instances
+  scanned from `CollectionService:GetTagged(tag)` filtered to non-rig BaseParts.
+- Scene name empty → legacy `RigScanner.scan()` (Workspace.FIGURES) — fully backward
+  compatible with existing setups that don't use named scenes.
+
+**"Tag all in" helper (Simple Mode row):**
+```
+Tag: [FIGURES ▼]  [Rigs ✓]  [Props ✓]  [Effects □]  [Clear scene tags]
+```
+- Folder dropdown (`onTagFolderListRequested` event → `RigScanner.getWorkspaceFolders()`
+  → `panel:openTagFolderDropdown(names)`) lists first-level workspace Folders/Models.
+- Checkboxes toggle which instance types to tag; selecting a folder immediately applies.
+- "Clear scene tags" removes `MAnim:<scene>` from all tagged instances and rescans.
+- Tagging is additive (`CollectionService:AddTag` is idempotent); `doClearSceneTags`
+  is the explicit reset.
+
+**Design consequence:** rigs can live anywhere in the workspace hierarchy (their actual
+game position) rather than being forced into a staging FIGURES folder. A rig gets
+tagged for each scene it participates in — one MobBoss rig, many scene tags.
+
 ### Motor6D Transform vs. C0/C1
 
 Roblox animations store the joint deviation in `Pose.CFrame` (renamed from `Pose.Transform` in a Studio update) — the joint's deviation from its rest `C0 * C1:Inverse()` offset. We derive this value from actual part CFrames:
@@ -589,7 +622,7 @@ Frame navigation syncs the button to the stored easing of the arrived-at keyfram
 | `build.py` | Assembles `.rbxmx` from source files and copies to Plugins folder |
 | `watch.py` | Auto-build on save, with Studio compile-check first |
 | `devsync.py` + `plugin/devloader.lua` | Hot-reload the plugin on save — no Studio restart |
-| `run_tests.py` | Runs the full `tests/` suite (~512 cases, 23 files) against live Studio |
+| `run_tests.py` | Runs the full `tests/` suite (~527 cases, 24 files) against live Studio |
 | `hotpatch.py` | Push a single `game/` module without reload |
 | `mcp.py` (`mcp` alias) | CLI for everything: luau, console/tail, tree/inspect/read/grep, check, drift, test, deploy, playtest, gen, store, addrig, scene, daemon |
 | MCP daemon | Persistent StudioMCP proxy (auto-starts) — 0.07s/call vs ~7s |

@@ -30,6 +30,7 @@ local RunService           = game:GetService("RunService")
 local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local HttpService          = game:GetService("HttpService")
 local Selection            = game:GetService("Selection")
+local CollectionService    = game:GetService("CollectionService")
 
 local RigScanner    = require(script.core.RigScanner)
 local JointCapture  = require(script.core.JointCapture)
@@ -594,6 +595,54 @@ local function loadNamed(name)
     print("[MultiAnimation] Loaded '" .. name .. "'")
 end
 
+-- ── Scene tagging ─────────────────────────────────────────────────────────────
+-- Tags instances in a workspace folder with "MAnim:<sceneName>" so they are
+-- included in future tag-based scans.  Additive — existing tags are unchanged.
+
+local function doTagAllIn(folderName, types)
+    local sceneName = panel:getSimpleSceneName()
+    if not sceneName or sceneName == "" then
+        warn("[MultiAnimation] Set a scene name before tagging")
+        return
+    end
+    local tag    = "MAnim:" .. sceneName
+    local folder = workspace:FindFirstChild(folderName)
+    if not folder then
+        warn("[MultiAnimation] Folder not found in workspace: " .. tostring(folderName))
+        return
+    end
+    local tagged = 0
+    for _, child in ipairs(folder:GetChildren()) do
+        local shouldTag = false
+        if types.rigs    and RigScanner.isR6(child)             then shouldTag = true end
+        if types.props   and not RigScanner.isR6(child) then
+            if child.Name ~= SIMPLE_CAMERA_NAME and getPropPart(child) then
+                shouldTag = true
+            end
+        end
+        if types.effects and EffectRunner.classify(child)        then shouldTag = true end
+        if shouldTag then
+            CollectionService:AddTag(child, tag)
+            tagged += 1
+        end
+    end
+    print(string.format("[MultiAnimation] Tagged %d instance(s) in %s with %s", tagged, folderName, tag))
+    doSimpleScan()
+end
+
+local function doClearSceneTags()
+    local sceneName = panel:getSimpleSceneName()
+    if not sceneName or sceneName == "" then return end
+    local tag = "MAnim:" .. sceneName
+    local removed = 0
+    for _, inst in ipairs(CollectionService:GetTagged(tag)) do
+        CollectionService:RemoveTag(inst, tag)
+        removed += 1
+    end
+    print(string.format("[MultiAnimation] Removed tag %s from %d instance(s)", tag, removed))
+    doSimpleScan()
+end
+
 -- ── Auto-save ─────────────────────────────────────────────────────────────────
 -- Debounced: batches rapid keyframe additions into one save per second.
 
@@ -1004,7 +1053,14 @@ end
 
 local function doSimpleScan()
     reconnectAllRigs()
-    allRigs = RigScanner.scan()
+
+    -- Rig discovery: tag-based when a scene name is set, FIGURES fallback otherwise.
+    local sceneName = panel:getSimpleSceneName()
+    if sceneName and sceneName ~= "" then
+        allRigs = RigScanner.scanByTag(sceneName)
+    else
+        allRigs = RigScanner.scan()
+    end
     for name, model in pairs(allRigs) do
         recorder:captureRestPose(name, model)
         disconnectRig(name, model)
@@ -1015,22 +1071,38 @@ local function doSimpleScan()
     end
     allProps = {}
 
-    local fig = workspace:FindFirstChild("FIGURES")
-    if fig then
-        for _, child in ipairs(fig:GetChildren()) do
-            if not allRigs[child.Name] and child.Name ~= SIMPLE_CAMERA_NAME then
-                local part = getPropPart(child)
-                if part then allProps[child.Name] = part end
+    if sceneName and sceneName ~= "" then
+        -- Prop discovery: tagged non-rig instances for this scene.
+        local tag = "MAnim:" .. sceneName
+        for _, inst in ipairs(CollectionService:GetTagged(tag)) do
+            if not RigScanner.isR6(inst) and inst.Name ~= SIMPLE_CAMERA_NAME then
+                local part = getPropPart(inst)
+                if part then allProps[inst.Name] = part end
             end
         end
-        simpleCameraPart = fig:FindFirstChild(SIMPLE_CAMERA_NAME)
-        if simpleCameraPart and not simpleCameraOn then
-            simpleCameraPart.Transparency = 1
-            local frustum = simpleCameraPart:FindFirstChild("FOVFrustum")
-            if frustum then frustum:Destroy() end
-        end
+        -- SimpleCamera is still looked up in FIGURES regardless of tag mode.
+        local fig = workspace:FindFirstChild("FIGURES")
+        simpleCameraPart = fig and fig:FindFirstChild(SIMPLE_CAMERA_NAME) or nil
     else
-        simpleCameraPart = nil
+        -- Legacy: props are non-rig children of FIGURES.
+        local fig = workspace:FindFirstChild("FIGURES")
+        if fig then
+            for _, child in ipairs(fig:GetChildren()) do
+                if not allRigs[child.Name] and child.Name ~= SIMPLE_CAMERA_NAME then
+                    local part = getPropPart(child)
+                    if part then allProps[child.Name] = part end
+                end
+            end
+            simpleCameraPart = fig:FindFirstChild(SIMPLE_CAMERA_NAME)
+        else
+            simpleCameraPart = nil
+        end
+    end
+
+    if simpleCameraPart and not simpleCameraOn then
+        simpleCameraPart.Transparency = 1
+        local frustum = simpleCameraPart:FindFirstChild("FOVFrustum")
+        if frustum then frustum:Destroy() end
     end
 
     panel:setRigs(allRigs)
@@ -2006,6 +2078,16 @@ end)
 panel.onPreviewRequested:Connect(startPlayback)
 panel.onStopRequested:Connect(stopPlayback)
 
+panel.onTagFolderListRequested:Connect(function()
+    panel:openTagFolderDropdown(RigScanner.getWorkspaceFolders())
+end)
+panel.onTagAllInRequested:Connect(function(folderName, types)
+    doTagAllIn(folderName, types)
+end)
+panel.onClearSceneTagsRequested:Connect(function()
+    doClearSceneTags()
+end)
+
 panel.onExportRequested:Connect(function(sceneName)
     local ok, result = Exporter.export(recorder:getSession(), sceneName)
     if not ok then
@@ -2589,6 +2671,50 @@ local testBridge = TestBridge.start({
             end
         end
         return f
+    end,
+
+    -- ── Tag-scene TestBridge commands ────────────────────────────────────────
+    -- Mirror of the "Tag all in" / "Clear scene tags" Simple Mode buttons.
+    -- Lets test_tag_scene.lua verify tagging without UI interaction.
+
+    -- Set the scene name displayed in the Simple Mode scene box.
+    setSimpleSceneName = function(a)
+        if panel._simpleSceneBox then
+            panel._simpleSceneBox.Text = a.name or ""
+        end
+        return panel:getSimpleSceneName()
+    end,
+
+    -- Tag instances inside a workspace folder for the current scene.
+    -- types: { rigs=bool, props=bool, effects=bool } — defaults all true.
+    tagFolder = function(a)
+        local types = a.types or { rigs = true, props = true, effects = true }
+        doTagAllIn(a.folder, types)
+        return true
+    end,
+
+    -- Remove all "MAnim:<sceneName>" tags for the current scene.
+    clearSceneTags = function()
+        doClearSceneTags()
+        return true
+    end,
+
+    -- Return a sorted list of instance names tagged "MAnim:<sceneName>".
+    getSceneTagged = function()
+        local sceneName = panel:getSimpleSceneName()
+        if not sceneName or sceneName == "" then return {} end
+        local tag  = "MAnim:" .. sceneName
+        local names = {}
+        for _, inst in ipairs(CollectionService:GetTagged(tag)) do
+            table.insert(names, inst.Name)
+        end
+        table.sort(names)
+        return names
+    end,
+
+    -- Return the sorted list of first-level workspace folder names.
+    getWorkspaceFolders = function()
+        return RigScanner.getWorkspaceFolders()
     end,
 
     -- ── Playback tab TestBridge commands ─────────────────────────────────────

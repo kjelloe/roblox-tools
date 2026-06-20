@@ -357,6 +357,9 @@ function Panel.new(widget)
     local eSimpleLook       = mkEvent("onSimpleLookThroughToggled")
     local eSimpleFPS        = mkEvent("onSimpleFPSChanged")
     local eSimpleOnion      = mkEvent("onSimpleOnionToggled")
+    local eTagFolderReq     = mkEvent("onTagFolderListRequested")   -- fires ()
+    local eTagAllIn         = mkEvent("onTagAllInRequested")        -- fires (folder, {rigs,props,effects})
+    local eClearSceneTags   = mkEvent("onClearSceneTagsRequested")  -- fires ()
 
     -- Playback tab events
     local ePlaybackSceneChanged   = mkEvent("onPlaybackSceneChanged")    -- fires (sceneName)
@@ -894,6 +897,86 @@ function Panel.new(widget)
     simpleLoadBtn.MouseButton1Click:Connect(function()
         if not self._isPlaying then eReload:Fire() end
     end)
+
+    -- ── Tag row ───────────────────────────────────────────────────────────────
+    -- "Tag all in: [folder ▼] [Rigs] [Props] [Effects]  [Clear scene tags]"
+    local simpleTagRow = hrow(simpleSec, 7, 4)
+    lbl(simpleTagRow, "Tag:", 30, 1)
+
+    local tagFolderBtn = btn(simpleTagRow, "folder ▼", 2)
+    self._tagFolderBtn    = tagFolderBtn
+    self._tagFolderName   = nil   -- nil = nothing selected yet
+
+    -- Checkbox-style toggles: active = accent colour, inactive = normal.
+    local function toggleBtn(parent, text, order, default)
+        local b = btn(parent, text, order)
+        local active = default
+        b.BackgroundColor3 = active and C.btnAccent or C.btnBg
+        b.MouseEnter:Connect(function()
+            b.BackgroundColor3 = active and C.btnAccHov or C.btnHover
+        end)
+        b.MouseLeave:Connect(function()
+            b.BackgroundColor3 = active and C.btnAccent or C.btnBg
+        end)
+        b.MouseButton1Click:Connect(function()
+            active = not active
+            b.BackgroundColor3 = active and C.btnAccent or C.btnBg
+        end)
+        return b, function() return active end
+    end
+
+    local tagRigsBtn,    getRigsOn    = toggleBtn(simpleTagRow, "Rigs",    3, true)
+    local tagPropsBtn,   getPropsOn   = toggleBtn(simpleTagRow, "Props",   4, true)
+    local tagEffectsBtn, getEffectsOn = toggleBtn(simpleTagRow, "Effects", 5, false)
+    self._tagRigsBtn    = tagRigsBtn
+    self._tagPropsBtn   = tagPropsBtn
+    self._tagEffectsBtn = tagEffectsBtn
+
+    local clearTagsBtn = btn(simpleTagRow, "Clear scene tags", 6)
+    clearTagsBtn.MouseButton1Click:Connect(function()
+        if not self._isPlaying then eClearSceneTags:Fire() end
+    end)
+
+    tagFolderBtn.MouseButton1Click:Connect(function()
+        if self._isPlaying then return end
+        -- Request a fresh folder list from init.server.lua, which will call
+        -- panel:openTagFolderDropdown(names) to show the popup.
+        eTagFolderReq:Fire()
+    end)
+
+    self.onTagFolderListRequested  = eTagFolderReq.Event
+    self.onTagAllInRequested       = eTagAllIn.Event
+    self.onClearSceneTagsRequested = eClearSceneTags.Event
+
+    -- Called by init.server.lua in response to onTagFolderListRequested.
+    function self:openTagFolderDropdown(folderNames)
+        if not folderNames or #folderNames == 0 then return end
+        local absPos = tagFolderBtn.AbsolutePosition
+        local ox = self._ctxOverlay.AbsolutePosition.X
+        local oy = self._ctxOverlay.AbsolutePosition.Y
+        local items = {}
+        for _, name in ipairs(folderNames) do
+            local folderName = name
+            table.insert(items, {
+                text   = folderName,
+                action = function()
+                    self._tagFolderName  = folderName
+                    tagFolderBtn.Text = "  " .. folderName .. " ▼  "
+                    eTagAllIn:Fire(folderName, {
+                        rigs    = getRigsOn(),
+                        props   = getPropsOn(),
+                        effects = getEffectsOn(),
+                    })
+                end,
+            })
+        end
+        self:_showMenu(items, absPos.X - ox, absPos.Y + tagFolderBtn.AbsoluteSize.Y + 2 - oy)
+    end
+
+    -- Expose the current simple scene name for tagging logic.
+    function self:getSimpleSceneName()
+        return simpleSceneBox and simpleSceneBox.Text or ""
+    end
 
     -- ── Save As overlay ───────────────────────────────────────────────────────
     local saveOv = Instance.new("Frame")
