@@ -174,21 +174,27 @@ LetterboxGui.lua        ModuleScript — cinematic black bars
 PlayerRigProxy.lua      ModuleScript — resolves player→rig (R6 or R15) for CutscenePlayer
                         .resolve(entry, anchorCF) → rig, teardownFn
                         .resolveAll(rigMap, anchorCFs) → resolvedMap, teardownFn
-                        clone mode: character:Clone(), strip scripts/Humanoid,
-                          hide original; teardown destroys clone + restores original
+                        clone mode: character.Archivable = true before Clone()
+                          (Roblox default is false; Clone() silently returns nil otherwise);
+                          strip scripts/Humanoid, hide original; teardown destroys clone
+                          + restores original; Archivable reset to false after Clone()
                         direct mode: PlatformStand=true; teardown restores it
                         Supports R6 and R15 player characters
 
 MultiAnimDataServer.lua ModuleScript — server bridge for client playback
-                        .setup() — creates "MultiAnimGetScene" RemoteFunction in
+                        .setup() — (1) reconnects any Motor6D.Part0 == nil left by
+                          the animation plugin (server-side so replicates to clients);
+                          (2) creates "MultiAnimGetScene" RemoteFunction in
                           ReplicatedStorage; OnServerInvoke parses scene folder
                           from ServerStorage.MultiAnimationData into serializable
-                          Lua table (joints, scale, root, props, camera, effects)
+                          Lua table (joints, scale, root, props, camera, effects).
+                          parseKFS handles both flat format (current) and legacy R6
+                          hierarchy (Torso child) for backward compat.
                         Call setup() once from a Script in ServerScriptService
 
 CutscenePlayer.lua      ModuleScript — client LocalScript orchestrator
                         .play(sceneName, rigMap, opts) → handle
-                          opts: { fps, loop, movieMode }
+                          opts: { fps (optional; sceneData.fps used when omitted), loop, movieMode }
                           handle.stop() — cancel early
                         Flow: MultiAnimGetScene:InvokeServer → PlayerRigProxy.resolveAll
                           → LetterboxGui.show (if movieMode) → RunService.Heartbeat loop
@@ -271,7 +277,7 @@ Exporter.export(session, sceneName)
         │       build KeyframeSequence  (Rig1_Joints, Rig2_Joints, …)
         │           for each frame in jointTrack:
         │               Keyframe at time = frame/fps
-        │               Pose tree: HumanoidRootPart → Torso → limbs/head
+        │               Pose tree: flat — HumanoidRootPart → motor-name Poses
         │               each Pose.CFrame = captured Motor6D.Transform CFrame
         │       insert KeyframeSequence into scene folder
         │
@@ -358,10 +364,32 @@ they always are while the plugin is active — the simulation starts with discon
 joints. `MultiAnimPlayer.findJoints` / `CutscenePlayer.applyJoints` would set
 `Motor6D.Transform` on these dead joints with no visual effect.
 
-**Fix:** `MultiAnimPlayer.findJoints` and `CutscenePlayer.buildJointMap` now reconnect
-any motor with `Part0 == nil` by setting `motor.Part0 = motor.Parent` (the container
-part, which is always the original Part0 by Roblox convention). Both use dynamic motor
-discovery so they work for R6, R15, and custom rigs without hardcoded joint lists.
+**Fix — client side:** `MultiAnimPlayer.findJoints` and `CutscenePlayer.buildJointMap`
+reconnect any motor with `Part0 == nil` by setting `motor.Part0 = motor.Parent` on
+discovery. Both use dynamic motor discovery for R6, R15, and custom rigs.
+
+**Fix — server side (authoritative):** `MultiAnimDataServer.setup()` walks all
+`workspace` descendants on the server at game start and reconnects nil Motor6D joints
+before creating the `MultiAnimGetScene` RemoteFunction. Server-side reconnection
+replicates to all clients, so rigs are never broken regardless of client join order.
+
+### Source Rig Hiding During Cutscene Playback
+
+When `CutscenePlayer.play()` animates a player-character clone (or direct-mode rig) in
+a slot that has a tagged source rig, the original rig is hidden for the duration —
+otherwise the source and the animated copy are both visible.
+
+**Discovery:** `CollectionService:GetTagged("MAnim:" .. sceneName)` finds all Models
+tagged for the scene regardless of which workspace folder they live in (the previous
+FIGURES-only approach missed rigs stored elsewhere).
+
+**Hiding:** For each tagged source rig whose slot is played by a different instance
+(`resolvedRigs[rigName] ~= src`), all `BasePart` descendants have `Transparency = 1`.
+Original values are saved in a `hiddenSourceParts` table.
+
+**Restore:** `teardownRigs` is wrapped to call `restoreSourceRigs()` first (restoring
+saved Transparency values), then runs the original teardown (clone destroy, PlatformStand
+restore). Fires on both natural end and early `handle.stop()`.
 
 ### Dynamic Rig Support (R6, R15, Custom)
 
@@ -416,6 +444,10 @@ Tag: [FIGURES ▼]  [Rigs ✓]  [Props ✓]  [Effects □]  [Clear scene tags]  
   Selecting a folder immediately tags qualifying instances and rescans.
 - Rigs / Props / Effects are standalone toggle buttons (default Rigs ON, Props ON,
   Effects OFF). They are reset to defaults when "New" is pressed.
+- "Refresh tags" (left of "Clear scene tags") adds `MAnim:<scene>` to any new qualifying
+  instances in the selected folder (additive — already-tagged instances are skipped).
+  Also detects orphaned rig/prop tracks (recorded but no matching instance in the folder)
+  and shows an inform-only overlay listing their names.
 - "Clear scene tags" shows a confirm overlay with the count of tagged rigs/props/effects
   before removing `MAnim:<scene>` from all tagged instances and rescanning.
 - The muted "Manual tag: MAnim:Scene_001" hint updates live as the scene name box
@@ -482,16 +514,23 @@ loop as joint, root, and prop interpolation.
 
 ### Pose Tree (KeyframeSequence hierarchy)
 
+Current export uses a flat format — each motor's transform is a Pose named by motor
+name, directly under HumanoidRootPart. R6 example:
+
 ```
 Keyframe
-└── Pose "HumanoidRootPart"   (root, Transform = RootJoint.Transform)
-    └── Pose "Torso"
-        ├── Pose "Head"
-        ├── Pose "Left Arm"
-        ├── Pose "Right Arm"
-        ├── Pose "Left Leg"
-        └── Pose "Right Leg"
+└── Pose "HumanoidRootPart"
+    ├── Pose "RootJoint"
+    ├── Pose "Neck"
+    ├── Pose "Right Shoulder"
+    ├── Pose "Left Shoulder"
+    ├── Pose "Right Hip"
+    └── Pose "Left Hip"
 ```
+
+`parseKFS` in both `MultiAnimDataServer` and `MultiAnimPlayer` auto-detects legacy R6
+hierarchy format (Torso child present under HumanoidRootPart) for backward compatibility
+with scenes exported before the flat format was introduced.
 
 ### DockWidget Input Model
 
@@ -542,6 +581,10 @@ Right-clicking a `KeyframeMarker` fires `onDeleteRequested(frame)` via `MouseBut
 Session data is stored in `plugin:GetSetting("session")` as a JSON string so it
 survives panel close/reopen within the same Studio session. It is cleared on explicit
 "New Session" or when the place file is closed.
+
+`serializeSession()` also persists `sceneName` and `tagFolder`. `applySessionData()`
+restores both on load. `loadNamed()` falls back to the slot name as scene name for old
+saves that predate the `sceneName` field (unless the slot is `_autosave`).
 
 **frameCount persistence invariant:** `serializeSession()` saves `advancedFrameCount or session.frameCount`. This prevents the small synthetic frameCount that Simple/Playback mode writes into the recorder (`maxKF+1` or 1 for empty session) from being persisted to disk — autosave may fire while in those modes, but the saved value is always the real advanced-mode length. `doLoad` additionally clamps the loaded frameCount to `math.max(data.frameCount, 20)` as a safety floor against corrupt saves. All three entry points to Playback mode (UI button `onModeChanged`, `setMode` bridge command, `setPlaybackMode` bridge command) must save `advancedFrameCount = timeline:getFrameCount()` when entering, so the restoration on return to Advanced mode works correctly — same invariant as Simple mode entry.
 
@@ -680,7 +723,7 @@ Frame navigation syncs the button to the stored easing of the arrived-at keyfram
 | `watch.py` | Auto-build on save, with Studio compile-check first |
 | `devsync.py` + `plugin/devloader.lua` | Hot-reload the plugin on save — no Studio restart |
 | `run_tests.py` | Runs the full `tests/` suite (~548 cases, 25 files) against live Studio |
-| `hotpatch.py` | Push a single `game/` module without reload |
+| `hotpatch.py` | Push a single `game/` module without reload (all 7 game/ modules in PATCH_MAP) |
 | `mcp.py` (`mcp` alias) | CLI for everything: luau, console/tail, tree/inspect/read/grep, check, drift, test, deploy, playtest, gen, store, addrig, scene, daemon |
 | MCP daemon | Persistent StudioMCP proxy (auto-starts) — 0.07s/call vs ~7s |
 | Claude Code | All source authoring, MCP tool calls |

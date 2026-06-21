@@ -171,6 +171,13 @@ The MCP daemon auto-starts on first use (~0.07s/call). See `DEV_TOOLS.md` for de
   uses standard Roblox game APIs (`RunService`) only — no plugin dependency, no TweenService, no Animator.
 - Scale changes use custom interpolation — do not use `AnimationTrack` for scale.
 - KeyframeSequence `AuthoredHipHeight` should be set to `0` (let Animator handle it).
+- `Player.Character` has `Archivable = false` by default. Always set `character.Archivable = true`
+  before `character:Clone()`, reset after — `Clone()` silently returns nil otherwise.
+- `MultiAnimDataServer.setup()` must be called server-side before any client calls
+  `CutscenePlayer.play()`. It reconnects nil Motor6D joints and creates the
+  `MultiAnimGetScene` RemoteFunction.
+- `CutscenePlayer` reads fps from `sceneData.fps` when `opts.fps` is not specified.
+  Do not include fps in generated playback snippets.
 
 ---
 

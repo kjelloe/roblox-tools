@@ -646,6 +646,34 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
   - **`test_exporter.lua`** extended with 13 new flat-KFS-format cases (total 36).
     **Suite: ~561 cases, 25 files.**
 
+- ✅ **Post-Phase-10 bug fixes and polish:**
+  - **`parseKFS` flat format support in `MultiAnimDataServer`:** handles both flat format
+    (motor names as direct children of HumanoidRootPart) and legacy R6 hierarchy (Torso
+    child present). Auto-detected; no caller change needed.
+  - **Server-side Motor6D reconnect:** `MultiAnimDataServer.setup()` now walks all
+    `workspace` descendants on the server at game start and reconnects any `Motor6D`
+    where `Part0 == nil` (left nil by the plugin). Server replicates connected motors to
+    clients — more reliable than the previous Heartbeat-based attempt.
+  - **Source rig hiding via CollectionService tags:** `CutscenePlayer.play()` uses
+    `CollectionService:GetTagged("MAnim:" .. sceneName)` instead of `workspace.FIGURES`
+    to find source rigs. Rigs whose slot is played by a clone/player rig are hidden
+    (Transparency=1) for the duration and restored on teardown.
+  - **`PlayerRigProxy` clone nil fix:** `character.Archivable = true` before
+    `character:Clone()` — Roblox's default is `false` and `Clone()` silently returns nil
+    without this. Reset to `false` after cloning.
+  - **Session save/load of sceneName + tagFolder:** `serializeSession()` persists both
+    fields; `applySessionData()` restores them. `loadNamed()` falls back to the slot
+    name as scene name for old saves that predate the `sceneName` field.
+  - **"Refresh tags" button:** left of "Clear scene tags". Additively tags new qualifying
+    instances in the selected folder (idempotent). Also detects orphaned rig/prop tracks
+    (recorded but missing from the folder) and shows an inform-only overlay.
+  - **Snippet fps omitted from opts:** `buildPlaybackSnippet()` no longer includes `fps`
+    in the generated opts table (comment instead). `CutscenePlayer` already reads fps
+    from `sceneData.fps`; only `loop = true` / `movieMode = true` appear when set.
+  - **hotpatch.py full coverage:** `PATCH_MAP` now covers all 7 `game/` modules:
+    `MultiAnimPlayer`, `PlayerRigProxy`, `CutscenePlayer`, `MultiAnimDataServer`,
+    `LetterboxGui`, `CutsceneServer`, `CutsceneCamera`.
+
 ### Backlog
 
 - Multiple named cameras + switcher track (authoring sugar over Phase 8 cuts)
