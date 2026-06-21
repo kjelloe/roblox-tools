@@ -40,6 +40,9 @@ local function gizmoFor(frame)
     return folder and folder:FindFirstChild("CamKF_" .. frame)
 end
 
+-- Force scan workspace.FIGURES so frameCount reflects real rig data.
+call("scanFigures")
+
 local prevFrame = call("getCurrentFrame")
 
 -- ── Capture at two parking frames ─────────────────────────────────────────────

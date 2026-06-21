@@ -42,6 +42,9 @@ local function mirrorComponents(c)
             -c[10], c[11], c[12] }
 end
 
+-- Force scan workspace.FIGURES so Rig1/Rig2/Rig3 are tracked regardless of saved session.
+call("scanFigures")
+
 local prevFrame = call("getCurrentFrame")
 
 -- Pasting triggers applyPosesAt, which moves REAL rig parts in the viewport.

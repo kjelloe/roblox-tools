@@ -431,6 +431,34 @@ frame behind and **blue** for the frame ahead. Ghosts update automatically
 each time you change frames. Toggle off to clear them. (Ghosts are never
 saved with the place file and vanish on plugin unload.)
 
+**Effects (SpawnedEffects):** click **Effects** in the action row to add a
+one-shot particle burst at any frame. An overlay opens:
+
+```
+ADD EFFECT  •  FRAME 5                                     [✕]
+Type:  [Explosion ◄►]
+Size:     [3     ]
+Color R:  [255   ]    Color G:  [80    ]
+Count:    [50    ]    Duration: [0.6   ]
+Speed:    [20    ]    Lifetime: [1.0   ]
+[Select Position]     X: —  Y: —  Z: —
+[  Add to Frame  ]    [Cancel]
+```
+
+- **Type** cycles between `Explosion` (orange burst, spread-180°) and `Smoke`
+  (gray column). Each type loads useful defaults automatically.
+- **Select Position** switches to a click-in-viewport picker — click anywhere in
+  the scene to choose where the effect fires. You can re-click to move it.
+  The X/Y/Z coordinates update in the overlay.
+- **Add to Frame** saves the effect to the current frame and fires a preview burst
+  at the chosen position immediately (edit-mode only, no play mode needed).
+- A small **coloured sphere gizmo** appears in the scene at the effect's position
+  (orange = Explosion, grey = Smoke). Click the sphere to reopen the overlay in
+  **edit mode** with a **Delete** button, so you can adjust or remove the effect.
+- Effects are saved with the session and exported with the scene. During in-game
+  playback via `MultiAnimPlayer`, each effect fires its particle burst the moment
+  the playhead crosses the recorded frame.
+
 **Save / Export** work exactly as in Advanced mode, right there in the
 Simple panel — no need to switch modes just to save your work or export
 the scene.

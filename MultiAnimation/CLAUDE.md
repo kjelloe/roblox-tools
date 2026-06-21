@@ -38,22 +38,24 @@ MultiAnimation/
 │   │   ├── JointCapture.lua
 │   │   ├── ScaleCapture.lua
 │   │   ├── PropCapture.lua
-│   │   ├── CameraCapture.lua   ← viewport camera capture/preview (Phase 8)
+│   │   ├── CameraCapture.lua       ← viewport camera capture/preview (Phase 8)
 │   │   ├── Timeline.lua
 │   │   ├── Interpolator.lua
 │   │   ├── PoseApplier.lua
-│   │   ├── TestBridge.lua      ← CoreGui BindableFunction for UI tests
+│   │   ├── TestBridge.lua          ← CoreGui BindableFunction for UI tests
+│   │   ├── SpawnedEffectRunner.lua ← preset definitions + fire() for edit-mode preview
 │   │   └── Exporter.lua
-│   └── devloader.lua           ← devsync hot-reload stub (NOT in normal build)
+│   └── devloader.lua               ← devsync hot-reload stub (NOT in normal build)
 │
-└── game/                       ← in-game ModuleScripts (no plugin dep)
-    ├── MultiAnimPlayer.lua     ← animation playback
-    ├── CutsceneServer.lua      ← synchronized cutscene start (server)
-    ├── CutsceneCamera.lua      ← client camera driver
-    ├── LetterboxGui.lua        ← cinematic black bars (Phase 10)
-    ├── PlayerRigProxy.lua      ← player→R6 rig resolver, clone/direct (Phase 10)
-    ├── MultiAnimDataServer.lua ← server RemoteFunction: MultiAnimGetScene (Phase 10)
-    └── CutscenePlayer.lua      ← client-side playback orchestrator (Phase 10)
+└── game/                           ← in-game ModuleScripts (no plugin dep)
+    ├── MultiAnimPlayer.lua         ← animation playback
+    ├── CutsceneServer.lua          ← synchronized cutscene start (server)
+    ├── CutsceneCamera.lua          ← client camera driver
+    ├── LetterboxGui.lua            ← cinematic black bars (Phase 10)
+    ├── PlayerRigProxy.lua          ← player→R6 rig resolver, clone/direct (Phase 10)
+    ├── MultiAnimDataServer.lua     ← server RemoteFunction: MultiAnimGetScene (Phase 10)
+    ├── SpawnedEffectRunner.lua     ← fires particle bursts at world positions in-game
+    └── CutscenePlayer.lua          ← client-side playback orchestrator (Phase 10)
 ```
 
 ---
@@ -226,8 +228,10 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 | `test_ui_playback.lua` | Playback tab bridge integration: mode switch, scene list, rig modes (all 5), FPS/Loop/MovieMode clamping + round-trip, snippet generation (scene name, CutscenePlayer, mode strings, params), multi-rig snippet, partial param update, frameCount round-trip regression (52 cases) |
 | `test_easing_core.lua` | Recorder easing CRUD (rig/prop/camera), shiftFrames/deleteRigKeyframe/deletePropKeyframe include easingTrack, easedAlpha boundary values (Linear/EaseIn/EaseOut/EaseInOut/Constant/Bounce), toSortedKFs backward compat (20 cases, headless) |
 | `test_ui_easing.lua` | Live bridge: rig easing all-6-styles round-trip, camera easing CRUD, simple mode easing state, capture stamps easing, frame navigation syncs display (12 cases) |
+| `test_spawned_effects_core.lua` | SpawnedEffectRunner PRESETS/PROPS/buildParams; Recorder spawnedEffects CRUD: add/update/delete/getById, clearSession reset, id preservation on restore (44 cases, headless) |
+| `test_spawned_effects_exporter.lua` | buildSpawnedEffectsSource: empty, single Explosion, Smoke, multi-entry; loadstring round-trip preserving all fields; default field fallbacks (46 cases, headless) |
 
-Suite total: **~561 cases** across 25 files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive). Note: `test_ui_playback` test 19 now asserts fps is absent from snippet; `test_ui_simple` insert-frame tests now assert Duplicate (cursor to frame+1, frame+1 has data).
+Suite total: **~651 cases** across 27 files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive). Note: `test_ui_playback` test 19 now asserts fps is absent from snippet; `test_ui_simple` insert-frame tests now assert Duplicate (cursor to frame+1, frame+1 has data).
 
 All tests inline their module logic (no `require()` to plugin modules) and return a PASS/FAIL string for `execute_luau`. Run with:
 

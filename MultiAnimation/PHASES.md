@@ -703,9 +703,45 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
     has only Loop and Movie Mode toggles. `setPlaybackFPSDisplay` is a no-op. Bridge
     `setPlaybackParams` still accepts `fps` for test compatibility.
 
+- ✅ **SpawnedEffects (Simple Mode particle bursts):**
+  - **Effects button** added to Simple Mode action row (position 6).
+  - **Effects overlay** — card at ZIndex 55 (separate `do...end` block to respect the
+    200-register limit): type cycle (Explosion / Smoke), scalar property inputs
+    (Size, Color R/G/B, Count, Duration, Speed, Lifetime), "Select Position" button
+    + coordinate label, Add / Cancel / Delete buttons. Delete hidden in create mode.
+  - **`plugin/core/SpawnedEffectRunner.lua`** (new): `PRESETS` table (Explosion:
+    orange, spread-180°, LightEmission 0.8; Smoke: gray, spread-25°), `PROPS` ordered
+    list, `buildParams(effectType, overrides)`, `fire(pos, effectType, params)` — creates
+    a transparent `Part` + `ParticleEmitter`, calls `:Emit(count)`, `task.delay`-destroys
+    after `duration + lifetime`.
+  - **`game/SpawnedEffectRunner.lua`** (new): identical `fire()` function; zero plugin
+    dependencies; deployed to `ServerStorage.MultiAnimationData` via `Exporter.serverMods`.
+  - **Recorder CRUD:** `session.spawnedEffects` array + `_nextSpawnedEffectId`;
+    `addSpawnedEffect`, `updateSpawnedEffect`, `deleteSpawnedEffect`, `getSpawnedEffects`,
+    `getSpawnedEffectById`; `clearSession()` resets both.
+  - **Position picking:** `plugin:Activate(true)` + `plugin:GetMouse().Button1Down`;
+    calls `panel:setSpawnedFxPosition(pos)` on click, then `plugin:Deactivate()`.
+  - **Gizmo spheres:** `workspace.__MultiAnimEffectGizmos` folder; Ball Part per effect
+    (orange = Explosion, grey = Smoke); `Selection.SelectionChanged` opens overlay in
+    edit mode on gizmo click. Forward-declared `destroyAllEffectGizmos` / `createEffectGizmo`
+    so `applySessionData` (defined earlier in init.server.lua) can call them.
+  - **Edit-mode preview:** fires immediately on "Add to Frame" / "Update".
+  - **Session persistence:** `serializeSession` + `applySessionData` round-trip
+    `spawnedEffects`; gizmos recreated on restore.
+  - **Export:** `buildSpawnedEffectsSource()` → `SpawnedEffects` ModuleScript in scene
+    folder (omitted if empty). `SpawnedEffectRunner` added to `serverMods`.
+  - **In-game playback:** `MultiAnimPlayer.play()` loads `SpawnedEffects` + requires
+    `SpawnedEffectRunner` from `script.Parent`; builds sorted `spawnedFxEvents` list;
+    fires via same crossing-pointer pattern as `effectEvents`.
+  - **Tests:** `test_spawned_effects_core.lua` (44 cases — PRESETS, PROPS, buildParams,
+    Recorder CRUD, clearSession, id restore), `test_spawned_effects_exporter.lua` (46
+    cases — source builder, loadstring round-trip, field preservation, defaults).
+    **Suite: ~651 cases, 27 files.**
+
 ### Backlog
 
 - Multiple named cameras + switcher track (authoring sugar over Phase 8 cuts)
 - Audio track sync
 - Upload to Roblox asset catalogue
 - Prop property animation (emitter rate, transparency, colour)
+- SpawnedEffects list panel (browse/select all scene effects without clicking gizmos)

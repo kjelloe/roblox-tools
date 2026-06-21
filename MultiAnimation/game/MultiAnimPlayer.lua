@@ -202,6 +202,10 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap)
     local rootTracks  = rootModule  and require(rootModule)  or nil
     local fxModule    = sceneFolder:FindFirstChild("EffectTracks")
     local fxTracks    = fxModule    and require(fxModule)    or nil
+    local sfxModule   = sceneFolder:FindFirstChild("SpawnedEffects")
+    local sfxData     = sfxModule   and require(sfxModule)   or nil
+    local sfxRunner   = script.Parent:FindFirstChild("SpawnedEffectRunner")
+    if sfxRunner then sfxRunner = require(sfxRunner) end
     local fps = (scaleTracks and scaleTracks.fps)
              or (propTracks  and propTracks.fps)
              or (rootTracks  and rootTracks.fps)
@@ -344,6 +348,23 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap)
         end
     end
 
+    -- ── SpawnedEffect events ──────────────────────────────────────────────────
+
+    local spawnedFxEvents = {}   -- sorted { {time, fx} }
+    if sfxData and sfxRunner then
+        for _, fx in ipairs(sfxData.effects or {}) do
+            local t = (fx.frame - 1) / fps
+            table.insert(spawnedFxEvents, { time = t, fx = fx })
+            totalLength = math.max(totalLength, t)
+        end
+        table.sort(spawnedFxEvents, function(a, b) return a.time < b.time end)
+    end
+
+    local function fireSpawnedFx(ev)
+        local fx = ev.fx
+        sfxRunner.fire(Vector3.new(fx.posX, fx.posY, fx.posZ), fx.effectType, fx)
+    end
+
     if totalLength <= 0 then
         warn("[MultiAnimPlayer] Scene '" .. sceneName .. "' has no keyframes")
         return
@@ -355,6 +376,7 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap)
     local startTime = tick()
     local done = false
     local nextEffectIdx = 1
+    local nextSpawnedFxIdx = 1
 
     _heartbeat = RunService.Heartbeat:Connect(function()
         if done then return end
@@ -365,6 +387,13 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap)
               and effectEvents[nextEffectIdx].time <= elapsed do
             fireEffect(effectEvents[nextEffectIdx])
             nextEffectIdx += 1
+        end
+
+        -- Fire spawned effect events whose time we have crossed.
+        while nextSpawnedFxIdx <= #spawnedFxEvents
+              and spawnedFxEvents[nextSpawnedFxIdx].time <= elapsed do
+            fireSpawnedFx(spawnedFxEvents[nextSpawnedFxIdx])
+            nextSpawnedFxIdx += 1
         end
 
         for _, state in pairs(rigStates) do

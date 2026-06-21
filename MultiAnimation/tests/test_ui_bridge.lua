@@ -48,6 +48,9 @@ ok("unknown command rejected cleanly", not r.ok and r.err ~= nil)
 
 -- ── Rig discovery & selection ─────────────────────────────────────────────────
 
+-- Force scan workspace.FIGURES so tests always see Rig1/Rig2/Rig3 regardless of saved session.
+call("scanFigures")
+
 r = call("getRigs")
 ok("getRigs returns at least 2 rigs", r.ok and type(r.result) == "table" and #r.result >= 2, r.err)
 if not (r.ok and #r.result >= 1) then return finish() end

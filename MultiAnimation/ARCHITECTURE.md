@@ -750,6 +750,114 @@ scene export; the snippet includes a comment to add `fps=N` if needed).
 
 ---
 
+## SpawnedEffects System (Simple Mode)
+
+Spawned effects are single-frame particle bursts (Explosion, Smoke) defined at an
+absolute world position, separate from the existing Effect Track system (which
+targets live instances in the scene). They are designed for Simple Mode use: no
+manual Effect Track setup needed.
+
+### Data model
+
+Each effect entry is a plain table stored in `session.spawnedEffects` (array):
+
+```lua
+{
+    id         = 1,           -- unique integer, managed by Recorder
+    frame      = 5,           -- timeline frame to fire on
+    effectType = "Explosion", -- preset name
+    posX, posY, posZ          -- world-space position
+    size, colorR, colorG, colorB, count, duration, speed, lifetime  -- scalar params
+}
+```
+
+### Plugin side (`plugin/core/SpawnedEffectRunner.lua`)
+
+- `PRESETS` table: Explosion (orange, spread-180, LightEmission 0.8) and Smoke (gray,
+  spread-25, no light).
+- `PROPS`: ordered list of editable properties shown in the overlay.
+- `buildParams(effectType, overrides)`: merges preset defaults with user values.
+- `fire(pos, effectType, params)`: creates a transparent `Part` + `ParticleEmitter`,
+  calls `pe:Emit(params.count)`, and `task.delay`-destroys it after
+  `duration + lifetime` seconds. Returns a cancel function. Used for edit-mode preview
+  immediately after the user clicks "Add to Frame" or "Update".
+
+### Game side (`game/SpawnedEffectRunner.lua`)
+
+Identical `fire()` function; zero plugin dependencies. Deployed to
+`ServerStorage.MultiAnimationData` via `Exporter.serverMods`. `MultiAnimPlayer`
+requires it from `script.Parent` and calls `sfxRunner.fire(pos, effectType, fx)`.
+
+### Recorder CRUD (`plugin/core/Recorder.lua`)
+
+`session.spawnedEffects` is an array (not a dict) — order is preserved for export.
+`_nextSpawnedEffectId` increments monotonically. `addSpawnedEffect(data)` respects an
+explicit `data.id` for session restore and advances `_nextSpawnedEffectId` past it.
+`clearSession()` resets both array and counter.
+
+### Panel overlay (`plugin/ui/Panel.lua`)
+
+- **Effects button** added to `simpleActionRow` at layout order 6.
+- `do -- SPAWNED FX OVERLAY` block (ZIndex 55) contains: header with frame number,
+  type cycle button (Explosion → Smoke → Explosion), scalar property input boxes for
+  all PROPS keys, "Select Position" button + coordinate label, and Add/Cancel/Delete
+  buttons. Delete is hidden when creating (only visible when editing).
+- `showSpawnedFxOverlay(frame, data?)`: populates from preset defaults (new) or
+  existing effect data (edit mode).
+- `setSpawnedFxPosition(pos)`: called by `init.server.lua` after position pick
+  completes; updates the coordinate label and `_spawnedFxPos`.
+- Events: `onSpawnedFxAdded`, `onSpawnedFxUpdated`, `onSpawnedFxDeleted`,
+  `onSpawnedFxPickPosRequested`.
+
+### Position picking (`plugin/init.server.lua`)
+
+`panel.onSpawnedFxPickPosRequested` handler:
+1. Sets `pickingEffectPos = true`.
+2. Calls `plugin:Activate(true)` (exclusive mouse mode).
+3. Connects `mouse.Button1Down`; on click, reads `mouse.Hit.Position`, calls
+   `plugin:Deactivate()`, fires `panel:setSpawnedFxPosition(pos)`.
+
+### Gizmo spheres
+
+- Folder: `workspace.__MultiAnimEffectGizmos` (`Archivable = false`).
+- Each effect gets a `Part` (Ball shape, 0.7 studs, 30% transparent, orange for
+  Explosion, gray for Smoke), named `SpawnedFX_<id>`.
+- `Selection.SelectionChanged` handler: when the selected Part matches a gizmo, opens
+  `panel:showSpawnedFxOverlay(fx.frame, fx)` in edit mode, then clears the selection.
+- `destroyAllEffectGizmos()` is forward-declared so `applySessionData` (defined earlier)
+  can call it when loading a session.
+
+### Export (`plugin/core/Exporter.lua`)
+
+`buildSpawnedEffectsSource(session)` emits a `return { effects = {...} }` ModuleScript.
+Written only when `session.spawnedEffects` is non-empty (file name: `SpawnedEffects`).
+`SpawnedEffectRunner` is added to `serverMods` → deployed alongside `MultiAnimPlayer`.
+
+### In-game playback (`game/MultiAnimPlayer.lua`)
+
+`MultiAnimPlayer.play()` loads `SpawnedEffects` and `SpawnedEffectRunner` from
+`script.Parent` (= `ServerStorage.MultiAnimationData`). Builds a sorted
+`spawnedFxEvents` list (time = `(frame - 1) / fps`). Fires in the Heartbeat loop via
+the same crossing-pointer pattern as `effectEvents`:
+
+```lua
+while nextSpawnedFxIdx <= #spawnedFxEvents
+      and spawnedFxEvents[nextSpawnedFxIdx].time <= elapsed do
+    fireSpawnedFx(spawnedFxEvents[nextSpawnedFxIdx])
+    nextSpawnedFxIdx += 1
+end
+```
+
+`fireSpawnedFx` calls `sfxRunner.fire(Vector3.new(fx.posX, fx.posY, fx.posZ), fx.effectType, fx)`.
+
+### Session persistence
+
+`serializeSession()` serializes `session.spawnedEffects` as a plain array (field-by-field
+copy). `applySessionData()` restores them via `recorder:addSpawnedEffect(fxData)` and
+recreates gizmos. Both sides call `destroyAllEffectGizmos()` first to avoid duplicates.
+
+---
+
 ## Tooling
 
 | Tool | Role |
@@ -757,7 +865,7 @@ scene export; the snippet includes a comment to add `fps=N` if needed).
 | `build.py` | Assembles `.rbxmx` from source files and copies to Plugins folder |
 | `watch.py` | Auto-build on save, with Studio compile-check first |
 | `devsync.py` + `plugin/devloader.lua` | Hot-reload the plugin on save — no Studio restart |
-| `run_tests.py` | Runs the full `tests/` suite (~561 cases, 25 files) against live Studio |
+| `run_tests.py` | Runs the full `tests/` suite (~651 cases, 27 files) against live Studio |
 | `hotpatch.py` | Push a single `game/` module without reload (all 7 game/ modules in PATCH_MAP) |
 | `mcp.py` (`mcp` alias) | CLI for everything: luau, console/tail, tree/inspect/read/grep, check, drift, test, deploy, playtest, gen, store, addrig, scene, daemon |
 | MCP daemon | Persistent StudioMCP proxy (auto-starts) — 0.07s/call vs ~7s |

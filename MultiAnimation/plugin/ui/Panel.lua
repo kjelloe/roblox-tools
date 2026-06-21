@@ -414,6 +414,12 @@ function Panel.new(widget)
     self._eSimpleEasing = eSimpleEasing
     table.insert(evts, eSimpleEasing)
 
+    -- SpawnedEffects events
+    local eSpawnedFxAdd     = mkEvent("onSpawnedFxAdded")       -- fires (data{frame,effectType,posX/Y/Z,...params})
+    local eSpawnedFxUpdate  = mkEvent("onSpawnedFxUpdated")     -- fires (data{id,...params})
+    local eSpawnedFxDelete  = mkEvent("onSpawnedFxDeleted")     -- fires (id)
+    local eSpawnedFxPickPos = mkEvent("onSpawnedFxPickPosRequested") -- fires ()
+
     self._evts = evts
     self._lastSaveName = nil
 
@@ -745,6 +751,11 @@ function Panel.new(widget)
     end)
     local simpleEaseBtn = btn(simpleActionRow, "Ease: Linear", 5)
     self._simpleEaseBtn = simpleEaseBtn
+    local simpleEffectsBtn = btn(simpleActionRow, "Effects", 6)
+    simpleEffectsBtn.MouseButton1Click:Connect(function()
+        if self._isPlaying then return end
+        self:showSpawnedFxOverlay(self._currentFrame, nil)
+    end)
     simpleEaseBtn.MouseButton1Click:Connect(function()
         if self._isPlaying then return end
         local absPos = simpleEaseBtn.AbsolutePosition
@@ -1299,6 +1310,213 @@ function Panel.new(widget)
     self._loadOverlay = loadOv
     self._loadScroll  = loadScroll
     end -- ── end OVERLAYS ──────────────────────────────────────────────────────
+
+    do -- SPAWNED FX OVERLAY
+    -- Card overlay for adding/editing single-frame spawned effects (Explosion, Smoke).
+    -- Opened by the Effects button in Simple Mode action row, or by clicking a gizmo sphere.
+    local FX_TYPES = { "Explosion", "Smoke" }
+    local FX_DEFAULTS = {
+        Explosion = { size=3, colorR=255, colorG=80,  colorB=0,   count=50, duration=0.6, speed=20, lifetime=1.0 },
+        Smoke     = { size=5, colorR=160, colorG=160, colorB=160, count=25, duration=4.0, speed=4,  lifetime=5.0 },
+    }
+    local FX_PROPS = {
+        { key="size",     label="Size"     },
+        { key="colorR",   label="Color R"  },
+        { key="colorG",   label="Color G"  },
+        { key="count",    label="Count"    },
+        { key="duration", label="Duration" },
+        { key="speed",    label="Speed"    },
+        { key="lifetime", label="Lifetime" },
+    }
+
+    local fxOv = Instance.new("Frame")
+    fxOv.Name              = "SpawnedFxOverlay"
+    fxOv.Size              = UDim2.new(0, 240, 0, 368)
+    fxOv.AnchorPoint       = Vector2.new(0.5, 0.5)
+    fxOv.Position          = UDim2.new(0.5, 0, 0.5, 0)
+    fxOv.BackgroundColor3  = Color3.fromRGB(55, 55, 55)
+    fxOv.BorderSizePixel   = 0
+    fxOv.ZIndex            = 55
+    fxOv.Visible           = false
+    fxOv.Parent            = widget
+    Instance.new("UICorner", fxOv).CornerRadius = UDim.new(0, 6)
+    local _fxStroke = Instance.new("UIStroke")
+    _fxStroke.Color     = Color3.fromRGB(90, 90, 90)
+    _fxStroke.Thickness = 1
+    _fxStroke.Parent    = fxOv
+    listLayout(fxOv, Enum.FillDirection.Vertical, 4)
+    addPadding(fxOv, 10, 10)
+
+    -- Header row
+    local fxHdrRow = Instance.new("Frame")
+    fxHdrRow.Size                    = UDim2.new(1, 0, 0, 20)
+    fxHdrRow.BackgroundTransparency  = 1
+    fxHdrRow.LayoutOrder             = 1
+    fxHdrRow.ZIndex                  = 56
+    fxHdrRow.Parent                  = fxOv
+    local fxOvTitle = Instance.new("TextLabel")
+    fxOvTitle.Size               = UDim2.new(1, -24, 1, 0)
+    fxOvTitle.BackgroundTransparency = 1
+    fxOvTitle.TextColor3         = C.header
+    fxOvTitle.TextSize           = 10
+    fxOvTitle.Font               = Enum.Font.GothamBold
+    fxOvTitle.TextXAlignment     = Enum.TextXAlignment.Left
+    fxOvTitle.Text               = "ADD EFFECT  •  FRAME 1"
+    fxOvTitle.ZIndex             = 56
+    fxOvTitle.Parent             = fxHdrRow
+    local fxOvClose = Instance.new("TextButton")
+    fxOvClose.Size               = UDim2.new(0, 20, 1, 0)
+    fxOvClose.Position           = UDim2.new(1, -20, 0, 0)
+    fxOvClose.BackgroundTransparency = 1
+    fxOvClose.TextColor3         = C.muted
+    fxOvClose.Text               = "✕"
+    fxOvClose.TextSize           = 14
+    fxOvClose.Font               = Enum.Font.Gotham
+    fxOvClose.ZIndex             = 56
+    fxOvClose.Parent             = fxHdrRow
+    fxOvClose.MouseButton1Click:Connect(function() fxOv.Visible = false end)
+
+    -- Type cycle row
+    local fxTypeRow = hrow(fxOv, 2, 4)
+    lbl(fxTypeRow, "Type:", 38, 1)
+    local fxTypeBtn = btn(fxTypeRow, "Explosion", 2)
+    fxTypeBtn.ZIndex = 56
+
+    -- Property input rows
+    local fxBoxes = {}
+    for i, prop in ipairs(FX_PROPS) do
+        local row = hrow(fxOv, 2 + i, 4)
+        lbl(row, prop.label .. ":", 70, 1)
+        local defVal = FX_DEFAULTS.Explosion[prop.key]
+        local box = textBox(row, tostring(defVal ~= nil and defVal or ""), 90, 2)
+        box.ZIndex = 56
+        fxBoxes[prop.key] = box
+    end
+
+    -- Position row
+    local fxPosRow = hrow(fxOv, 10, 4)
+    local fxPickBtn = btn(fxPosRow, "Select Position", 1)
+    fxPickBtn.ZIndex = 56
+    fxPickBtn.MouseButton1Click:Connect(function()
+        eSpawnedFxPickPos:Fire()
+    end)
+    local fxCoordLbl = Instance.new("TextLabel")
+    fxCoordLbl.Size                    = UDim2.new(0, 130, 0, 24)
+    fxCoordLbl.BackgroundTransparency  = 1
+    fxCoordLbl.TextColor3              = C.muted
+    fxCoordLbl.TextSize                = 10
+    fxCoordLbl.Font                    = Enum.Font.Gotham
+    fxCoordLbl.Text                    = "X: —  Y: —  Z: —"
+    fxCoordLbl.TextXAlignment          = Enum.TextXAlignment.Left
+    fxCoordLbl.LayoutOrder             = 2
+    fxCoordLbl.ZIndex                  = 56
+    fxCoordLbl.Parent                  = fxPosRow
+
+    -- Bottom buttons row
+    local fxBtnRow = hrow(fxOv, 11, 6)
+    local fxAddBtn = btn(fxBtnRow, "Add to Frame", 1, true)
+    fxAddBtn.ZIndex = 56
+    local fxCancelBtn = btn(fxBtnRow, "Cancel", 2)
+    fxCancelBtn.ZIndex = 56
+    local fxDeleteBtn = btn(fxBtnRow, "Delete", 3)
+    fxDeleteBtn.BackgroundColor3 = Color3.fromRGB(120, 40, 40)
+    fxDeleteBtn.ZIndex = 56
+    fxDeleteBtn.Visible = false
+    fxCancelBtn.MouseButton1Click:Connect(function() fxOv.Visible = false end)
+
+    fxTypeBtn.MouseButton1Click:Connect(function()
+        local cur = self._spawnedFxType or "Explosion"
+        local nextType = FX_TYPES[1]
+        for i, t in ipairs(FX_TYPES) do
+            if t == cur and FX_TYPES[i + 1] then nextType = FX_TYPES[i + 1]; break end
+        end
+        self._spawnedFxType = nextType
+        fxTypeBtn.Text = "  " .. nextType .. "  "
+        local p = FX_DEFAULTS[nextType]
+        if p then
+            for _, prop in ipairs(FX_PROPS) do
+                if p[prop.key] ~= nil then
+                    fxBoxes[prop.key].Text = tostring(p[prop.key])
+                end
+            end
+        end
+    end)
+
+    fxAddBtn.MouseButton1Click:Connect(function()
+        local pos = self._spawnedFxPos
+        if not pos then return end
+        local data = {
+            frame      = self._spawnedFxFrame or 1,
+            effectType = self._spawnedFxType  or "Explosion",
+            posX = pos.X, posY = pos.Y, posZ = pos.Z,
+        }
+        for _, prop in ipairs(FX_PROPS) do
+            data[prop.key] = tonumber(fxBoxes[prop.key].Text) or 1
+        end
+        if self._spawnedFxEditId then
+            data.id = self._spawnedFxEditId
+            eSpawnedFxUpdate:Fire(data)
+        else
+            eSpawnedFxAdd:Fire(data)
+        end
+        fxOv.Visible = false
+    end)
+
+    fxDeleteBtn.MouseButton1Click:Connect(function()
+        if self._spawnedFxEditId then
+            eSpawnedFxDelete:Fire(self._spawnedFxEditId)
+        end
+        fxOv.Visible = false
+    end)
+
+    self._fxOv        = fxOv
+    self._fxOvTitle   = fxOvTitle
+    self._fxTypeBtn   = fxTypeBtn
+    self._fxBoxes     = fxBoxes
+    self._fxCoordLbl  = fxCoordLbl
+    self._fxAddBtn    = fxAddBtn
+    self._fxDeleteBtn = fxDeleteBtn
+    self._spawnedFxType   = "Explosion"
+    self._spawnedFxFrame  = 1
+    self._spawnedFxEditId = nil
+    self._spawnedFxPos    = nil
+
+    function self:showSpawnedFxOverlay(frame, data)
+        self._spawnedFxFrame  = frame or 1
+        self._spawnedFxEditId = data and data.id or nil
+        local effectType = (data and data.effectType) or "Explosion"
+        self._spawnedFxType = effectType
+        fxTypeBtn.Text = "  " .. effectType .. "  "
+        local defaults = FX_DEFAULTS[effectType] or FX_DEFAULTS.Explosion
+        if data then
+            for _, prop in ipairs(FX_PROPS) do
+                fxBoxes[prop.key].Text = tostring(data[prop.key] ~= nil and data[prop.key] or (defaults[prop.key] or ""))
+            end
+            if data.posX then
+                self._spawnedFxPos = Vector3.new(data.posX, data.posY, data.posZ)
+                fxCoordLbl.Text = string.format("X:%.1f  Y:%.1f  Z:%.1f", data.posX, data.posY, data.posZ)
+            else
+                self._spawnedFxPos = nil
+                fxCoordLbl.Text = "X: —  Y: —  Z: —"
+            end
+        else
+            for _, prop in ipairs(FX_PROPS) do
+                fxBoxes[prop.key].Text = tostring(defaults[prop.key] ~= nil and defaults[prop.key] or "")
+            end
+            self._spawnedFxPos = nil
+            fxCoordLbl.Text = "X: —  Y: —  Z: —"
+        end
+        fxOvTitle.Text    = data and ("EDIT EFFECT  •  FRAME " .. frame) or ("ADD EFFECT  •  FRAME " .. frame)
+        fxDeleteBtn.Visible = data ~= nil
+        fxAddBtn.Text     = data and "  Update  " or "  Add to Frame  "
+        fxOv.Visible      = true
+    end
+
+    function self:setSpawnedFxPosition(pos)
+        self._spawnedFxPos = pos
+        fxCoordLbl.Text = string.format("X:%.1f  Y:%.1f  Z:%.1f", pos.X, pos.Y, pos.Z)
+    end
+    end -- SPAWNED FX OVERLAY
 
     do -- ── PLAYBACK TAB ────────────────────────────────────────────────────
     -- Third mode: select a saved scene, map each rig slot to a workspace rig

@@ -40,7 +40,8 @@ local Interpolator  = require(script.core.Interpolator)
 local PoseApplier   = require(script.core.PoseApplier)
 local Exporter      = require(script.core.Exporter)
 local CameraCapture = require(script.core.CameraCapture)
-local EffectRunner  = require(script.core.EffectRunner)
+local EffectRunner          = require(script.core.EffectRunner)
+local SpawnedEffectRunner   = require(script.core.SpawnedEffectRunner)
 local Panel         = require(script.ui.Panel)
 -- PropCapture required for its apply path (called via PoseApplier); Recorder requires it directly.
 
@@ -125,6 +126,11 @@ local camPreviewOn   = false
 local savedCamState  = nil    -- viewport camera snapshot while preview is on
 local camGizmos      = {}     -- { [frame] = Part }
 local gizmoSyncing   = false  -- guards the gizmo CFrame-changed feedback loop
+
+-- SpawnedEffects state
+local EFFECT_GIZMO_FOLDER = "__MultiAnimEffectGizmos"
+local effectGizmos        = {}   -- { [id] = Part }
+local pickingEffectPos    = false -- true while waiting for mouse click
 
 -- Simple Mode state (mode toggle + camera-view-while-posing flag)
 local mode = "advanced"   -- "advanced" | "simple" | "playback"
@@ -363,9 +369,10 @@ local INDEX_KEY   = "MultiAnim_Index_v2"
 local DATA_PREFIX = "MultiAnim_Data_v2_"
 local MAX_SAVES   = 30
 
--- Forward declarations — defined in the CAMERA TRACK section below.
+-- Forward declarations — defined in later sections below.
 -- applySessionData needs them but is defined first.
 local updateCameraGizmo, clearCameraGizmos, rebuildCameraUI
+local destroyAllEffectGizmos, createEffectGizmo
 
 local function serializeSession()
     local session = recorder:getSession()
@@ -431,6 +438,16 @@ local function serializeSession()
         end
         out.effects[name] = { kind = fx.kind, action = fx.action, path = fx.path, track = tOut }
     end
+    out.spawnedEffects = {}
+    for _, sfx in ipairs(session.spawnedEffects or {}) do
+        table.insert(out.spawnedEffects, {
+            id = sfx.id, frame = sfx.frame, effectType = sfx.effectType,
+            posX = sfx.posX, posY = sfx.posY, posZ = sfx.posZ,
+            size = sfx.size, colorR = sfx.colorR, colorG = sfx.colorG,
+            colorB = sfx.colorB, count = sfx.count, duration = sfx.duration,
+            speed = sfx.speed, lifetime = sfx.lifetime,
+        })
+    end
     return out
 end
 
@@ -478,6 +495,9 @@ local function applySessionData(data)
         panel:removeEffect(name)
     end
     allEffects = {}
+
+    -- Clear spawned effect gizmos (destroyAllEffectGizmos defined later, called via upvalue).
+    if destroyAllEffectGizmos then destroyAllEffectGizmos() end
 
     recorder:clearSession()
     local fps        = data.fps        or 24
@@ -591,6 +611,12 @@ local function applySessionData(data)
         for _, f in ipairs(recorder:getSortedEffectFrames(name)) do
             panel:addEffectMarker(name, f)
         end
+    end
+
+    -- Restore spawned effects + recreate gizmos
+    for _, sfxData in ipairs(data.spawnedEffects or {}) do
+        local fx = recorder:addSpawnedEffect(sfxData)
+        createEffectGizmo(fx)
     end
 
     panel:setRigs(allRigs)
@@ -837,6 +863,55 @@ function rebuildCameraUI()
         panel:addCameraKeyframeMarker(frame, kf.mode)
         updateCameraGizmo(frame)
     end
+end
+
+-- ── SPAWNED EFFECT GIZMOS ─────────────────────────────────────────────────────
+
+local function getEffectGizmoFolder()
+    local f = workspace:FindFirstChild(EFFECT_GIZMO_FOLDER)
+    if not f then
+        f = Instance.new("Folder")
+        f.Name = EFFECT_GIZMO_FOLDER
+        f.Archivable = false
+        f.Parent = workspace
+    end
+    return f
+end
+
+createEffectGizmo = function(fx)
+    local existing = effectGizmos[fx.id]
+    if existing and existing.Parent then existing:Destroy() end
+    local p         = Instance.new("Part")
+    p.Name          = "SpawnedFX_" .. fx.id
+    p.Shape         = Enum.PartType.Ball
+    p.Size          = Vector3.new(0.7, 0.7, 0.7)
+    p.Anchored      = true
+    p.CanCollide    = false
+    p.CastShadow    = false
+    p.Transparency  = 0.3
+    p.Archivable    = false
+    p.Color         = fx.effectType == "Smoke"
+        and Color3.fromRGB(150, 150, 150)
+        or  Color3.fromRGB(255, 120, 0)
+    p.CFrame        = CFrame.new(fx.posX or 0, fx.posY or 0, fx.posZ or 0)
+    p.Parent        = getEffectGizmoFolder()
+    effectGizmos[fx.id] = p
+    return p
+end
+
+local function destroyEffectGizmo(id)
+    local p = effectGizmos[id]
+    if p and p.Parent then p:Destroy() end
+    effectGizmos[id] = nil
+end
+
+destroyAllEffectGizmos = function()
+    for _, p in pairs(effectGizmos) do
+        if p and p.Parent then p:Destroy() end
+    end
+    effectGizmos = {}
+    local f = workspace:FindFirstChild(EFFECT_GIZMO_FOLDER)
+    if f then f:Destroy() end
 end
 
 -- ── ADD RIG (Phase 9) ─────────────────────────────────────────────────────────
@@ -1995,6 +2070,64 @@ panel.onCameraLaneDoubleClicked:Connect(function(frame)
     doCameraCapture()
 end)
 
+-- ── SpawnedEffects event handlers ─────────────────────────────────────────────
+
+panel.onSpawnedFxPickPosRequested:Connect(function()
+    if pickingEffectPos then return end
+    pickingEffectPos = true
+    plugin:Activate(true)
+    local mouse = plugin:GetMouse()
+    local conn
+    conn = mouse.Button1Down:Connect(function()
+        local pos = mouse.Hit.Position
+        plugin:Deactivate()
+        pickingEffectPos = false
+        conn:Disconnect()
+        panel:setSpawnedFxPosition(pos)
+    end)
+end)
+
+panel.onSpawnedFxAdded:Connect(function(data)
+    local fx = recorder:addSpawnedEffect(data)
+    createEffectGizmo(fx)
+    SpawnedEffectRunner.fire(Vector3.new(fx.posX, fx.posY, fx.posZ), fx.effectType, fx)
+    scheduleAutoSave()
+end)
+
+panel.onSpawnedFxUpdated:Connect(function(data)
+    local fx = recorder:updateSpawnedEffect(data.id, data)
+    if fx then
+        createEffectGizmo(fx)
+        SpawnedEffectRunner.fire(Vector3.new(fx.posX, fx.posY, fx.posZ), fx.effectType, fx)
+    end
+    scheduleAutoSave()
+end)
+
+panel.onSpawnedFxDeleted:Connect(function(id)
+    recorder:deleteSpawnedEffect(id)
+    destroyEffectGizmo(id)
+    scheduleAutoSave()
+end)
+
+-- Click on an effect gizmo sphere → open overlay in edit mode.
+local SelectionService = game:GetService("Selection")
+SelectionService.SelectionChanged:Connect(function()
+    if pickingEffectPos then return end
+    local sel = SelectionService:Get()
+    if #sel ~= 1 then return end
+    local part = sel[1]
+    for id, gizmo in pairs(effectGizmos) do
+        if gizmo == part then
+            local fx = recorder:getSpawnedEffectById(id)
+            if fx then
+                panel:showSpawnedFxOverlay(fx.frame, fx)
+            end
+            SelectionService:Set({})
+            break
+        end
+    end
+end)
+
 local simpleScrubbing = false  -- true while Simple Mode scrubber is being dragged
 
 panel.onFrameChanged:Connect(function(newFrame)
@@ -2507,6 +2640,22 @@ scanAndSetup()
 local TestBridge = require(script.core.TestBridge)
 local testBridge = TestBridge.start({
     ping = function() return "pong" end,
+
+    -- Force-rescan workspace.FIGURES; use at the start of tests that need known rigs.
+    -- Also normalises frameCount to 120 so parking-frame arithmetic always has room.
+    scanFigures = function()
+        mode = "advanced"
+        scanAndSetup()
+        local fc = math.max(timeline:getFrameCount(), 120)
+        timeline:setFrameCount(fc)
+        recorder:setFrameCount(fc)
+        panel:setFrameCount(fc)
+        advancedFrameCount = nil
+        local names = {}
+        for n in pairs(allRigs) do table.insert(names, n) end
+        table.sort(names)
+        return names
+    end,
 
     getRigs = function()
         local names = {}

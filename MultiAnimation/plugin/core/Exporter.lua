@@ -353,6 +353,28 @@ local function buildEffectTracksSource(session)
     return table.concat(lines, "\n")
 end
 
+-- ── SpawnedEffects source builder ─────────────────────────────────────────────
+
+local function buildSpawnedEffectsSource(session)
+    local lines = {}
+    local function add(s) table.insert(lines, s) end
+
+    add("return {")
+    add("    effects = {")
+    for _, fx in ipairs(session.spawnedEffects or {}) do
+        add(string.format(
+            "        {id=%d, frame=%d, effectType=%q, posX=%.4f, posY=%.4f, posZ=%.4f," ..
+            " size=%.2f, colorR=%d, colorG=%d, colorB=%d, count=%d, duration=%.2f, speed=%.2f, lifetime=%.2f},",
+            fx.id, fx.frame, fx.effectType, fx.posX or 0, fx.posY or 0, fx.posZ or 0,
+            fx.size or 3, fx.colorR or 255, fx.colorG or 80, fx.colorB or 0,
+            fx.count or 50, fx.duration or 0.6, fx.speed or 20, fx.lifetime or 1.0
+        ))
+    end
+    add("    },")
+    add("}")
+    return table.concat(lines, "\n")
+end
+
 function Exporter.export(session, sceneName)
     if not session or not session.rigs or not next(session.rigs) then
         warn("[Exporter] Nothing to export — record some keyframes first")
@@ -439,15 +461,23 @@ function Exporter.export(session, sceneName)
         fxModule.Parent       = sceneFolder
     end
 
+    -- SpawnedEffects — only written when any spawned effects are configured
+    if session.spawnedEffects and next(session.spawnedEffects) then
+        local sfxModule        = Instance.new("ModuleScript")
+        sfxModule.Name         = "SpawnedEffects"
+        sfxModule.Source       = buildSpawnedEffectsSource(session)
+        sfxModule.Parent       = sceneFolder
+    end
+
     -- Deploy game-side modules.
     -- Server-side (ServerStorage.MultiAnimationData): MultiAnimPlayer, CutsceneServer,
-    --   CutsceneCamera, MultiAnimDataServer.
+    --   CutsceneCamera, MultiAnimDataServer, SpawnedEffectRunner.
     -- Client-side (ReplicatedStorage): CutscenePlayer, CutsceneCamera, PlayerRigProxy,
     --   LetterboxGui — siblings so CutscenePlayer's require() finds them.
     local gameFolder = script.Parent.Parent:FindFirstChild("game")
     if gameFolder then
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        local serverMods = { "MultiAnimPlayer", "CutsceneServer", "CutsceneCamera", "MultiAnimDataServer" }
+        local serverMods = { "MultiAnimPlayer", "CutsceneServer", "CutsceneCamera", "MultiAnimDataServer", "SpawnedEffectRunner" }
         local clientMods = { "CutscenePlayer", "CutsceneCamera", "PlayerRigProxy", "LetterboxGui" }
         for _, modName in ipairs(serverMods) do
             local src = gameFolder:FindFirstChild(modName)

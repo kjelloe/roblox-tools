@@ -22,13 +22,15 @@ function Recorder.new()
     self._added = added
 
     self._session = {
-        fps        = 24,
-        frameCount = 120,
-        rigs       = {},
-        props      = {},
-        camera     = { track = {} },   -- [frame] = {cf=CFrame, fov=number, mode="move"|"cut"}
-        effects    = {},               -- [name] = {kind, action, path, track={[frame]={action,count}}}
+        fps            = 24,
+        frameCount     = 120,
+        rigs           = {},
+        props          = {},
+        camera         = { track = {} },   -- [frame] = {cf=CFrame, fov=number, mode="move"|"cut"}
+        effects        = {},               -- [name] = {kind, action, path, track={[frame]={action,count}}}
+        spawnedEffects = {},               -- array of {id, frame, effectType, posX/Y/Z, size, colorR/G/B, count, duration, speed, lifetime}
     }
+    self._nextSpawnedEffectId = 1
 
     self._restPoses = {}   -- { [rigName] = jointData } captured at session start
 
@@ -324,11 +326,59 @@ function Recorder:deleteEffectEvent(name, frame)
 end
 
 function Recorder:clearSession()
-    self._session.rigs    = {}
-    self._session.props   = {}
-    self._session.camera  = { track = {} }
-    self._session.effects = {}
-    self._restPoses       = {}
+    self._session.rigs           = {}
+    self._session.props          = {}
+    self._session.camera         = { track = {} }
+    self._session.effects        = {}
+    self._session.spawnedEffects = {}
+    self._nextSpawnedEffectId    = 1
+    self._restPoses              = {}
+end
+
+-- ── SpawnedEffects CRUD ───────────────────────────────────────────────────────
+
+function Recorder:addSpawnedEffect(data)
+    local fx = {}
+    for k, v in pairs(data) do fx[k] = v end
+    if not fx.id then
+        fx.id = self._nextSpawnedEffectId
+        self._nextSpawnedEffectId = self._nextSpawnedEffectId + 1
+    elseif fx.id >= self._nextSpawnedEffectId then
+        self._nextSpawnedEffectId = fx.id + 1
+    end
+    table.insert(self._session.spawnedEffects, fx)
+    return fx
+end
+
+function Recorder:updateSpawnedEffect(id, newData)
+    for i, fx in ipairs(self._session.spawnedEffects) do
+        if fx.id == id then
+            for k, v in pairs(newData) do fx[k] = v end
+            fx.id = id  -- preserve id
+            self._session.spawnedEffects[i] = fx
+            return fx
+        end
+    end
+end
+
+function Recorder:deleteSpawnedEffect(id)
+    for i, fx in ipairs(self._session.spawnedEffects) do
+        if fx.id == id then
+            table.remove(self._session.spawnedEffects, i)
+            return
+        end
+    end
+end
+
+function Recorder:getSpawnedEffects()
+    return self._session.spawnedEffects
+end
+
+function Recorder:getSpawnedEffectById(id)
+    for _, fx in ipairs(self._session.spawnedEffects) do
+        if fx.id == id then return fx end
+    end
+    return nil
 end
 
 function Recorder:setJointData(rigName, frame, jointData)
