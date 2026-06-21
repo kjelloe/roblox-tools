@@ -1793,7 +1793,7 @@ buildPlaybackSnippet = function()
         elseif modeKey == "userIdDirect" then
             line = string.format('        %s = { userId = 0, mode = "direct" },  -- replace 0 with target UserId', rn)
         else -- "fixed"
-            line = string.format('        %s = workspace.FIGURES.%s,', rn, rn)
+            line = string.format('        -- %s = workspace.YourFolder.%s,  -- replace with actual rig reference', rn, rn)
         end
         table.insert(rigLines, line)
     end
@@ -1932,9 +1932,9 @@ refreshCurrentPlaybackScene = function()
         panel:setPlaybackExportWarning(nil)
         local exportedRigNames = {}
         for _, child in ipairs(exported:GetChildren()) do
-            local joints = child:FindFirstChild("_Joints")
-            if joints and joints:IsA("KeyframeSequence") then
-                table.insert(exportedRigNames, child.Name)
+            if child:IsA("KeyframeSequence") then
+                local rn = child.Name:match("^(.+)_Joints$")
+                if rn then table.insert(exportedRigNames, rn) end
             end
         end
         table.sort(exportedRigNames)
@@ -2019,7 +2019,13 @@ panel.onPlaybackParamsChanged:Connect(function(params)
 end)
 
 panel.onPlaybackCopySnippet:Connect(function(text)
-    print("[MultiAnimation] Snippet copied to Output — paste it into your LocalScript:\n" .. tostring(text))
+    local ok = pcall(setclipboard, text)
+    if ok then
+        print("[MultiAnimation] Snippet copied to clipboard.")
+    else
+        panel:focusSnippetBox()
+        print("[MultiAnimation] Paste this into a LocalScript:\n" .. text)
+    end
 end)
 
 panel.onPlaybackPreview:Connect(function()

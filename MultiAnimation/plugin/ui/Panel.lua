@@ -2122,6 +2122,10 @@ function Panel:setPlaybackSnippet(text)
     end
 end
 
+function Panel:focusSnippetBox()
+    if self._pbSnipBox then self._pbSnipBox:CaptureFocus() end
+end
+
 function Panel:setPlaybackFPSDisplay(_fps) end -- FPS removed from playback tab
 
 -- Push Loop state display.
