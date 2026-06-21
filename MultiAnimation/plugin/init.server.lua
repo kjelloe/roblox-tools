@@ -1155,6 +1155,14 @@ local function startPlayback()
                     end
                 end
             end
+            for _, sfx in ipairs(recorder:getSpawnedEffects()) do
+                if sfx.frame > lastEventFrame and sfx.frame <= intFrame then
+                    SpawnedEffectRunner.fire(
+                        Vector3.new(sfx.posX, sfx.posY, sfx.posZ),
+                        sfx.effectType, sfx
+                    )
+                end
+            end
             lastEventFrame = intFrame
         end
 
