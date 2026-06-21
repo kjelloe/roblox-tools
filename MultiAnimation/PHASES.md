@@ -578,7 +578,7 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
     handlers; serialization + deserialization (backward compat: old saves load as Linear).
   - **Bridge commands:** `setEasing`, `getEasing`, `setPropEasing`, `getPropEasing`,
     `setCameraEasing`, `getCameraEasing`, `setSimpleEasing`, `getSimpleEasing`.
-  - **Tests:** `test_easing_core.lua` (20 cases, headless), `test_ui_easing.lua` (12 cases,
+  - **Tests:** `test_easing_core.lua` (20 cases, headless), `test_ui_easing.lua` (23 cases,
     live Studio). **Suite total: ~507 cases across 23 files.**
 
 - ✅ **Bug fix — Simple Mode load drops frame slots:** `panel.onLoadNamedRequested`
@@ -736,7 +736,16 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
   - **Tests:** `test_spawned_effects_core.lua` (44 cases — PRESETS, PROPS, buildParams,
     Recorder CRUD, clearSession, id restore), `test_spawned_effects_exporter.lua` (46
     cases — source builder, loadstring round-trip, field preservation, defaults).
-    **Suite: ~651 cases, 27 files.**
+    **Suite: 621 cases, 27 files.**
+
+- ✅ **Test infrastructure — UI test isolation:** Added `scanFigures` TestBridge command that
+  rescans `Workspace.FIGURES`, normalises `frameCount ≥ 120`, and sets `mode = "advanced"`.
+  Called at the start of `test_ui_bridge`, `test_ui_camera`, `test_ui_easing`, and
+  `test_ui_rigtools`. Prevents `frameCount = 1` bleed-through from Simple Mode (which resets
+  the counter for empty sessions), which caused parking-frame arithmetic to go negative and
+  all test frame operations to clamp to frame 1. Also rewrote `test_ui_easing.lua` from the
+  old bridge protocol (`MultiAnimTestBridge`, plain-Lua returns) to the current JSON protocol
+  (`__MultiAnimTestBridge`, `{ok,result}`); case count grew from 12 → 23.
 
 ### Backlog
 

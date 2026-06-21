@@ -593,6 +593,8 @@ survives panel close/reopen within the same Studio session. It is cleared on exp
 restores both on load. `loadNamed()` falls back to the slot name as scene name for old
 saves that predate the `sceneName` field (unless the slot is `_autosave`).
 
+**Test isolation — `scanFigures` bridge command:** UI tests that need specific rigs call `scanFigures` at their start. This calls `scanAndSetup()` (rescans `Workspace.FIGURES`, captures rest poses, disconnects joints, updates the panel) and then normalises `frameCount` to `max(current, 120)` and sets `mode = "advanced"`. Without this, a prior test that left the plugin in Simple Mode (where `frameCount` is reset to 1 for an empty session) would corrupt parking-frame arithmetic (`PARK = frameCount - N` going negative → `setFrame` clamps to 1 → keyframe lands on frame 1, not PARK). Call `scanFigures` at the start of any UI test file that needs deterministic rig availability or adequate timeline length.
+
 **frameCount persistence invariant:** `serializeSession()` saves `advancedFrameCount or session.frameCount`. This prevents the small synthetic frameCount that Simple/Playback mode writes into the recorder (`maxKF+1` or 1 for empty session) from being persisted to disk — autosave may fire while in those modes, but the saved value is always the real advanced-mode length. `doLoad` additionally clamps the loaded frameCount to `math.max(data.frameCount, 20)` as a safety floor against corrupt saves. All three entry points to Playback mode (UI button `onModeChanged`, `setMode` bridge command, `setPlaybackMode` bridge command) must save `advancedFrameCount = timeline:getFrameCount()` when entering, so the restoration on return to Advanced mode works correctly — same invariant as Simple mode entry.
 
 ### Whole-Model Movement (Root Track)
@@ -865,7 +867,7 @@ recreates gizmos. Both sides call `destroyAllEffectGizmos()` first to avoid dupl
 | `build.py` | Assembles `.rbxmx` from source files and copies to Plugins folder |
 | `watch.py` | Auto-build on save, with Studio compile-check first |
 | `devsync.py` + `plugin/devloader.lua` | Hot-reload the plugin on save — no Studio restart |
-| `run_tests.py` | Runs the full `tests/` suite (~651 cases, 27 files) against live Studio |
+| `run_tests.py` | Runs the full `tests/` suite (~621 cases, 27 files) against live Studio |
 | `hotpatch.py` | Push a single `game/` module without reload (all 7 game/ modules in PATCH_MAP) |
 | `mcp.py` (`mcp` alias) | CLI for everything: luau, console/tail, tree/inspect/read/grep, check, drift, test, deploy, playtest, gen, store, addrig, scene, daemon |
 | MCP daemon | Persistent StudioMCP proxy (auto-starts) — 0.07s/call vs ~7s |
