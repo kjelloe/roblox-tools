@@ -1,6 +1,6 @@
 # MultiAnimation — Dev Tooling
 
-Already built: `build.py`, `run_tests.py`, `watch.py`, `hotpatch.py`,
+Already built: `build.py`, `export.py`, `run_tests.py`, `watch.py`, `hotpatch.py`,
 and `~/GIT/Roblox/mcp.py` with subcommands:
 `luau / console / tail / tree / inspect / read / grep / search / state /
 capture / studios / check / drift / test / deploy / playtest`.

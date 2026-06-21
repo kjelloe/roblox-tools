@@ -799,7 +799,7 @@ explicit `data.id` for session restore and advances `_nextSpawnedEffectId` past 
 
 ### Panel overlay (`plugin/ui/Panel.lua`)
 
-- **Effects button** added to `simpleActionRow` at layout order 6.
+- **"Add effect" button** in `simpleActionRow` at layout order 6 (renamed from "Effects").
 - `do -- SPAWNED FX OVERLAY` block (ZIndex 55) contains: header with frame number,
   type cycle button (Explosion → Smoke → Explosion), scalar property input boxes for
   all PROPS keys, "Select Position" button + coordinate label, and Add/Cancel/Delete
@@ -835,6 +835,22 @@ explicit `data.id` for session restore and advances `_nextSpawnedEffectId` past 
 Written only when `session.spawnedEffects` is non-empty (file name: `SpawnedEffects`).
 `SpawnedEffectRunner` is added to `serverMods` → deployed alongside `MultiAnimPlayer`.
 
+### Edit-mode playback (`plugin/init.server.lua — startPlayback`)
+
+The `startPlayback` Heartbeat fires spawned effects during **Simple Mode play** using the
+same crossing-pointer pattern as `EffectRunner` events:
+
+```lua
+for _, sfx in ipairs(recorder:getSpawnedEffects()) do
+    if sfx.frame > lastEventFrame and sfx.frame <= intFrame then
+        SpawnedEffectRunner.fire(Vector3.new(sfx.posX, sfx.posY, sfx.posZ), sfx.effectType, sfx)
+    end
+end
+```
+
+This runs every Heartbeat alongside the regular `allEffects` loop; `lastEventFrame` is
+shared so each frame fires at most once.
+
 ### In-game playback (`game/MultiAnimPlayer.lua`)
 
 `MultiAnimPlayer.play()` loads `SpawnedEffects` and `SpawnedEffectRunner` from
@@ -860,14 +876,35 @@ recreates gizmos. Both sides call `destroyAllEffectGizmos()` first to avoid dupl
 
 ---
 
+## Delete scene dialog
+
+A **Delete** button (red, position 8 in `simpleSceneRow`) opens a full-panel **Delete
+overlay** that mirrors the Load overlay structure:
+
+- Header "DELETE SESSION" + ✕ close button.
+- `ScrollingFrame` listing all saved sessions (same row format as Load: name left, timestamp right).
+- **Cancel** button in a footer bar (also added to Load overlay).
+- Clicking a session row shows a **confirmation card** (ZIndex 60, parented to the overlay):
+  "Are you sure you want to delete `"<name>"`?" with a red **Yes** and a grey **No** button.
+  No hides the card; Yes fires `eDeleteNamed` → `onDeleteNamedRequested` → `deleteNamed(name)`.
+
+`deleteNamed(name)` removes the entry from the index array and calls
+`plugin:SetSetting(DATA_PREFIX .. name, nil)` + re-saves the index.
+After deletion, `doPlaybackScan()` is called to remove the scene from the Playback tab list.
+
+TestBridge commands: `deleteSession {name}`, `listSessions` (returns name array).
+
+---
+
 ## Tooling
 
 | Tool | Role |
 |------|------|
 | `build.py` | Assembles `.rbxmx` from source files and copies to Plugins folder |
+| `export.py` | Packages plugin + game-side runtime scripts as distributable `.rbxm` files into `export/` |
 | `watch.py` | Auto-build on save, with Studio compile-check first |
 | `devsync.py` + `plugin/devloader.lua` | Hot-reload the plugin on save — no Studio restart |
-| `run_tests.py` | Runs the full `tests/` suite (~621 cases, 27 files) against live Studio |
+| `run_tests.py` | Runs the full `tests/` suite (626 cases, 27 files) against live Studio |
 | `hotpatch.py` | Push a single `game/` module without reload (all 7 game/ modules in PATCH_MAP) |
 | `mcp.py` (`mcp` alias) | CLI for everything: luau, console/tail, tree/inspect/read/grep, check, drift, test, deploy, playtest, gen, store, addrig, scene, daemon |
 | MCP daemon | Persistent StudioMCP proxy (auto-starts) — 0.07s/call vs ~7s |

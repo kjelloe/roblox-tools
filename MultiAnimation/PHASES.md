@@ -747,6 +747,30 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
   old bridge protocol (`MultiAnimTestBridge`, plain-Lua returns) to the current JSON protocol
   (`__MultiAnimTestBridge`, `{ok,result}`); case count grew from 12 → 23.
 
+- ✅ **Simple Mode refinements (post-SpawnedEffects):**
+  - **"Add effect" button rename:** `simpleActionRow` button renamed from "Effects" → "Add effect".
+  - **Delete scene dialog:** Red **Delete** button added at position 8 in `simpleSceneRow`
+    (next to New). Opens a full-panel **Delete overlay** (mirrors Load overlay) listing all
+    saved sessions. Clicking a session name shows a confirmation card: "Are you sure you want
+    to delete `"<name>"`?" with red **Yes** and grey **No** buttons. Yes fires
+    `onDeleteNamedRequested` → `deleteNamed()` removes the session from plugin settings +
+    refreshes the Playback scene list. **Cancel** button added to the footer of both the
+    Delete overlay and the Load overlay.
+  - **Spawned effects fire during Simple Mode playback:** The `startPlayback` Heartbeat
+    previously fired `EffectRunner` events (Effect Track system) but skipped spawned effects.
+    Fixed: inner loop now also iterates `recorder:getSpawnedEffects()` and fires
+    `SpawnedEffectRunner.fire()` for any effect whose `frame` falls in the crossing window
+    `(lastEventFrame, intFrame]` — same crossing-pointer pattern used by the game-side player.
+  - **`deleteSession` + `listSessions` TestBridge commands:** allow test isolation without
+    polluting the saved-session index; `listSessions` returns a name array.
+  - **`export.py`** — packages the plugin + game-side runtime scripts for distribution as
+    ready-to-import `.rbxm` files (no Rojo, no git required for recipients).
+    Outputs `export/MultiAnimation.rbxmx`, `export/ServerStorage_MultiAnimationData.rbxm`,
+    `export/ReplicatedStorage.rbxm`, and `export/how-to-use.md`.
+  - **`SHARE.md`** — documents distribution options (direct file share vs Creator Store).
+  - **5 new test cases** in `test_ui_bridge.lua` (save / listSessions / deleteSession /
+    verify-absent round-trip). **Suite: 626 cases, 27 files.**
+
 ### Backlog
 
 - Multiple named cameras + switcher track (authoring sugar over Phase 8 cuts)

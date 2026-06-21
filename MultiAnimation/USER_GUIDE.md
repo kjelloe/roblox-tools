@@ -276,10 +276,14 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
   without committing to a new named snapshot.
 - **Save As** stores a named snapshot (up to 30, newest first); **Load** brings
   one back — including props (re-linked by name), the camera track, and all effect events.
-- **New** (Simple Mode only, next to Load) auto-increments the scene name
-  (`Scene_001` → `Scene_002`), shows a confirm overlay with the current tagged
-  instance count and keyframe count, then clears all tags, resets the full
-  session, and rescans rigs. Tag toggles reset to Rigs ON / Props ON / Effects OFF.
+- **New** (Simple Mode only) auto-increments the scene name (`Scene_001` → `Scene_002`),
+  shows a confirm overlay with the current tagged instance count and keyframe count, then
+  clears all tags, resets the full session, and rescans rigs. Tag toggles reset to Rigs
+  ON / Props ON / Effects OFF.
+- **Delete** (Simple Mode only, red button) opens a list overlay showing all saved sessions.
+  Clicking a session shows a confirmation: "Are you sure you want to delete `"<name>"`?" with
+  **Yes** (deletes) and **No** (back to list) buttons. A **Cancel** button at the bottom of
+  both the Delete and Load list overlays closes them without doing anything.
 - Sessions survive closing/reopening the panel within a Studio session.
 
 ---
@@ -356,7 +360,7 @@ Tag: [FIGURES ▼]  [Rigs ✓]  [Props ✓]  [Effects □]  [Clear scene tags]  
 - Once tagged, the scene name drives the rig scan: non-empty scene name →
   `scanByTag` (anywhere in workspace); empty → legacy FIGURES scan.
 
-**Scene row** (last row): `Scene:` box · `💾 Save` · `⬆ Export` · `Save As` · `Load` · `New`
+**Scene row** (last row): `Scene:` box · `💾 Save` · `⬆ Export` · `Save As` · `Load` · `New` · `Delete` (red)
 
 > **Renaming a scene:** type a new name in the `Scene:` box and press Tab/Enter. All `MAnim:<oldName>` CollectionService tags on tracked instances are automatically renamed to `MAnim:<newName>` — the scene binding survives the rename.
 
@@ -431,7 +435,7 @@ frame behind and **blue** for the frame ahead. Ghosts update automatically
 each time you change frames. Toggle off to clear them. (Ghosts are never
 saved with the place file and vanish on plugin unload.)
 
-**Effects (SpawnedEffects):** click **Effects** in the action row to add a
+**Effects (SpawnedEffects):** click **Add effect** in the action row to add a
 one-shot particle burst at any frame. An overlay opens:
 
 ```
@@ -455,9 +459,9 @@ Speed:    [20    ]    Lifetime: [1.0   ]
 - A small **coloured sphere gizmo** appears in the scene at the effect's position
   (orange = Explosion, grey = Smoke). Click the sphere to reopen the overlay in
   **edit mode** with a **Delete** button, so you can adjust or remove the effect.
-- Effects are saved with the session and exported with the scene. During in-game
-  playback via `MultiAnimPlayer`, each effect fires its particle burst the moment
-  the playhead crosses the recorded frame.
+- Effects are saved with the session and exported with the scene. During **Simple Mode
+  play** (`▶ Play`) each effect fires its burst the moment the playhead crosses the
+  recorded frame — the same crossing-pointer logic used by the in-game `MultiAnimPlayer`.
 
 **Save / Export** work exactly as in Advanced mode, right there in the
 Simple panel — no need to switch modes just to save your work or export

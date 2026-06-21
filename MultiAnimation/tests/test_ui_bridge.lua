@@ -139,6 +139,33 @@ else
         r.ok and ("#" .. #r.result .. " vs #" .. #before) or r.err)
 end
 
+-- ── Session save / delete / list round-trip ──────────────────────────────────
+
+local TEMP_SESSION = "__test_delete_session_" .. tostring(os.time())
+
+r = call("listSessions")
+ok("listSessions returns a table", r.ok and type(r.result) == "table", r.err)
+
+r = call("saveSession", { name = TEMP_SESSION })
+ok("saveSession stores a temp session", r.ok, r.err)
+
+r = call("listSessions")
+local foundTemp = false
+for _, n in ipairs((r.ok and r.result) or {}) do
+    if n == TEMP_SESSION then foundTemp = true end
+end
+ok("listSessions includes saved session", foundTemp)
+
+r = call("deleteSession", { name = TEMP_SESSION })
+ok("deleteSession succeeds", r.ok, r.err)
+
+r = call("listSessions")
+local stillThere = false
+for _, n in ipairs((r.ok and r.result) or {}) do
+    if n == TEMP_SESSION then stillThere = true end
+end
+ok("deleted session no longer in list", not stillThere)
+
 -- ── Restore user state ────────────────────────────────────────────────────────
 
 if prevFrame.ok then call("setFrame", { frame = prevFrame.result }) end
