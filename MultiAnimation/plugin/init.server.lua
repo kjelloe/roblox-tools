@@ -463,6 +463,16 @@ local function getIndex()
     return (ok and type(idx) == "table") and idx or {}
 end
 
+local function deleteNamed(name)
+    local idx = getIndex()
+    for i = #idx, 1, -1 do
+        if idx[i].name == name then table.remove(idx, i) end
+    end
+    pcall(function() plugin:SetSetting(DATA_PREFIX .. name, nil) end)
+    pcall(function() plugin:SetSetting(INDEX_KEY, idx) end)
+    print("[MultiAnimation] Deleted session '" .. name .. "'")
+end
+
 local function saveNamed(name)
     local ok, err = pcall(function()
         plugin:SetSetting(DATA_PREFIX .. name, serializeSession())
@@ -2451,6 +2461,14 @@ panel.onLoadNamedRequested:Connect(function(name)
     end
     panel:hideLoadList()
 end)
+panel.onDeleteRequested:Connect(function()
+    panel:showDeleteList(getIndex())
+end)
+panel.onDeleteNamedRequested:Connect(function(name)
+    deleteNamed(name)
+    panel:hideDeleteList()
+    doPlaybackScan()
+end)
 panel.onPreviewRequested:Connect(startPlayback)
 panel.onStopRequested:Connect(stopPlayback)
 
@@ -3151,6 +3169,19 @@ local testBridge = TestBridge.start({
             end
         end
         return true
+    end,
+
+    deleteSession = function(a)
+        deleteNamed(a.name)
+        doPlaybackScan()
+        return true
+    end,
+
+    listSessions = function()
+        local idx = getIndex()
+        local names = {}
+        for _, entry in ipairs(idx) do table.insert(names, entry.name) end
+        return names
     end,
 
     setSimpleFPS = function(a)

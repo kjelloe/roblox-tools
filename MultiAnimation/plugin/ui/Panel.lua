@@ -60,6 +60,8 @@ local C = {
     btnAccent = Color3.fromRGB(0,  148, 214),
     btnAccHov = Color3.fromRGB(30, 170, 240),
     btnDim    = Color3.fromRGB(50,  50,  50),
+    btnDanger    = Color3.fromRGB(160, 50,  50),
+    btnDangerHov = Color3.fromRGB(195, 70,  70),
     btnText   = Color3.fromRGB(210, 210, 210),
     btnDimTxt = Color3.fromRGB(100, 100, 100),
     muted     = Color3.fromRGB(170, 170, 170),
@@ -164,11 +166,11 @@ local function hrow(parent, order, gap)
     return f
 end
 
-local function btn(parent, text, order, accent)
+local function btn(parent, text, order, accent, danger)
     local b = Instance.new("TextButton")
     b.Size             = UDim2.new(0, 0, 0, 24)
     b.AutomaticSize    = Enum.AutomaticSize.X
-    b.BackgroundColor3 = accent and C.btnAccent or C.btnBg
+    b.BackgroundColor3 = danger and C.btnDanger or (accent and C.btnAccent or C.btnBg)
     b.BorderSizePixel  = 0
     b.TextColor3       = C.btnText
     b.Text             = "  " .. text .. "  "
@@ -178,8 +180,8 @@ local function btn(parent, text, order, accent)
     b.LayoutOrder      = order or 1
     b.Parent           = parent
     Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
-    local hov = accent and C.btnAccHov or C.btnHover
-    local def = accent and C.btnAccent or C.btnBg
+    local hov = danger and C.btnDangerHov or (accent and C.btnAccHov or C.btnHover)
+    local def = danger and C.btnDanger    or (accent and C.btnAccent  or C.btnBg)
     b.MouseEnter:Connect(function() if b.Active then b.BackgroundColor3 = hov end end)
     b.MouseLeave:Connect(function() if b.Active then b.BackgroundColor3 = def end end)
     return b
@@ -273,7 +275,8 @@ function Panel.new(widget)
     local eRewind   = mkEvent("onRewindRequested")
     local eFF       = mkEvent("onFastForwardRequested")
     local eSave     = mkEvent("onSaveConfirmed")
-    local eReload   = mkEvent("onLoadRequested")
+    local eReload     = mkEvent("onLoadRequested")
+    local eDeleteReq  = mkEvent("onDeleteRequested")
     local eMarkerDel = Instance.new("BindableEvent")
     self.onMarkerDeleteRequested = eMarkerDel.Event
     self._eMarkerDel = eMarkerDel
@@ -288,6 +291,11 @@ function Panel.new(widget)
     self.onLoadNamedRequested = eLoadNamed.Event
     self._eLoadNamed = eLoadNamed
     table.insert(evts, eLoadNamed)
+
+    local eDeleteNamed = Instance.new("BindableEvent")
+    self.onDeleteNamedRequested = eDeleteNamed.Event
+    self._eDeleteNamed = eDeleteNamed
+    table.insert(evts, eDeleteNamed)
 
     local eNewSession = mkEvent("onNewSessionConfirmed")
 
@@ -914,6 +922,7 @@ function Panel.new(widget)
     local simpleSaveAsBtn = btn(simpleSceneRow, "Save As",   5)
     local simpleLoadBtn   = btn(simpleSceneRow, "Load",      6)
     local simpleNewBtn    = btn(simpleSceneRow, "New",        7)
+    local simpleDeleteBtn = btn(simpleSceneRow, "Delete",     8, false, true)
     simpleSaveBtn.MouseButton1Click:Connect(function()
         if not self._isPlaying then eSave:Fire(simpleSceneBox.Text) end
     end)
@@ -939,6 +948,9 @@ function Panel.new(widget)
             newName = name .. "_001"
         end
         eNewAnimationPreview:Fire(name, newName)
+    end)
+    simpleDeleteBtn.MouseButton1Click:Connect(function()
+        if not self._isPlaying then eDeleteReq:Fire() end
     end)
     self.onNewAnimationRequested          = eNewAnimation.Event
     self.onNewAnimationPreviewRequested   = eNewAnimationPreview.Event
@@ -1291,8 +1303,33 @@ function Panel.new(widget)
     loadHdrClose.Parent             = loadHdr
     loadHdrClose.MouseButton1Click:Connect(function() loadOv.Visible = false end)
 
+    local loadCancelRow = Instance.new("Frame")
+    loadCancelRow.Size               = UDim2.new(1, 0, 0, 36)
+    loadCancelRow.Position           = UDim2.new(0, 0, 1, -36)
+    loadCancelRow.BackgroundColor3   = C.sectionBg
+    loadCancelRow.BorderSizePixel    = 0
+    loadCancelRow.ZIndex             = 51
+    loadCancelRow.Parent             = loadOv
+
+    local loadCancelBtn = Instance.new("TextButton")
+    loadCancelBtn.Size               = UDim2.new(0, 80, 0, 24)
+    loadCancelBtn.Position           = UDim2.new(0.5, -40, 0.5, -12)
+    loadCancelBtn.BackgroundColor3   = C.btnBg
+    loadCancelBtn.BorderSizePixel    = 0
+    loadCancelBtn.TextColor3         = C.btnText
+    loadCancelBtn.Text               = "  Cancel  "
+    loadCancelBtn.TextSize           = 12
+    loadCancelBtn.Font               = Enum.Font.Gotham
+    loadCancelBtn.AutoButtonColor    = false
+    loadCancelBtn.ZIndex             = 52
+    loadCancelBtn.Parent             = loadCancelRow
+    Instance.new("UICorner", loadCancelBtn).CornerRadius = UDim.new(0, 4)
+    loadCancelBtn.MouseEnter:Connect(function() loadCancelBtn.BackgroundColor3 = C.btnHover end)
+    loadCancelBtn.MouseLeave:Connect(function() loadCancelBtn.BackgroundColor3 = C.btnBg end)
+    loadCancelBtn.MouseButton1Click:Connect(function() loadOv.Visible = false end)
+
     local loadScroll = Instance.new("ScrollingFrame")
-    loadScroll.Size                 = UDim2.new(1, 0, 1, -34)
+    loadScroll.Size                 = UDim2.new(1, 0, 1, -70)
     loadScroll.Position             = UDim2.new(0, 0, 0, 34)
     loadScroll.CanvasSize           = UDim2.new(0, 0, 0, 0)
     loadScroll.ScrollBarThickness   = 5
@@ -1310,6 +1347,181 @@ function Panel.new(widget)
     self._loadOverlay = loadOv
     self._loadScroll  = loadScroll
     end -- ── end OVERLAYS ──────────────────────────────────────────────────────
+
+    do -- DELETE OVERLAY ────────────────────────────────────────────────────────
+    local delOv = Instance.new("Frame")
+    delOv.Name             = "DeleteOverlay"
+    delOv.Size             = UDim2.new(1, 0, 1, 0)
+    delOv.BackgroundColor3 = C.bg
+    delOv.BorderSizePixel  = 0
+    delOv.ZIndex           = 50
+    delOv.Visible          = false
+    delOv.Parent           = widget
+
+    local delHdr = Instance.new("Frame")
+    delHdr.Size             = UDim2.new(1, 0, 0, 34)
+    delHdr.BackgroundColor3 = C.sectionBg
+    delHdr.BorderSizePixel  = 0
+    delHdr.ZIndex           = 51
+    delHdr.Parent           = delOv
+
+    local delHdrTitle = Instance.new("TextLabel")
+    delHdrTitle.Size               = UDim2.new(1, -34, 1, 0)
+    delHdrTitle.Position           = UDim2.new(0, 10, 0, 0)
+    delHdrTitle.BackgroundTransparency = 1
+    delHdrTitle.TextColor3         = C.header
+    delHdrTitle.Text               = "DELETE SESSION"
+    delHdrTitle.TextSize           = 10
+    delHdrTitle.Font               = Enum.Font.GothamBold
+    delHdrTitle.TextXAlignment     = Enum.TextXAlignment.Left
+    delHdrTitle.ZIndex             = 52
+    delHdrTitle.Parent             = delHdr
+
+    local delHdrClose = Instance.new("TextButton")
+    delHdrClose.Size               = UDim2.new(0, 34, 1, 0)
+    delHdrClose.Position           = UDim2.new(1, -34, 0, 0)
+    delHdrClose.BackgroundTransparency = 1
+    delHdrClose.TextColor3         = C.muted
+    delHdrClose.Text               = "✕"
+    delHdrClose.TextSize           = 14
+    delHdrClose.Font               = Enum.Font.Gotham
+    delHdrClose.ZIndex             = 52
+    delHdrClose.Parent             = delHdr
+    delHdrClose.MouseButton1Click:Connect(function() delOv.Visible = false end)
+
+    local delScroll = Instance.new("ScrollingFrame")
+    delScroll.Size                 = UDim2.new(1, 0, 1, -70)
+    delScroll.Position             = UDim2.new(0, 0, 0, 34)
+    delScroll.CanvasSize           = UDim2.new(0, 0, 0, 0)
+    delScroll.ScrollBarThickness   = 5
+    delScroll.ScrollBarImageColor3 = C.btnBg
+    delScroll.BackgroundTransparency = 1
+    delScroll.BorderSizePixel      = 0
+    delScroll.ZIndex               = 51
+    delScroll.Parent               = delOv
+
+    local _delScrollLayout = Instance.new("UIListLayout")
+    _delScrollLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    _delScrollLayout.Padding   = UDim.new(0, 1)
+    _delScrollLayout.Parent    = delScroll
+
+    local delCancelRow = Instance.new("Frame")
+    delCancelRow.Size               = UDim2.new(1, 0, 0, 36)
+    delCancelRow.Position           = UDim2.new(0, 0, 1, -36)
+    delCancelRow.BackgroundColor3   = C.sectionBg
+    delCancelRow.BorderSizePixel    = 0
+    delCancelRow.ZIndex             = 51
+    delCancelRow.Parent             = delOv
+
+    local delCancelBtn = Instance.new("TextButton")
+    delCancelBtn.Size               = UDim2.new(0, 80, 0, 24)
+    delCancelBtn.Position           = UDim2.new(0.5, -40, 0.5, -12)
+    delCancelBtn.BackgroundColor3   = C.btnBg
+    delCancelBtn.BorderSizePixel    = 0
+    delCancelBtn.TextColor3         = C.btnText
+    delCancelBtn.Text               = "  Cancel  "
+    delCancelBtn.TextSize           = 12
+    delCancelBtn.Font               = Enum.Font.Gotham
+    delCancelBtn.AutoButtonColor    = false
+    delCancelBtn.ZIndex             = 52
+    delCancelBtn.Parent             = delCancelRow
+    Instance.new("UICorner", delCancelBtn).CornerRadius = UDim.new(0, 4)
+    delCancelBtn.MouseEnter:Connect(function() delCancelBtn.BackgroundColor3 = C.btnHover end)
+    delCancelBtn.MouseLeave:Connect(function() delCancelBtn.BackgroundColor3 = C.btnBg end)
+    delCancelBtn.MouseButton1Click:Connect(function() delOv.Visible = false end)
+
+    -- Confirmation card (shown on top of the list when a scene is clicked)
+    local delConfOv = Instance.new("Frame")
+    delConfOv.Size             = UDim2.new(1, 0, 1, 0)
+    delConfOv.BackgroundColor3 = C.bg
+    delConfOv.BackgroundTransparency = 0.08
+    delConfOv.BorderSizePixel  = 0
+    delConfOv.ZIndex           = 60
+    delConfOv.Visible          = false
+    delConfOv.Parent           = delOv
+
+    local delConfCard = Instance.new("Frame")
+    delConfCard.Size             = UDim2.new(1, -40, 0, 130)
+    delConfCard.Position         = UDim2.new(0, 20, 0.5, -65)
+    delConfCard.BackgroundColor3 = C.sectionBg
+    delConfCard.BorderSizePixel  = 0
+    delConfCard.ZIndex           = 61
+    delConfCard.Parent           = delConfOv
+    Instance.new("UICorner", delConfCard).CornerRadius = UDim.new(0, 6)
+
+    local delConfMsg = Instance.new("TextLabel")
+    delConfMsg.Size               = UDim2.new(1, -20, 0, 60)
+    delConfMsg.Position           = UDim2.new(0, 10, 0, 14)
+    delConfMsg.BackgroundTransparency = 1
+    delConfMsg.TextColor3         = C.ovText
+    delConfMsg.Text               = "Are you sure you want to delete this session?"
+    delConfMsg.TextSize           = 13
+    delConfMsg.Font               = Enum.Font.Gotham
+    delConfMsg.TextXAlignment     = Enum.TextXAlignment.Center
+    delConfMsg.TextWrapped        = true
+    delConfMsg.ZIndex             = 62
+    delConfMsg.Parent             = delConfCard
+
+    local delConfBtnRow = Instance.new("Frame")
+    delConfBtnRow.Size               = UDim2.new(1, -20, 0, 36)
+    delConfBtnRow.Position           = UDim2.new(0, 10, 0, 82)
+    delConfBtnRow.BackgroundTransparency = 1
+    delConfBtnRow.ZIndex             = 62
+    delConfBtnRow.Parent             = delConfCard
+
+    local _confLayout = Instance.new("UIListLayout")
+    _confLayout.FillDirection        = Enum.FillDirection.Horizontal
+    _confLayout.HorizontalAlignment  = Enum.HorizontalAlignment.Center
+    _confLayout.VerticalAlignment    = Enum.VerticalAlignment.Center
+    _confLayout.Padding              = UDim.new(0, 12)
+    _confLayout.Parent               = delConfBtnRow
+
+    local delConfYes = Instance.new("TextButton")
+    delConfYes.Size                  = UDim2.new(0, 72, 0, 28)
+    delConfYes.BackgroundColor3      = C.btnDanger
+    delConfYes.BorderSizePixel       = 0
+    delConfYes.TextColor3            = C.btnText
+    delConfYes.Text                  = "  Yes  "
+    delConfYes.TextSize              = 12
+    delConfYes.Font                  = Enum.Font.GothamBold
+    delConfYes.AutoButtonColor       = false
+    delConfYes.ZIndex                = 63
+    delConfYes.Parent                = delConfBtnRow
+    Instance.new("UICorner", delConfYes).CornerRadius = UDim.new(0, 4)
+    delConfYes.MouseEnter:Connect(function() delConfYes.BackgroundColor3 = C.btnDangerHov end)
+    delConfYes.MouseLeave:Connect(function() delConfYes.BackgroundColor3 = C.btnDanger end)
+
+    local delConfNo = Instance.new("TextButton")
+    delConfNo.Size                   = UDim2.new(0, 72, 0, 28)
+    delConfNo.BackgroundColor3       = C.btnBg
+    delConfNo.BorderSizePixel        = 0
+    delConfNo.TextColor3             = C.btnText
+    delConfNo.Text                   = "  No  "
+    delConfNo.TextSize               = 12
+    delConfNo.Font                   = Enum.Font.Gotham
+    delConfNo.AutoButtonColor        = false
+    delConfNo.ZIndex                 = 63
+    delConfNo.Parent                 = delConfBtnRow
+    Instance.new("UICorner", delConfNo).CornerRadius = UDim.new(0, 4)
+    delConfNo.MouseEnter:Connect(function() delConfNo.BackgroundColor3 = C.btnHover end)
+    delConfNo.MouseLeave:Connect(function() delConfNo.BackgroundColor3 = C.btnBg end)
+    delConfNo.MouseButton1Click:Connect(function() delConfOv.Visible = false end)
+
+    delConfYes.MouseButton1Click:Connect(function()
+        local nm = self._delPendingName
+        if nm then
+            eDeleteNamed:Fire(nm)
+            self._delPendingName = nil
+        end
+        delConfOv.Visible = false
+    end)
+
+    self._deleteOverlay  = delOv
+    self._deleteScroll   = delScroll
+    self._delConfOv      = delConfOv
+    self._delConfMsg     = delConfMsg
+    self._delPendingName = nil
+    end -- ── end DELETE OVERLAY ──────────────────────────────────────────────
 
     do -- SPAWNED FX OVERLAY
     -- Card overlay for adding/editing single-frame spawned effects (Explosion, Smoke).
@@ -2491,6 +2703,80 @@ end
 
 function Panel:hideLoadList()
     self._loadOverlay.Visible = false
+end
+
+function Panel:showDeleteList(saves)
+    for _, c in ipairs(self._deleteScroll:GetChildren()) do
+        if not c:IsA("UIListLayout") then c:Destroy() end
+    end
+    self._delConfOv.Visible  = false
+    self._delPendingName     = nil
+    if #saves == 0 then
+        local e = Instance.new("TextLabel")
+        e.Size               = UDim2.new(1, 0, 0, 40)
+        e.BackgroundTransparency = 1
+        e.TextColor3         = C.muted
+        e.Text               = "No saved sessions"
+        e.TextSize           = 11
+        e.Font               = Enum.Font.Gotham
+        e.TextXAlignment     = Enum.TextXAlignment.Center
+        e.LayoutOrder        = 1
+        e.Parent             = self._deleteScroll
+        self._deleteScroll.CanvasSize = UDim2.new(0, 0, 0, 40)
+    else
+        for i, entry in ipairs(saves) do
+            local rowBg = (i % 2 == 0) and Color3.fromRGB(40, 40, 40) or Color3.fromRGB(46, 46, 46)
+            local row = Instance.new("TextButton")
+            row.Size             = UDim2.new(1, 0, 0, _ROW_H)
+            row.BackgroundColor3 = rowBg
+            row.BorderSizePixel  = 0
+            row.Text             = ""
+            row.AutoButtonColor  = false
+            row.ZIndex           = 52
+            row.LayoutOrder      = i
+            row.Parent           = self._deleteScroll
+
+            local nameLbl = Instance.new("TextLabel")
+            nameLbl.Size             = UDim2.new(1, -158, 1, 0)
+            nameLbl.Position         = UDim2.new(0, 10, 0, 0)
+            nameLbl.BackgroundTransparency = 1
+            nameLbl.TextColor3       = C.inputText
+            nameLbl.Text             = entry.name
+            nameLbl.TextSize         = 12
+            nameLbl.Font             = Enum.Font.Gotham
+            nameLbl.TextXAlignment   = Enum.TextXAlignment.Left
+            nameLbl.TextTruncate     = Enum.TextTruncate.AtEnd
+            nameLbl.ZIndex           = 53
+            nameLbl.Parent           = row
+
+            local timeLbl = Instance.new("TextLabel")
+            timeLbl.Size             = UDim2.new(0, 148, 1, 0)
+            timeLbl.Position         = UDim2.new(1, -153, 0, 0)
+            timeLbl.BackgroundTransparency = 1
+            timeLbl.TextColor3       = C.muted
+            timeLbl.Text             = os.date("%Y-%m-%d %H:%M:%S", entry.savedAt)
+            timeLbl.TextSize         = 10
+            timeLbl.Font             = Enum.Font.Gotham
+            timeLbl.TextXAlignment   = Enum.TextXAlignment.Right
+            timeLbl.ZIndex           = 53
+            timeLbl.Parent           = row
+
+            row.MouseEnter:Connect(function() row.BackgroundColor3 = C.btnHover end)
+            row.MouseLeave:Connect(function() row.BackgroundColor3 = rowBg end)
+            local name = entry.name
+            row.MouseButton1Click:Connect(function()
+                self._delPendingName = name
+                self._delConfMsg.Text = 'Are you sure you want to delete\n"' .. name .. '"?'
+                self._delConfOv.Visible = true
+            end)
+        end
+        self._deleteScroll.CanvasSize = UDim2.new(0, 0, 0, #saves * (_ROW_H + 1))
+    end
+    self._deleteOverlay.Visible = true
+end
+
+function Panel:hideDeleteList()
+    self._deleteOverlay.Visible = false
 end
 
 function Panel:destroy()
