@@ -188,6 +188,15 @@ function MultiAnimDataServer.setup()
     local existing = ReplicatedStorage:FindFirstChild("MultiAnimGetScene")
     if existing then existing:Destroy() end   -- replace stale one on hot-reload
 
+    -- Reconnect any Motor6D.Part0 left nil by the animation plugin.
+    -- In Studio, pressing Play copies the edit workspace including disconnected motors;
+    -- this repairs them server-side before clients load so rigs never appear broken.
+    for _, inst in ipairs(workspace:GetDescendants()) do
+        if inst:IsA("Motor6D") and inst.Part0 == nil then
+            inst.Part0 = inst.Parent
+        end
+    end
+
     local remote       = Instance.new("RemoteFunction")
     remote.Name        = "MultiAnimGetScene"
     remote.Parent      = ReplicatedStorage

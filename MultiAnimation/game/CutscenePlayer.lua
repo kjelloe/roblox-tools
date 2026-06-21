@@ -186,14 +186,14 @@ function CutscenePlayer.play(sceneName, rigMap, options)
         if entry then workspaceRigs[rigName] = entry end
     end
 
-    -- Track FIGURES source rigs for each scene rig so we can hide the ones
-    -- that are being replaced by player clones (not fixed workspace rigs).
-    local figureSourceRigs = {}
-    local figFolder = workspace:FindFirstChild("FIGURES")
-    if figFolder then
-        for rigName in pairs(sceneData.rigs) do
-            local src = figFolder:FindFirstChild(rigName)
-            if src then figureSourceRigs[rigName] = src end
+    -- Collect all workspace instances tagged for this scene ("MAnim:<sceneName>").
+    -- These are the original source rigs regardless of which folder they live in.
+    local CS = game:GetService("CollectionService")
+    local sceneTag = "MAnim:" .. sceneName
+    local taggedSourceRigs = {}
+    for _, inst in ipairs(CS:GetTagged(sceneTag)) do
+        if inst:IsA("Model") then
+            taggedSourceRigs[inst.Name] = inst
         end
     end
 
@@ -207,10 +207,10 @@ function CutscenePlayer.play(sceneName, rigMap, options)
     end
     local resolvedRigs, teardownRigs = PlayerRigProxy.resolveAll(workspaceRigs, preAnchors)
 
-    -- Hide any FIGURES source rigs whose slot is being played by a clone/player rig.
-    -- Fixed rigs (resolvedRigs[n] IS the FIGURES rig) stay visible — they ARE the animation.
+    -- Hide any tagged source rigs whose slot is being played by a clone/player rig.
+    -- Fixed rigs (resolvedRigs[n] IS the tagged rig itself) stay visible.
     local hiddenSourceParts = {}
-    for rigName, src in pairs(figureSourceRigs) do
+    for rigName, src in pairs(taggedSourceRigs) do
         if resolvedRigs[rigName] ~= src then
             for _, part in ipairs(src:GetDescendants()) do
                 if part:IsA("BasePart") then
