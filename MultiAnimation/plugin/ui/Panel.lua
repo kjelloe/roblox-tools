@@ -751,7 +751,7 @@ function Panel.new(widget)
     end)
     local simpleEaseBtn = btn(simpleActionRow, "Ease: Linear", 5)
     self._simpleEaseBtn = simpleEaseBtn
-    local simpleEffectsBtn = btn(simpleActionRow, "Effects", 6)
+    local simpleEffectsBtn = btn(simpleActionRow, "Add effect", 6)
     simpleEffectsBtn.MouseButton1Click:Connect(function()
         if self._isPlaying then return end
         self:showSpawnedFxOverlay(self._currentFrame, nil)
@@ -1600,9 +1600,9 @@ function Panel.new(widget)
         pbLoopBtn.Text = "Loop: " .. (self._pbLoop and "ON" or "OFF")
         ePlaybackParams:Fire({ loop = self._pbLoop, movieMode = self._pbMovieMode })
     end)
-    local pbMovieBtn = btn(pbParamRow, "Movie: OFF", 2)
+    local pbMovieBtn = btn(pbParamRow, "Movie: ON", 2)
     self._pbMovieBtn = pbMovieBtn
-    self._pbMovieMode = false
+    self._pbMovieMode = true
     pbMovieBtn.MouseButton1Click:Connect(function()
         self._pbMovieMode = not self._pbMovieMode
         pbMovieBtn.Text = "Movie: " .. (self._pbMovieMode and "ON" or "OFF")
@@ -1640,8 +1640,15 @@ function Panel.new(widget)
     pbSnipBox.Parent            = pbSnipFrame
     self._pbSnipBox = pbSnipBox
 
+    -- Spacer between snippet box and action buttons
+    local pbSnipSpacer = Instance.new("Frame")
+    pbSnipSpacer.Size               = UDim2.new(1, 0, 0, 6)
+    pbSnipSpacer.BackgroundTransparency = 1
+    pbSnipSpacer.LayoutOrder        = 8
+    pbSnipSpacer.Parent             = playbackSec
+
     -- Copy Snippet button (below snippet box)
-    local pbCopyRow = hrow(playbackSec, 8, 4)
+    local pbCopyRow = hrow(playbackSec, 9, 4)
     local pbCopyBtn = btn(pbCopyRow, "📋 Copy Snippet", 1)
     pbCopyBtn.MouseButton1Click:Connect(function()
         ePlaybackCopy:Fire(pbSnipBox.Text)

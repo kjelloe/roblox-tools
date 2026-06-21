@@ -157,7 +157,12 @@ local playbackSceneIdx = 0      -- index into playbackScenes (1-based)
 local playbackRigModes = {}     -- { [rigName] = modeKey }
 local playbackFPS      = 30
 local playbackLoop     = false
-local playbackMovieMode= false
+local playbackMovieMode= true   -- default ON; drives letterbox + camera
+-- Cached scene contents (populated in refreshCurrentPlaybackScene)
+local exportedPropNames    = {}
+local exportedEffectNames  = {}
+local exportedHasCamera    = false
+local exportedSpawnedCount = 0
 
 -- FOV-frustum outline drawn on the SimpleCamera part — an apex (the part's
 -- origin) plus a far rectangle sized from the FOV, so aim and field of view
@@ -311,11 +316,10 @@ local function applyPosesAt(queryFrame, immediate)
         end
     end
 
-    -- Simple Mode: pose the manipulable camera gizmo itself (not the
-    -- viewport — that's Look Through's job, mirrored independently via its
-    -- own Heartbeat connection below). Apply whenever the part exists,
-    -- regardless of the Camera View toggle state, so scrub/playback always
-    -- reflects recorded camera poses.
+    -- Simple Mode: pose the manipulable camera gizmo itself. When Look Through
+    -- is ON, also drive workspace.CurrentCamera so the Look Through Heartbeat
+    -- (viewport → gizmo) copies the interpolated position rather than the
+    -- stale pre-playback viewport, which would otherwise overwrite the gizmo.
     if mode == "simple" and simpleCameraPart and simpleCameraPart.Parent then
         local camData = Interpolator.getCameraData(recorder, queryFrame)
         if camData then
@@ -332,6 +336,9 @@ local function applyPosesAt(queryFrame, immediate)
                 drawSimpleCameraFrustum(simpleCameraPart, camData.fov)
             end
             panel:setSimpleFOVDisplay(camData.fov)
+            if simpleLookThroughOn then
+                CameraCapture.apply(camData.cf, camData.fov)
+            end
         end
     end
     -- Keep the "Cam KF: move/cut/—" button reflecting the current frame.
@@ -1747,44 +1754,64 @@ buildPlaybackSnippet = function()
         panel:setPlaybackSnippet("-- no scene selected --")
         return
     end
-    local rigLines = {}
+
+    -- Rig mapping lines (sorted by rig name for deterministic output).
+    local rigPairs = {}
     for rigName, modeKey in pairs(playbackRigModes) do
+        table.insert(rigPairs, { name = rigName, mode = modeKey })
+    end
+    table.sort(rigPairs, function(a, b) return a.name < b.name end)
+
+    local rigLines = {}
+    for _, entry in ipairs(rigPairs) do
+        local rn, modeKey = entry.name, entry.mode
         local line
-        if modeKey == "fixed" then
-            line = string.format('        %s = workspace.FIGURES.%s,', rigName, rigName)
-        elseif modeKey == "localClone" then
-            line = string.format('        %s = { player = game.Players.LocalPlayer, mode = "clone" },', rigName)
+        if modeKey == "localClone" then
+            line = string.format('        %s = { player = game.Players.LocalPlayer, mode = "clone" },  -- current player (clone)', rn)
         elseif modeKey == "localDirect" then
-            line = string.format('        %s = { player = game.Players.LocalPlayer, mode = "direct" },', rigName)
+            line = string.format('        %s = { player = game.Players.LocalPlayer, mode = "direct" }, -- current player (direct)', rn)
         elseif modeKey == "userIdClone" then
-            line = string.format('        -- Replace 0 with the target player\'s UserId\n        %s = { userId = 0, mode = "clone" },', rigName)
+            line = string.format('        %s = { userId = 0, mode = "clone" },   -- replace 0 with target UserId', rn)
         elseif modeKey == "userIdDirect" then
-            line = string.format('        -- Replace 0 with the target player\'s UserId\n        %s = { userId = 0, mode = "direct" },', rigName)
-        else
-            line = string.format('        %s = workspace.FIGURES.%s,', rigName, rigName)
+            line = string.format('        %s = { userId = 0, mode = "direct" },  -- replace 0 with target UserId', rn)
+        else -- "fixed"
+            line = string.format('        %s = workspace.FIGURES.%s,', rn, rn)
         end
         table.insert(rigLines, line)
     end
+
     local rigBlock = #rigLines > 0
         and table.concat(rigLines, "\n")
-        or table.concat({
-            '        -- No rig mappings configured. Examples:',
-            '        -- Rig1 = workspace.FIGURES.Rig1,                              -- fixed scene rig',
-            '        -- Rig1 = { player = game.Players.LocalPlayer, mode = "clone" },  -- current player (clone)',
-            '        -- Rig1 = { player = game.Players.LocalPlayer, mode = "direct" }, -- current player (direct)',
-            '        -- Rig1 = { userId = 1234567, mode = "clone" },                -- specific player by UserId',
-            '        -- Rig1 = game.Players:FindFirstChild("PlayerName").Character,  -- player by name',
-        }, "\n")
-    local optExtras = {}
-    if playbackLoop     then table.insert(optExtras, "loop = true")      end
-    if playbackMovieMode then table.insert(optExtras, "movieMode = true") end
-    local optsStr = #optExtras > 0
-        and ("{ " .. table.concat(optExtras, ", ") .. " }")
-        or  "{}"
+        or  '        -- No rigs detected — export the scene first'
+
+    -- Opts: movieMode always listed (toggle controls value), loop only when on.
+    local optExtras = { playbackMovieMode and "movieMode = true" or "movieMode = false" }
+    if playbackLoop then table.insert(optExtras, "loop = true") end
+    local optsStr = "{ " .. table.concat(optExtras, ", ") .. " }"
+
+    -- Scene-contents comment lines.
+    local extraLines = {}
+    if #exportedPropNames > 0 then
+        table.insert(extraLines, "-- Props: " .. table.concat(exportedPropNames, ", "))
+    end
+    if #exportedEffectNames > 0 then
+        table.insert(extraLines, "-- Effects: " .. table.concat(exportedEffectNames, ", "))
+    end
+    if exportedHasCamera then
+        table.insert(extraLines, "-- Camera track included")
+    end
+    if exportedSpawnedCount > 0 then
+        table.insert(extraLines, string.format("-- Spawned effects: %d", exportedSpawnedCount))
+    end
+    local extraComment = #extraLines > 0
+        and (table.concat(extraLines, "\n") .. "\n")
+        or  ""
+
     local snippet = string.format(
         '-- LocalScript in StarterPlayerScripts (or StarterCharacterScripts)\n' ..
-        '-- Server prerequisite (Script in ServerScriptService):\n' ..
+        '-- Server setup (Script in ServerScriptService):\n' ..
         '--   require(game.ServerStorage.MultiAnimationData.MultiAnimDataServer).setup()\n' ..
+        '%s' ..
         'local RS = game:GetService("ReplicatedStorage")\n' ..
         'local CutscenePlayer = require(RS:WaitForChild("CutscenePlayer"))\n' ..
         'local handle = CutscenePlayer.play(\n' ..
@@ -1792,9 +1819,10 @@ buildPlaybackSnippet = function()
         '    {\n' ..
         '%s\n' ..
         '    },\n' ..
-        '    %s  -- fps uses scene export default; add fps=N to override\n' ..
+        '    %s\n' ..
         ')\n' ..
         '-- handle.stop()  -- call to cancel early',
+        extraComment,
         playbackScene,
         rigBlock,
         optsStr
@@ -1875,6 +1903,13 @@ refreshCurrentPlaybackScene = function()
     panel:setPlaybackSceneDisplay(playbackScene)
     local ssData   = game:GetService("ServerStorage"):FindFirstChild("MultiAnimationData")
     local exported = ssData and ssData:FindFirstChild(playbackScene)
+
+    -- Reset cached scene metadata.
+    exportedPropNames    = {}
+    exportedEffectNames  = {}
+    exportedHasCamera    = false
+    exportedSpawnedCount = 0
+
     if exported then
         panel:setPlaybackExportWarning(nil)
         local exportedRigNames = {}
@@ -1892,6 +1927,40 @@ refreshCurrentPlaybackScene = function()
             panel:rebuildPlaybackRigRows(exportedRigNames, playbackRigModes)
         else
             panel:rebuildPlaybackRigRows({}, playbackRigModes)
+        end
+
+        -- Extract prop names from PropTracks module.
+        local propMod = exported:FindFirstChild("PropTracks")
+        if propMod then
+            local ok, data = pcall(require, propMod)
+            if ok and type(data) == "table" and type(data.tracks) == "table" then
+                for name in pairs(data.tracks) do table.insert(exportedPropNames, name) end
+                table.sort(exportedPropNames)
+            end
+        end
+
+        -- Extract effect names (last path segment) from EffectTracks module.
+        local fxMod = exported:FindFirstChild("EffectTracks")
+        if fxMod then
+            local ok, data = pcall(require, fxMod)
+            if ok and type(data) == "table" and type(data.tracks) == "table" then
+                for path in pairs(data.tracks) do
+                    local short = path:match("([^.]+)$") or path
+                    table.insert(exportedEffectNames, short)
+                end
+                table.sort(exportedEffectNames)
+            end
+        end
+
+        exportedHasCamera = exported:FindFirstChild("CameraTrack") ~= nil
+
+        -- Count spawned effects.
+        local sfxMod = exported:FindFirstChild("SpawnedEffects")
+        if sfxMod then
+            local ok, data = pcall(require, sfxMod)
+            if ok and type(data) == "table" then
+                exportedSpawnedCount = #data
+            end
         end
     else
         panel:setPlaybackExportWarning("Scene not yet exported — run Export first")
