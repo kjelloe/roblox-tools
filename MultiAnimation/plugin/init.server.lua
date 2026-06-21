@@ -1126,7 +1126,17 @@ local function ensureSimpleCameraPart()
         part.CastShadow   = false
         part.Material     = Enum.Material.Neon
         part.Color        = Color3.fromRGB(80, 200, 255)
-        part.CFrame       = workspace.CurrentCamera.CFrame
+        -- Spawn near average HRP position of tracked rigs
+        local rigPosSum = Vector3.new(0, 0, 0)
+        local rigCount  = 0
+        for _, rig in pairs(allRigs) do
+            local hrp = rig:FindFirstChild("HumanoidRootPart")
+            if hrp then rigPosSum = rigPosSum + hrp.Position; rigCount += 1 end
+        end
+        local spawnPos = rigCount > 0
+            and (rigPosSum / rigCount + Vector3.new(0, 2, 8))
+            or  workspace.CurrentCamera.CFrame.Position
+        part.CFrame       = CFrame.new(spawnPos, spawnPos - Vector3.new(0, 0, 8))
         part:SetAttribute("FOV", simpleCameraFOV)
         part.Parent = fig
         print("[MultiAnimation] Simple: created manipulable camera object 'SimpleCamera' in FIGURES")
@@ -1354,14 +1364,22 @@ end
 local function doSimpleInsertFrame()
     if isPlaying then return end
     local frame = timeline:setCurrent(timeline:getCurrent())  -- clamp
+    -- Capture current frame before shifting, so the duplicate is accurate
+    if simpleFrameHasData(frame) then
+        doSimpleCaptureFrame(frame)
+    end
     recorder:shiftFrames(frame + 1, 1)
     local newCount = timeline:getFrameCount() + 1
     timeline:setFrameCount(newCount)
     recorder:setFrameCount(newCount)
     panel:setFrameCount(newCount)
+    -- Copy data from frame into frame+1 (the newly created gap)
+    doSimpleCaptureFrame(frame + 1)
+    local f = timeline:setCurrent(frame + 1)
     rebuildAllSimpleMarkers()
-    panel:setFrameDisplay(frame, newCount)
-    applyPosesAt(frame, false)
+    panel:setFrameDisplay(f, newCount)
+    applyPosesAt(f, false)
+    scheduleAutoSave()
 end
 
 -- Delete the current frame: remove its data, shift all data at frames after
@@ -1616,7 +1634,8 @@ end)
 
 -- ── Playback tab helpers ──────────────────────────────────────────────────────
 
-local buildPlaybackSnippet  -- forward declaration; defined just after doPlaybackScan
+local buildPlaybackSnippet         -- forward declaration; defined just after doPlaybackScan
+local refreshCurrentPlaybackScene  -- forward declaration; defined before onPlaybackSceneChanged
 
 -- Refresh the playbackScenes list from saved sessions and push to panel.
 local function doPlaybackScan()
@@ -1644,12 +1663,7 @@ local function doPlaybackScan()
             if n == playbackScene then playbackSceneIdx = i; break end
         end
     end
-    panel:setPlaybackSceneDisplay(playbackScene)
-    -- Rebuild rig rows: use the exported scene's rig names if we can find them
-    -- from the session index (names not available without loading the scene,
-    -- so start with an empty row set — rows get rebuilt when scene is loaded).
-    panel:rebuildPlaybackRigRows({}, playbackRigModes)
-    buildPlaybackSnippet()
+    refreshCurrentPlaybackScene()
 end
 
 -- Build the Lua snippet string and push to the panel's TextBox.
@@ -1743,6 +1757,22 @@ end)
 panel.onSimpleAddFrame:Connect(doSimpleAddFrame)
 panel.onSimpleInsertFrame:Connect(doSimpleInsertFrame)
 panel.onSimpleDeleteFrame:Connect(doSimpleDeleteFrame)
+
+panel.onSceneRenamed:Connect(function(oldName, newName)
+    if oldName == "" or newName == "" then return end
+    local oldTag = "MAnim:" .. oldName
+    local newTag = "MAnim:" .. newName
+    local count  = 0
+    for _, inst in ipairs(CollectionService:GetTagged(oldTag)) do
+        CollectionService:RemoveTag(inst, oldTag)
+        CollectionService:AddTag(inst, newTag)
+        count += 1
+    end
+    if count > 0 then
+        print(string.format("[MultiAnimation] Renamed scene tag: %s → %s (%d instances)", oldTag, newTag, count))
+    end
+    doSimpleScan()
+end)
 panel.onSimpleCameraToggled:Connect(setSimpleCameraOn)
 panel.onSimpleLookThroughToggled:Connect(function(isOn)
     local result = setSimpleLookThroughOn(isOn)
@@ -1765,29 +1795,53 @@ end)
 
 -- ── Playback tab event handlers ───────────────────────────────────────────────
 
+refreshCurrentPlaybackScene = function()
+    if not playbackScene then return end
+    panel:setPlaybackSceneDisplay(playbackScene)
+    local ssData   = game:GetService("ServerStorage"):FindFirstChild("MultiAnimationData")
+    local exported = ssData and ssData:FindFirstChild(playbackScene)
+    if exported then
+        panel:setPlaybackExportWarning(nil)
+        local exportedRigNames = {}
+        for _, child in ipairs(exported:GetChildren()) do
+            local joints = child:FindFirstChild("_Joints")
+            if joints and joints:IsA("KeyframeSequence") then
+                table.insert(exportedRigNames, child.Name)
+            end
+        end
+        table.sort(exportedRigNames)
+        if #exportedRigNames > 0 then
+            for _, rn in ipairs(exportedRigNames) do
+                if not playbackRigModes[rn] then playbackRigModes[rn] = "fixed" end
+            end
+            panel:rebuildPlaybackRigRows(exportedRigNames, playbackRigModes)
+        else
+            panel:rebuildPlaybackRigRows({}, playbackRigModes)
+        end
+    else
+        panel:setPlaybackExportWarning("Scene not yet exported — run Export first")
+        panel:rebuildPlaybackRigRows({}, playbackRigModes)
+    end
+    buildPlaybackSnippet()
+end
+
 panel.onPlaybackSceneChanged:Connect(function(name)
     if name == "__prev__" then
         if #playbackScenes == 0 then return end
         playbackSceneIdx = ((playbackSceneIdx - 2) % #playbackScenes) + 1
         playbackScene    = playbackScenes[playbackSceneIdx]
-        panel:setPlaybackSceneDisplay(playbackScene)
-        panel:rebuildPlaybackRigRows({}, playbackRigModes)
-        buildPlaybackSnippet()
+        refreshCurrentPlaybackScene()
     elseif name == "__next__" then
         if #playbackScenes == 0 then return end
         playbackSceneIdx = (playbackSceneIdx % #playbackScenes) + 1
         playbackScene    = playbackScenes[playbackSceneIdx]
-        panel:setPlaybackSceneDisplay(playbackScene)
-        panel:rebuildPlaybackRigRows({}, playbackRigModes)
-        buildPlaybackSnippet()
+        refreshCurrentPlaybackScene()
     else
         playbackScene = name
         for i, n in ipairs(playbackScenes) do
             if n == name then playbackSceneIdx = i; break end
         end
-        panel:setPlaybackSceneDisplay(playbackScene)
-        panel:rebuildPlaybackRigRows({}, playbackRigModes)
-        buildPlaybackSnippet()
+        refreshCurrentPlaybackScene()
     end
 end)
 
@@ -1797,23 +1851,17 @@ panel.onPlaybackRigChanged:Connect(function(rigName, modeKey)
 end)
 
 panel.onPlaybackParamsChanged:Connect(function(params)
-    if params.fps        ~= nil then playbackFPS       = math.clamp(math.floor(params.fps), 1, 999) end
     if params.loop       ~= nil then playbackLoop      = params.loop end
     if params.movieMode  ~= nil then playbackMovieMode = params.movieMode end
     buildPlaybackSnippet()
 end)
 
 panel.onPlaybackCopySnippet:Connect(function(text)
-    -- Studio doesn't expose a clipboard API in plugin context.
-    -- We set the snippet box text (already set) and print to output as fallback.
     print("[MultiAnimation] Snippet copied to Output — paste it into your LocalScript:\n" .. tostring(text))
 end)
 
 panel.onPlaybackPreview:Connect(function()
-    -- Preview: execute snippet in Client context via execute_luau is not possible
-    -- from plugin. Best UX: print a reminder and let the user run it manually.
-    print("[MultiAnimation] To preview, paste the snippet (see Output) into a LocalScript and run in Play mode.")
-    buildPlaybackSnippet()
+    -- Modal overlay is shown directly in Panel.lua; nothing to do server-side.
 end)
 
 panel.onCopyKeyframeRequested:Connect(doCopyKeyframe)

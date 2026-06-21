@@ -253,7 +253,7 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 | `◄` / `►` | Click | Step one frame back / forward |
 | **Simple mode** `Ease: Linear` | Click | Open easing picker: Linear / Ease In / Ease Out / EaseInOut / Constant / Bounce. Sets the outgoing curve for the next frame capture. Auto-syncs when you navigate to an existing keyframe. |
 | **Simple mode** `+ Add Frame` | Click | Capture current frame's pose. At the blank end slot: grow the timeline by 1 and advance cursor. At an existing frame: update its data and advance cursor by 1 (no grow). |
-| **Simple mode** `+ Insert` | Click | Insert a blank frame at the current position, shift all subsequent frame data right by 1 |
+| **Simple mode** `Duplicate` | Click | Capture current frame, duplicate it into a new frame immediately after, and move cursor there |
 | **Simple mode** `▶ Play` / `■ Stop` | Click | Play from the current frame to the end, or stop mid-playback |
 | **Simple mode** `Del Frame` | Click | Delete the current frame's data, shift all subsequent frames left by 1, shrink the timeline |
 | **Simple mode** `Camera View` | Click | ON: create/show the manipulable `SimpleCamera` part and arm camera capture on `+ Add Frame`. OFF: hide the part (kept in FIGURES for next toggle-on). |
@@ -358,6 +358,8 @@ Tag: [FIGURES ▼]  [Rigs ✓]  [Props ✓]  [Effects □]  [Clear scene tags]  
 
 **Scene row** (last row): `Scene:` box · `💾 Save` · `⬆ Export` · `Save As` · `Load` · `New`
 
+> **Renaming a scene:** type a new name in the `Scene:` box and press Tab/Enter. All `MAnim:<oldName>` CollectionService tags on tracked instances are automatically renamed to `MAnim:<newName>` — the scene binding survives the rename.
+
 Then: scrubber + frame counter, nav row (**Del Frame** · **+ Insert** · **▶ Play/Stop**
 · **+ Add Frame** · **FPS box**), **Camera View** + **FOV** + **Look Through**, **Onion Skin**.
 
@@ -374,10 +376,10 @@ only tagged instances are tracked. There's no "Track Part" or "+ Rig" step.
   advances the cursor by 1 without growing the timeline (useful for re-posing a
   frame you navigated back to). The typical forward loop is:
   pose → **+ Add Frame** → pose → **+ Add Frame** → …
-- **`+ Insert`** — shifts all frames *after* the current one right by 1,
-  growing the timeline by 1 without overwriting what's already there. The
-  cursor stays on the current frame, which is now blank — ready for a new
-  pose. Use this to slip a new key between two existing ones.
+- **`Duplicate`** — captures the current frame, shifts all frames *after* it
+  right by 1, and copies the current frame's data into the newly created
+  frame right after it. The cursor moves to the duplicate. Use this to start
+  from the same pose as the current frame and tweak from there.
 - **`Del Frame`** — removes the current frame's data, shifts all subsequent
   frames left by 1 (so frame numbers stay contiguous), and shrinks the
   timeline by 1. The cursor lands on min(current, newEnd).
@@ -401,7 +403,9 @@ Tab or Enter to apply. The setting is saved with the session.
 
 **Camera View:** toggling it on creates (or reuses) a **`SimpleCamera`**
 part in `FIGURES` — a real, manipulable object you pose with Studio's normal
-move/rotate tools, exactly like a rig or prop. A wireframe outline on the
+move/rotate tools, exactly like a rig or prop. When created for the first
+time in a scene, it spawns near the average position of the tagged rigs
+(offset 2 units up, 8 units back) so it frames them immediately. A wireframe outline on the
 part shows its field of view and aim direction at a glance (an apex plus a
 far rectangle sized from the FOV — not a solid shape, so it won't block
 your view of anything behind it). When Camera View is on, pressing **+ Add
@@ -462,7 +466,8 @@ as one of the rigs.
            Rig1 = workspace.FIGURES.Rig1,
            Rig2 = { player = game.Players.LocalPlayer, mode = "clone" },
        },
-       { fps = 30, loop = false, movieMode = true }
+       { loop = true, movieMode = true }
+       -- fps uses the scene's recorded export fps by default; add fps=N to override
    )
    -- handle.stop() to cancel early
    ```
@@ -483,10 +488,11 @@ Both R6 and R15 player characters are supported.
 
 | Control | Effect |
 |---------|--------|
-| **◄ / ►** scene selector | Cycle through saved sessions |
-| **FPS box** | Override playback speed (1–999; default uses the scene's recorded fps) |
+| **◄ / ►** scene selector | Cycle through saved sessions. A yellow warning appears if the selected scene has not been exported yet. |
 | **Loop** | Restart automatically when the last frame is reached |
 | **Movie Mode** | Shows cinematic black bars (top/bottom 10%) during playback |
+
+> **FPS:** playback speed is read from the scene's export data. To override it, add `fps = N` to the opts table in the generated snippet — the Playback tab no longer shows an FPS box.
 
 ### Movie Mode (letterbox)
 

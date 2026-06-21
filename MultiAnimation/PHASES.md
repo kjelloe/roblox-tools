@@ -674,6 +674,35 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
     `MultiAnimPlayer`, `PlayerRigProxy`, `CutscenePlayer`, `MultiAnimDataServer`,
     `LetterboxGui`, `CutsceneServer`, `CutsceneCamera`.
 
+- ✅ **UI refinements (post-Phase-10 polish round 2):**
+  - **Selected frame highlight:** current frame icon turns light blue (`iconSel` colour)
+    instead of the accent blue used for hover; preserved across marker rebuilds.
+  - **Scene rename propagates tags:** `onSceneRenamed` fires on `FocusLost` of the scene
+    name box; `init.server.lua` renames all `MAnim:<oldName>` CollectionService tags to
+    `MAnim:<newName>` and rescans.
+  - **Brighter overlay and hint text:** `muted` raised to RGB(170,170,170), overlay body
+    text uses a new `ovText` constant RGB(205,205,205) — visible on the dark gray panel.
+  - **Camera spawns near rigs:** `ensureSimpleCameraPart()` computes the average
+    HumanoidRootPart position of all tracked rigs and places the camera there +
+    Vector3(0,2,8); falls back to `CurrentCamera.CFrame.Position` if no rigs are tracked.
+  - **Duplicate frame:** `+ Insert` renamed `Duplicate`. Captures the current frame,
+    shifts subsequent frames right by 1, copies the current frame's data into the new
+    frame+1, and navigates there. Old bridge name `simpleInsertFrame` preserved.
+  - **Snippet uses actual exported rig names:** `refreshCurrentPlaybackScene()` reads
+    `ServerStorage.MultiAnimationData.<scene>` for children with a `_Joints`
+    `KeyframeSequence` and seeds `playbackRigModes` with their names; rig rows reflect
+    the real animation cast instead of a blank list.
+  - **Copy snippet below snippet box; Preview modal:** "📋 Copy Snippet" moved to its
+    own row (LO 8) below the snippet `TextBox`. The `Preview` button now opens an
+    in-panel modal overlay (`pbPreviewOv`) with the full snippet text and a `✕` close
+    button — no more console print.
+  - **Export warning:** yellow `TextLabel` below the scene selector; shown when the
+    selected scene has no export in `ServerStorage.MultiAnimationData`; cleared when
+    the export exists. Fires on scene change and on `refreshPlaybackScenes`.
+  - **FPS removed from Playback tab:** `pbFPSBox` and "FPS:" label removed; params row
+    has only Loop and Movie Mode toggles. `setPlaybackFPSDisplay` is a no-op. Bridge
+    `setPlaybackParams` still accepts `fps` for test compatibility.
+
 ### Backlog
 
 - Multiple named cameras + switcher track (authoring sugar over Phase 8 cuts)

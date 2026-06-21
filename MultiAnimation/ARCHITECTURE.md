@@ -455,6 +455,13 @@ Tag: [FIGURES ▼]  [Rigs ✓]  [Props ✓]  [Effects □]  [Clear scene tags]  
 - Tagging is additive (`CollectionService:AddTag` is idempotent); `doClearSceneTags`
   is the explicit reset.
 
+**Scene rename — propagating tags:**
+Renaming the scene name box (FocusLost) fires `panel.onSceneRenamed(oldName, newName)`.
+The handler in `init.server.lua` uses `CollectionService:GetTagged("MAnim:" .. oldName)`
+to collect all tagged instances, removes the old tag, and applies `"MAnim:" .. newName` to
+each. `doSimpleScan` is then called to resync the rig/prop lists. The rename is atomic for
+all currently tagged instances and survives a plugin reload.
+
 **"New" button (scene row, next to Load):**
 - Auto-increments the scene name (`Scene_001` → `Scene_002`, `Foo` → `Foo_001`,
   preserving zero-pad width).
@@ -709,6 +716,34 @@ transparent overlay (ZIndex 40). Outside click dismisses via overlay `MouseButto
 easing-only options. `simpleCurrentEasing` is stamped onto all tracks at capture time.
 Frame navigation syncs the button to the stored easing of the arrived-at keyframe.
 
+### Playback Tab
+
+The third mode in the panel (alongside Simple and Advanced). Layout order:
+
+1. Scene selector row: ◄ [scene name] ► — cycles through saved sessions
+2. Export warning label (yellow) — visible when the selected scene has no export in
+   `ServerStorage.MultiAnimationData`; cleared automatically when the export exists
+3. Rig mapping header
+4. Rig rows container (dynamic, one row per exported rig): name + mode cycle btn + UserId box
+5. Params row: Loop toggle + Movie Mode toggle (FPS removed — read from `sceneData.fps`)
+6. Snippet header
+7. Snippet TextBox (read-only display, green-tinted code font)
+8. Copy row: 📋 Copy Snippet + Preview btn
+   - Copy prints snippet to Output (Studio has no clipboard API in plugin context)
+   - Preview opens `pbPreviewOv` — an in-panel modal overlay with the full snippet text
+     and a ✕ close button (ZIndex 55); no console print
+
+**Rig name discovery:** `refreshCurrentPlaybackScene()` queries
+`ServerStorage.MultiAnimationData.<scene>` for child instances that have a
+`_Joints KeyframeSequence`. These are the exported rig names — they seed
+`playbackRigModes` (preserving existing mode choices) and populate the rig rows.
+If no export exists, an empty row set is shown and the export warning fires.
+
+**Snippet generation:** `buildPlaybackSnippet()` builds a Lua string from
+`playbackScene`, `playbackRigModes`, `playbackLoop`, and `playbackMovieMode`.
+`fps` is never injected into the opts table (CutscenePlayer reads it from the
+scene export; the snippet includes a comment to add `fps=N` if needed).
+
 ### Plugin Play-Mode Guard
 
 `init.server.lua` begins with `if game:GetService("RunService"):IsRunning() then return end`. The root element of the plugin `.rbxmx` is a `Script` class, which Roblox also executes as a server script when play mode starts. This guard prevents the plugin from disconnecting Motor6D joints or interfering with runtime animation.
@@ -722,7 +757,7 @@ Frame navigation syncs the button to the stored easing of the arrived-at keyfram
 | `build.py` | Assembles `.rbxmx` from source files and copies to Plugins folder |
 | `watch.py` | Auto-build on save, with Studio compile-check first |
 | `devsync.py` + `plugin/devloader.lua` | Hot-reload the plugin on save — no Studio restart |
-| `run_tests.py` | Runs the full `tests/` suite (~548 cases, 25 files) against live Studio |
+| `run_tests.py` | Runs the full `tests/` suite (~561 cases, 25 files) against live Studio |
 | `hotpatch.py` | Push a single `game/` module without reload (all 7 game/ modules in PATCH_MAP) |
 | `mcp.py` (`mcp` alias) | CLI for everything: luau, console/tail, tree/inspect/read/grep, check, drift, test, deploy, playtest, gen, store, addrig, scene, daemon |
 | MCP daemon | Persistent StudioMCP proxy (auto-starts) — 0.07s/call vs ~7s |

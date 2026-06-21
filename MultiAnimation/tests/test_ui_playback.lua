@@ -147,25 +147,25 @@ call("setPlaybackParams", { loop = true })
 snippet = call("getPlaybackSnippet")
 ok(snippet:find("loop = true") ~= nil, "snippet: loop=true reflected in snippet")
 
--- ── 16. Snippet: loop=false changes snippet ───────────────────────────────────
+-- ── 16. Snippet: loop=false → no loop key in opts ────────────────────────────
 call("setPlaybackParams", { loop = false })
 snippet = call("getPlaybackSnippet")
-ok(snippet:find("loop = false") ~= nil, "snippet: loop=false reflected in snippet")
+ok(snippet:find("loop = true") == nil, "snippet: no loop key when loop=false")
 
 -- ── 17. Snippet: movieMode=true changes snippet ───────────────────────────────
 call("setPlaybackParams", { movieMode = true })
 snippet = call("getPlaybackSnippet")
 ok(snippet:find("movieMode = true") ~= nil, "snippet: movieMode=true reflected in snippet")
 
--- ── 18. Snippet: movieMode=false changes snippet ─────────────────────────────
+-- ── 18. Snippet: movieMode=false → no movieMode key in opts ──────────────────
 call("setPlaybackParams", { movieMode = false })
 snippet = call("getPlaybackSnippet")
-ok(snippet:find("movieMode = false") ~= nil, "snippet: movieMode=false reflected in snippet")
+ok(snippet:find("movieMode = true") == nil, "snippet: no movieMode key when movieMode=false")
 
--- ── 19. Snippet: FPS reflected in snippet ────────────────────────────────────
+-- ── 19. Snippet: fps not in opts (fps is set by export, not at runtime) ──────
 call("setPlaybackParams", { fps = 24 })
 snippet = call("getPlaybackSnippet")
-ok(snippet:find("fps = 24") ~= nil, "snippet: fps=24 reflected in snippet")
+ok(snippet:find("fps =") == nil, "snippet: fps not injected into opts (CutscenePlayer reads from export)")
 
 -- ── 20. Mode switch away from playback and back ───────────────────────────────
 call("setMode", { mode = "advanced" })

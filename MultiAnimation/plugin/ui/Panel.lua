@@ -53,7 +53,7 @@ local SIMPLE_ICON_H  = 24   -- px height of the icon row
 local C = {
     bg        = Color3.fromRGB(46,  46,  46),
     sectionBg = Color3.fromRGB(37,  37,  37),
-    header    = Color3.fromRGB(140, 140, 140),
+    header    = Color3.fromRGB(160, 160, 160),
     divider   = Color3.fromRGB(62,  62,  62),
     btnBg     = Color3.fromRGB(68,  68,  68),
     btnHover  = Color3.fromRGB(90,  90,  90),
@@ -62,9 +62,12 @@ local C = {
     btnDim    = Color3.fromRGB(50,  50,  50),
     btnText   = Color3.fromRGB(210, 210, 210),
     btnDimTxt = Color3.fromRGB(100, 100, 100),
-    muted     = Color3.fromRGB(100, 100, 100),
+    muted     = Color3.fromRGB(170, 170, 170),
+    ovText    = Color3.fromRGB(205, 205, 205),
+    iconSel   = Color3.fromRGB(100, 190, 255),  -- selected frame icon highlight
     inputBg   = Color3.fromRGB(55,  55,  55),
     inputText = Color3.fromRGB(220, 220, 220),
+    warning   = Color3.fromRGB(255, 210, 60),
 }
 
 local function _relTime(ts)
@@ -364,6 +367,7 @@ function Panel.new(widget)
     local eClearSceneTagsPreview = mkEvent("onClearSceneTagsPreviewRequested")-- fires ()
     local eNewAnimationPreview   = mkEvent("onNewAnimationPreviewRequested")  -- fires (newName)
     local eRefreshTags           = mkEvent("onRefreshTagsRequested")          -- fires ()
+    local eSceneRenamed          = mkEvent("onSceneRenamed")                  -- fires (oldName, newName)
 
     -- Playback tab events
     local ePlaybackSceneChanged   = mkEvent("onPlaybackSceneChanged")    -- fires (sceneName)
@@ -725,7 +729,7 @@ function Panel.new(widget)
     simpleDelFrameBtn.MouseButton1Click:Connect(function()
         if not self._isPlaying then eSimpleDeleteFrame:Fire() end
     end)
-    local simpleInsertBtn = btn(simpleActionRow, "+ Insert", 2)
+    local simpleInsertBtn = btn(simpleActionRow, "Duplicate", 2)
     simpleInsertBtn.MouseButton1Click:Connect(function()
         if not self._isPlaying then eSimpleInsertFrame:Fire() end
     end)
@@ -885,6 +889,15 @@ function Panel.new(widget)
     lbl(simpleSceneRow, "Scene:", 42, 1)
     local simpleSceneBox = textBox(simpleSceneRow, "Scene_001", 80, 2)
     self._simpleSceneBox = simpleSceneBox
+    self._lastSceneName  = simpleSceneBox.Text
+    simpleSceneBox.FocusLost:Connect(function()
+        local newName = simpleSceneBox.Text
+        if newName ~= self._lastSceneName and self._lastSceneName ~= "" then
+            eSceneRenamed:Fire(self._lastSceneName, newName)
+        end
+        self._lastSceneName = newName
+    end)
+    self.onSceneRenamed = eSceneRenamed.Event
     local simpleSaveBtn   = btn(simpleSceneRow, "💾 Save",   3)
     local simpleExportBtn = btn(simpleSceneRow, "⬆  Export", 4, true)
     local simpleSaveAsBtn = btn(simpleSceneRow, "Save As",   5)
@@ -1132,7 +1145,7 @@ function Panel.new(widget)
     local newOvMsg = Instance.new("TextLabel")
     newOvMsg.Size               = UDim2.new(1, 0, 0, 16)
     newOvMsg.BackgroundTransparency = 1
-    newOvMsg.TextColor3         = C.muted
+    newOvMsg.TextColor3         = C.ovText
     newOvMsg.Text               = "Clear all keyframes and start fresh?"
     newOvMsg.TextSize           = 11
     newOvMsg.Font               = Enum.Font.Gotham
@@ -1183,7 +1196,7 @@ function Panel.new(widget)
     local tagConfMsg = Instance.new("TextLabel")
     tagConfMsg.Size               = UDim2.new(1, 0, 0, 48)
     tagConfMsg.BackgroundTransparency = 1
-    tagConfMsg.TextColor3         = C.muted
+    tagConfMsg.TextColor3         = C.ovText
     tagConfMsg.Text               = ""
     tagConfMsg.TextSize           = 11
     tagConfMsg.Font               = Enum.Font.Gotham
@@ -1216,6 +1229,7 @@ function Panel.new(widget)
 
     function self:setSimpleSceneName(name)
         if self._simpleSceneBox then self._simpleSceneBox.Text = name end
+        self._lastSceneName = name or ""
     end
 
     function self:setTagFolder(name)
@@ -1312,8 +1326,30 @@ function Panel.new(widget)
         ePlaybackSceneChanged:Fire("__next__")
     end)
 
+    -- Warning label: shown when selected scene has no export in ServerStorage
+    local pbWarnLbl = Instance.new("TextLabel")
+    pbWarnLbl.Name                 = "PBExportWarning"
+    pbWarnLbl.Size                 = UDim2.new(1, 0, 0, 14)
+    pbWarnLbl.BackgroundTransparency = 1
+    pbWarnLbl.TextColor3           = C.warning
+    pbWarnLbl.Text                 = ""
+    pbWarnLbl.TextSize             = 11
+    pbWarnLbl.Font                 = Enum.Font.GothamBold
+    pbWarnLbl.TextXAlignment       = Enum.TextXAlignment.Left
+    pbWarnLbl.LayoutOrder          = 2
+    pbWarnLbl.Visible              = false
+    pbWarnLbl.Parent               = playbackSec
+    self._pbWarnLbl = pbWarnLbl
+
+    function self:setPlaybackExportWarning(msg)
+        if self._pbWarnLbl then
+            self._pbWarnLbl.Text    = msg or ""
+            self._pbWarnLbl.Visible = (msg ~= nil and msg ~= "")
+        end
+    end
+
     -- Rig mapping header
-    local pbRigHdr = hrow(playbackSec, 2, 2)
+    local pbRigHdr = hrow(playbackSec, 3, 2)
     lbl(pbRigHdr, "Rig slot → workspace / player", nil, 1)
 
     -- Rig rows container (dynamically populated by _rebuildPlaybackRigRows)
@@ -1322,7 +1358,7 @@ function Panel.new(widget)
     pbRigContainer.Size               = UDim2.new(1, 0, 0, 0)
     pbRigContainer.AutomaticSize      = Enum.AutomaticSize.Y
     pbRigContainer.BackgroundTransparency = 1
-    pbRigContainer.LayoutOrder        = 3
+    pbRigContainer.LayoutOrder        = 4
     pbRigContainer.Parent             = playbackSec
     listLayout(pbRigContainer, Enum.FillDirection.Vertical, 2)
     self._pbRigContainer = pbRigContainer
@@ -1336,43 +1372,27 @@ function Panel.new(widget)
         { key = "userIdDirect", label = "UserId—direct"      },
     }
 
-    -- Playback params row: FPS / Loop / Movie Mode
-    local pbParamRow = hrow(playbackSec, 4, 4)
-    lbl(pbParamRow, "FPS:", 28, 1)
-    local pbFPSBox = textBox(pbParamRow, "30", 34, 2)
-    self._pbFPSBox = pbFPSBox
-    local pbLoopBtn = btn(pbParamRow, "Loop: OFF", 3)
+    -- Params row: Loop / Movie Mode (FPS removed — set during export)
+    local pbParamRow = hrow(playbackSec, 5, 4)
+    local pbLoopBtn = btn(pbParamRow, "Loop: OFF", 1)
     self._pbLoopBtn = pbLoopBtn
     self._pbLoop = false
     pbLoopBtn.MouseButton1Click:Connect(function()
         self._pbLoop = not self._pbLoop
         pbLoopBtn.Text = "Loop: " .. (self._pbLoop and "ON" or "OFF")
-        ePlaybackParams:Fire({ fps = tonumber(pbFPSBox.Text) or 30,
-            loop = self._pbLoop, movieMode = self._pbMovieMode })
+        ePlaybackParams:Fire({ loop = self._pbLoop, movieMode = self._pbMovieMode })
     end)
-    local pbMovieBtn = btn(pbParamRow, "Movie: OFF", 4)
+    local pbMovieBtn = btn(pbParamRow, "Movie: OFF", 2)
     self._pbMovieBtn = pbMovieBtn
     self._pbMovieMode = false
     pbMovieBtn.MouseButton1Click:Connect(function()
         self._pbMovieMode = not self._pbMovieMode
         pbMovieBtn.Text = "Movie: " .. (self._pbMovieMode and "ON" or "OFF")
-        ePlaybackParams:Fire({ fps = tonumber(pbFPSBox.Text) or 30,
-            loop = self._pbLoop, movieMode = self._pbMovieMode })
-    end)
-    pbFPSBox.FocusLost:Connect(function()
-        local n = tonumber(pbFPSBox.Text)
-        if n then
-            n = math.clamp(math.floor(n), 1, 999)
-            pbFPSBox.Text = tostring(n)
-        else
-            pbFPSBox.Text = "30"
-        end
-        ePlaybackParams:Fire({ fps = tonumber(pbFPSBox.Text) or 30,
-            loop = self._pbLoop, movieMode = self._pbMovieMode })
+        ePlaybackParams:Fire({ loop = self._pbLoop, movieMode = self._pbMovieMode })
     end)
 
     -- Snippet label
-    local pbSnipHdr = hrow(playbackSec, 5, 2)
+    local pbSnipHdr = hrow(playbackSec, 6, 2)
     lbl(pbSnipHdr, "Lua snippet  (paste into a LocalScript)", nil, 1)
 
     -- Snippet TextBox (multi-line, read-only display)
@@ -1381,7 +1401,7 @@ function Panel.new(widget)
     pbSnipFrame.Size               = UDim2.new(1, -8, 0, 120)
     pbSnipFrame.BackgroundColor3   = Color3.fromRGB(30, 30, 30)
     pbSnipFrame.BorderSizePixel    = 0
-    pbSnipFrame.LayoutOrder        = 6
+    pbSnipFrame.LayoutOrder        = 7
     pbSnipFrame.Parent             = playbackSec
     Instance.new("UICorner", pbSnipFrame).CornerRadius = UDim.new(0, 4)
     Instance.new("UIPadding", pbSnipFrame).PaddingLeft = UDim.new(0, 4)
@@ -1402,14 +1422,60 @@ function Panel.new(widget)
     pbSnipBox.Parent            = pbSnipFrame
     self._pbSnipBox = pbSnipBox
 
-    -- Copy + Preview buttons
-    local pbActionRow = hrow(playbackSec, 7, 4)
-    local pbCopyBtn = btn(pbActionRow, "📋 Copy Snippet", 1)
+    -- Copy Snippet button (below snippet box)
+    local pbCopyRow = hrow(playbackSec, 8, 4)
+    local pbCopyBtn = btn(pbCopyRow, "📋 Copy Snippet", 1)
     pbCopyBtn.MouseButton1Click:Connect(function()
         ePlaybackCopy:Fire(pbSnipBox.Text)
     end)
-    local pbPreviewBtn = btn(pbActionRow, "▶ Preview", 2, true)
+    -- Preview button: shows snippet in a modal overlay
+    local pbPreviewBtn = btn(pbCopyRow, "Preview", 2, true)
+
+    -- Preview modal overlay (shows full snippet in a larger scrollable box)
+    local pbPreviewOv = Instance.new("Frame")
+    pbPreviewOv.Name               = "PBPreviewOverlay"
+    pbPreviewOv.Size               = UDim2.new(1, -16, 0, 220)
+    pbPreviewOv.AnchorPoint        = Vector2.new(0.5, 0.5)
+    pbPreviewOv.Position           = UDim2.new(0.5, 0, 0.5, 0)
+    pbPreviewOv.BackgroundColor3   = Color3.fromRGB(28, 28, 28)
+    pbPreviewOv.BorderSizePixel    = 0
+    pbPreviewOv.ZIndex             = 55
+    pbPreviewOv.Visible            = false
+    pbPreviewOv.Parent             = widget
+    Instance.new("UICorner", pbPreviewOv).CornerRadius = UDim.new(0, 6)
+    local _pvStroke = Instance.new("UIStroke")
+    _pvStroke.Color     = Color3.fromRGB(80, 180, 255)
+    _pvStroke.Thickness = 1
+    _pvStroke.Parent    = pbPreviewOv
+    listLayout(pbPreviewOv, Enum.FillDirection.Vertical, 6)
+    addPadding(pbPreviewOv, 8, 8)
+
+    local pvHdrRow = hrow(pbPreviewOv, 1, 4)
+    local pvHdrLbl = lbl(pvHdrRow, "Snippet preview", nil, 1)
+    pvHdrLbl.TextColor3 = C.header
+    local pvCloseBtn = smallBtn(pvHdrRow, "✕", 2)
+    pvCloseBtn.MouseButton1Click:Connect(function() pbPreviewOv.Visible = false end)
+
+    local pvSnipBox = Instance.new("TextBox")
+    pvSnipBox.Name              = "PreviewSnipBox"
+    pvSnipBox.Size              = UDim2.new(1, 0, 1, -34)
+    pvSnipBox.BackgroundTransparency = 1
+    pvSnipBox.TextColor3        = Color3.fromRGB(200, 230, 200)
+    pvSnipBox.Text              = ""
+    pvSnipBox.TextSize          = 10
+    pvSnipBox.Font              = Enum.Font.Code
+    pvSnipBox.TextXAlignment    = Enum.TextXAlignment.Left
+    pvSnipBox.TextYAlignment    = Enum.TextYAlignment.Top
+    pvSnipBox.MultiLine         = true
+    pvSnipBox.TextWrapped       = false
+    pvSnipBox.ClearTextOnFocus  = false
+    pvSnipBox.LayoutOrder       = 2
+    pvSnipBox.Parent            = pbPreviewOv
+    pvSnipBox.ZIndex            = 56
+
     pbPreviewBtn.MouseButton1Click:Connect(function()
+        pvSnipBox.Text          = pbSnipBox.Text
+        pbPreviewOv.Visible     = true
         ePlaybackPreview:Fire()
     end)
 
@@ -1619,12 +1685,7 @@ function Panel:setPlaybackSnippet(text)
     end
 end
 
--- Update FPS display in the Playback tab.
-function Panel:setPlaybackFPSDisplay(fps)
-    if self._pbFPSBox then
-        self._pbFPSBox.Text = tostring(math.floor(fps or 30))
-    end
-end
+function Panel:setPlaybackFPSDisplay(_fps) end -- FPS removed from playback tab
 
 -- Push Loop state display.
 function Panel:setPlaybackLoopDisplay(on)
@@ -1958,7 +2019,7 @@ function Panel:setFrameDisplay(current, total)
         local prevBtn = self._simpleIcons[prev]
         local curBtn  = self._simpleIcons[current]
         if prevBtn then prevBtn.BackgroundColor3 = C.btnBg end
-        if curBtn  then curBtn.BackgroundColor3  = C.btnAccent end
+        if curBtn  then curBtn.BackgroundColor3  = C.iconSel end
     end
     for _, lane in pairs(self._trackLanes) do
         lane:setActiveFrame(current)
@@ -1986,7 +2047,7 @@ function Panel:addSimpleFrameIcon(frame, slotIdx)
     b.Name             = "FrameIcon_" .. frame
     b.Size             = UDim2.new(0, SIMPLE_ICON_W - 2, 0, SIMPLE_ICON_H)
     b.Position         = UDim2.new(0, (slot - 1) * SIMPLE_ICON_W + 1, 0, 0)
-    b.BackgroundColor3 = (frame == self._currentFrame) and C.btnAccent or C.btnBg
+    b.BackgroundColor3 = (frame == self._currentFrame) and C.iconSel or C.btnBg
     b.BorderSizePixel  = 0
     b.Text             = tostring(frame)
     b.TextColor3       = C.btnText
@@ -1999,7 +2060,8 @@ function Panel:addSimpleFrameIcon(frame, slotIdx)
         if frame ~= self._currentFrame then b.BackgroundColor3 = C.btnHover end
     end)
     b.MouseLeave:Connect(function()
-        if frame ~= self._currentFrame then b.BackgroundColor3 = C.btnBg end
+        if frame ~= self._currentFrame then b.BackgroundColor3 = C.btnBg
+        else b.BackgroundColor3 = C.iconSel end
     end)
     b.MouseButton1Click:Connect(function()
         self._eFrame:Fire(frame)

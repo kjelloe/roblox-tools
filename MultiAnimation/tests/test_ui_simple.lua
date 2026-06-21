@@ -101,8 +101,8 @@ end
 -- ── Add Frame / Insert Frame / Delete Frame ───────────────────────────────────
 -- simpleAddFrame: captures current frame, grows frameCount by 1, moves cursor
 --   to the new end frame.
--- simpleInsertFrame: shifts data at frames >= current+1 right by 1, grows
---   frameCount by 1, cursor stays at current (left-side anchor).
+-- simpleInsertFrame (Duplicate): captures current frame, shifts data >= current+1
+--   right by 1, copies current frame data to current+1, moves cursor to current+1.
 -- simpleDeleteFrame: removes data at current frame, shifts data at frames >
 --   current left by 1, shrinks frameCount by 1 (minimum 1).
 --
@@ -150,11 +150,12 @@ do
         call("setFrame", { frame = 1 })
         call("simpleAddFrame")   -- frameCount = initCount+1, cursor at initCount+1
 
-        -- Navigate back to frame 1 and insert a blank frame after it.
-        -- insert shifts data at >= 2 right: frame 1's data stays, frame 2 is blank.
+        -- Navigate back to frame 1 and duplicate it.
+        -- Duplicate captures frame 1, shifts data >= 2 right, copies frame 1 data
+        -- into new frame 2, and moves cursor to 2.
         call("setFrame", { frame = 1 })
         r = call("simpleInsertFrame")
-        ok("simpleInsertFrame stays at current frame (1)", r.ok and r.result == 1, r.err)
+        ok("simpleInsertFrame (Duplicate) moves cursor to new frame (2)", r.ok and r.result == 2, r.err)
 
         r = call("getFrameCount")
         ok("simpleInsertFrame grows frameCount to initCount+2", r.ok and r.result == initCount + 2, r.err)
@@ -163,10 +164,9 @@ do
         ok("frame 1 data preserved after simpleInsertFrame", r.ok and r.result == true, r.err)
 
         r = call("simpleFrameHasData", { frame = 2 })
-        ok("frame 2 is a blank inserted frame", r.ok and r.result == false, r.err)
+        ok("frame 2 is a duplicate of frame 1 (has data)", r.ok and r.result == true, r.err)
 
-        -- Cleanup: delete frame 2 (blank insert), then frame 1 (captured data).
-        -- Each delete shifts and shrinks; two deletes restore initCount.
+        -- Cleanup: delete frame 2 (duplicate), then frame 1 (original).
         call("setFrame", { frame = 2 })
         call("simpleDeleteFrame")
         call("setFrame", { frame = 1 })
