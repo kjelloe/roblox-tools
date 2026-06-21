@@ -10,8 +10,8 @@ local MultiAnimDataServer = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage     = game:GetService("ServerStorage")
 
--- Mirror of MultiAnimPlayer's POSE_TO_JOINT mapping.
-local POSE_TO_JOINT = {
+-- Legacy R6 pose-name → motor-name map (old hierarchy export format).
+local LEGACY_POSE_TO_JOINT = {
     Torso         = "RootJoint",
     Head          = "Neck",
     ["Right Arm"] = "Right Shoulder",
@@ -21,19 +21,31 @@ local POSE_TO_JOINT = {
 }
 
 -- Parse a KeyframeSequence into a serializable list.
+-- Handles both the legacy R6 hierarchy format (Torso child under HumanoidRootPart)
+-- and the current flat format (motor names as direct children of HumanoidRootPart).
 local function parseKFS(kfs)
     local out = {}
     for _, kf in ipairs(kfs:GetKeyframes()) do
         local hrpPose = kf:FindFirstChild("HumanoidRootPart")
         if not hrpPose then continue end
+        local poses = {}
         local torsoPose = hrpPose:FindFirstChild("Torso")
-        if not torsoPose then continue end
-        local poses = { RootJoint = torsoPose.CFrame }
-        for _, child in ipairs(torsoPose:GetChildren()) do
-            local jName = POSE_TO_JOINT[child.Name]
-            if jName then poses[jName] = child.CFrame end
+        if torsoPose then
+            -- Legacy R6 hierarchy format
+            poses["RootJoint"] = torsoPose.CFrame
+            for _, child in ipairs(torsoPose:GetChildren()) do
+                local jName = LEGACY_POSE_TO_JOINT[child.Name]
+                if jName then poses[jName] = child.CFrame end
+            end
+        else
+            -- Flat format: each child Pose is named by motor name directly
+            for _, child in ipairs(hrpPose:GetChildren()) do
+                poses[child.Name] = child.CFrame
+            end
         end
-        table.insert(out, { time = kf.Time, poses = poses })
+        if next(poses) then
+            table.insert(out, { time = kf.Time, poses = poses })
+        end
     end
     table.sort(out, function(a, b) return a.time < b.time end)
     return out

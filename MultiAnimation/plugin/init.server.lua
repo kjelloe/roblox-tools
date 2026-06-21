@@ -255,6 +255,19 @@ local function reconnectAllRigs()
     end
 end
 
+-- Reconnect motors the moment play mode starts so rigs don't fall apart in-game.
+-- The workspace is shared between plugin and game contexts in Studio.
+do
+    local _wasRunning = false
+    RunService.Heartbeat:Connect(function()
+        local running = RunService:IsRunning()
+        if running ~= _wasRunning then
+            _wasRunning = running
+            if running then reconnectAllRigs() end
+        end
+    end)
+end
+
 -- ── Helpers ───────────────────────────────────────────────────────────────────
 
 local function applyPosesAt(queryFrame, immediate)
@@ -1587,6 +1600,12 @@ buildPlaybackSnippet = function()
             '        -- Rig1 = { userId = 1234567, mode = "clone" },                -- specific player by UserId',
             '        -- Rig1 = game.Players:FindFirstChild("PlayerName").Character,  -- player by name',
         }, "\n")
+    local optExtras = {}
+    if playbackLoop     then table.insert(optExtras, "loop = true")      end
+    if playbackMovieMode then table.insert(optExtras, "movieMode = true") end
+    local optsStr = #optExtras > 0
+        and ("{ " .. table.concat(optExtras, ", ") .. " }")
+        or  "{}"
     local snippet = string.format(
         '-- LocalScript in StarterPlayerScripts (or StarterCharacterScripts)\n' ..
         '-- Server prerequisite (Script in ServerScriptService):\n' ..
@@ -1598,14 +1617,12 @@ buildPlaybackSnippet = function()
         '    {\n' ..
         '%s\n' ..
         '    },\n' ..
-        '    { fps = %d, loop = %s, movieMode = %s }\n' ..
+        '    %s  -- fps uses scene export default; add fps=N to override\n' ..
         ')\n' ..
         '-- handle.stop()  -- call to cancel early',
         playbackScene,
         rigBlock,
-        playbackFPS,
-        tostring(playbackLoop),
-        tostring(playbackMovieMode)
+        optsStr
     )
     panel:setPlaybackSnippet(snippet)
 end

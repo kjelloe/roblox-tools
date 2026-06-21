@@ -186,6 +186,17 @@ function CutscenePlayer.play(sceneName, rigMap, options)
         if entry then workspaceRigs[rigName] = entry end
     end
 
+    -- Track FIGURES source rigs for each scene rig so we can hide the ones
+    -- that are being replaced by player clones (not fixed workspace rigs).
+    local figureSourceRigs = {}
+    local figFolder = workspace:FindFirstChild("FIGURES")
+    if figFolder then
+        for rigName in pairs(sceneData.rigs) do
+            local src = figFolder:FindFirstChild(rigName)
+            if src then figureSourceRigs[rigName] = src end
+        end
+    end
+
     -- Resolve player entries → actual rig models (may clone/hide player character).
     -- We need anchors first; do a pre-pass with whatever rootKFs give us.
     local preAnchors = {}
@@ -195,6 +206,31 @@ function CutscenePlayer.play(sceneName, rigMap, options)
         end
     end
     local resolvedRigs, teardownRigs = PlayerRigProxy.resolveAll(workspaceRigs, preAnchors)
+
+    -- Hide any FIGURES source rigs whose slot is being played by a clone/player rig.
+    -- Fixed rigs (resolvedRigs[n] IS the FIGURES rig) stay visible — they ARE the animation.
+    local hiddenSourceParts = {}
+    for rigName, src in pairs(figureSourceRigs) do
+        if resolvedRigs[rigName] ~= src then
+            for _, part in ipairs(src:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    hiddenSourceParts[part] = part.Transparency
+                    part.Transparency = 1
+                end
+            end
+        end
+    end
+    local function restoreSourceRigs()
+        for part, t in pairs(hiddenSourceParts) do
+            if part and part.Parent then part.Transparency = t end
+        end
+        hiddenSourceParts = {}
+    end
+    local _origTeardown = teardownRigs
+    teardownRigs = function()
+        restoreSourceRigs()
+        _origTeardown()
+    end
 
     -- Recompute anchors now that we have the actual resolved models.
     local anchorCFs = buildAnchorCFs(sceneData, resolvedRigs)
