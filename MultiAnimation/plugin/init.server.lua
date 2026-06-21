@@ -2370,7 +2370,15 @@ end)
 panel.onLoadNamedRequested:Connect(function(name)
     loadNamed(name)
     if mode == "simple" then
-        doSimpleScan()
+        -- Re-apply CollectionService tags before scanning so scanByTag finds rigs even
+        -- when the place was opened fresh or tags were cleared since the last save.
+        local sn = panel:getSimpleSceneName()
+        local tf = panel._tagFolderName
+        if sn and sn ~= "" and tf and tf ~= "" then
+            doRefreshTags()
+        else
+            doSimpleScan()
+        end
     end
     panel:hideLoadList()
 end)
@@ -3064,7 +3072,15 @@ local testBridge = TestBridge.start({
 
     loadSession = function(a)
         loadNamed(a.name)
-        if mode == "simple" then doSimpleScan() end
+        if mode == "simple" then
+            local sn = panel:getSimpleSceneName()
+            local tf = panel._tagFolderName
+            if sn and sn ~= "" and tf and tf ~= "" then
+                doRefreshTags()
+            else
+                doSimpleScan()
+            end
+        end
         return true
     end,
 
