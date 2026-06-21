@@ -1954,9 +1954,18 @@ panel.onFrameChanged:Connect(function(newFrame)
     -- nav buttons (scrubber drag is handled by onScrubBegan instead).
     if mode == "simple" and not isPlaying and not simpleScrubbing then
         local departureFrame = timeline:getCurrent()
-        if departureFrame ~= newFrame and simpleFrameHasData(departureFrame) then
-            doSimpleCaptureFrame(departureFrame)
-            scheduleAutoSave()
+        if departureFrame ~= newFrame then
+            if simpleFrameHasData(departureFrame) then
+                doSimpleCaptureFrame(departureFrame)
+                scheduleAutoSave()
+            elseif simpleCameraOn and simpleCameraPart and simpleCameraPart.Parent then
+                -- Camera-only capture: no rig data at this frame, but user may have
+                -- repositioned the camera part here — save it so camera KFs can exist
+                -- at frames that don't coincide with any rig keyframe.
+                recorder:addCameraKeyframe(departureFrame, simpleCameraPart.CFrame, simpleCameraFOV, "move", simpleCurrentEasing)
+                panel:addCameraKeyframeMarker(departureFrame, "move")
+                scheduleAutoSave()
+            end
         end
     end
     local f = timeline:setCurrent(newFrame)
@@ -1984,6 +1993,10 @@ panel.onScrubBegan:Connect(function()
             simpleScrubbing = true
             if simpleFrameHasData(frame) then
                 doSimpleCaptureFrame(frame)
+                scheduleAutoSave()
+            elseif simpleCameraOn and simpleCameraPart and simpleCameraPart.Parent then
+                recorder:addCameraKeyframe(frame, simpleCameraPart.CFrame, simpleCameraFOV, "move", simpleCurrentEasing)
+                panel:addCameraKeyframeMarker(frame, "move")
                 scheduleAutoSave()
             end
         else
@@ -2316,10 +2329,30 @@ track(Selection.SelectionChanged:Connect(function()
     for _, inst in ipairs(selected) do
         local frameStr = inst.Name:match("^CamKF_(%d+)$")
         if frameStr and inst.Parent and inst.Parent.Name == CAM_GIZMO_FOLDER then
+            -- Capture current frame before applyPosesAt resets poses.
+            if mode == "simple" then
+                local cur = timeline:getCurrent()
+                if simpleFrameHasData(cur) then
+                    doSimpleCaptureFrame(cur)
+                elseif simpleCameraOn and simpleCameraPart and simpleCameraPart.Parent then
+                    recorder:addCameraKeyframe(cur, simpleCameraPart.CFrame, simpleCameraFOV, "move", simpleCurrentEasing)
+                    panel:addCameraKeyframeMarker(cur, "move")
+                end
+            end
             local f = timeline:setCurrent(tonumber(frameStr))
             panel:setFrameDisplay(f, timeline:getFrameCount())
             applyPosesAt(f, false)
             return
+        end
+    end
+
+    -- In Simple Mode, capture the current frame before switching selection so
+    -- any pose changes made to the previously-selected rig/prop are not lost.
+    if mode == "simple" and not simpleScrubbing then
+        local cur = timeline:getCurrent()
+        if simpleFrameHasData(cur) then
+            doSimpleCaptureFrame(cur)
+            scheduleAutoSave()
         end
     end
 
@@ -2852,9 +2885,15 @@ local testBridge = TestBridge.start({
         local targetFrame = a.frame
         if mode == "simple" and not isPlaying then
             local departureFrame = timeline:getCurrent()
-            if departureFrame ~= targetFrame and simpleFrameHasData(departureFrame) then
-                doSimpleCaptureFrame(departureFrame)
-                scheduleAutoSave()
+            if departureFrame ~= targetFrame then
+                if simpleFrameHasData(departureFrame) then
+                    doSimpleCaptureFrame(departureFrame)
+                    scheduleAutoSave()
+                elseif simpleCameraOn and simpleCameraPart and simpleCameraPart.Parent then
+                    recorder:addCameraKeyframe(departureFrame, simpleCameraPart.CFrame, simpleCameraFOV, "move", simpleCurrentEasing)
+                    panel:addCameraKeyframeMarker(departureFrame, "move")
+                    scheduleAutoSave()
+                end
             end
         end
         local f = timeline:setCurrent(targetFrame)
