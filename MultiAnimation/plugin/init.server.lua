@@ -372,7 +372,13 @@ local function serializeSession()
     -- When in simple/playback mode the timeline has a small synthetic frame count;
     -- serialize the real advanced count so plugin reloads don't start with 1–2 frames.
     local savedFC = advancedFrameCount or session.frameCount
-    local out = { fps = session.fps, frameCount = savedFC, rigs = {}, props = {} }
+    local out = {
+        fps        = session.fps,
+        frameCount = savedFC,
+        sceneName  = panel:getSimpleSceneName(),
+        tagFolder  = panel._tagFolderName,
+        rigs = {}, props = {},
+    }
     for rigName, rigData in pairs(session.rigs) do
         local jOut, sOut, rOut, eOut = {}, {}, {}, {}
         for frame, jointData in pairs(rigData.jointTrack) do
@@ -596,6 +602,12 @@ local function applySessionData(data)
     if rebuildCameraUI then rebuildCameraUI() end
     panel:setFrameCount(frameCount)
     panel:setFrameDisplay(timeline:getCurrent(), frameCount)
+    if data.sceneName and data.sceneName ~= "" then
+        panel:setSimpleSceneName(data.sceneName)
+    end
+    if data.tagFolder then
+        panel:setTagFolder(data.tagFolder)
+    end
 end
 
 local function loadNamed(name)
@@ -656,6 +668,76 @@ local function doClearSceneTags()
     end
     print(string.format("[MultiAnimation] Removed tag %s from %d instance(s)", tag, removed))
     doSimpleScan()
+end
+
+-- Adds tags to any new (untagged) items in the selected folder, then warns about
+-- any recorder rig/prop tracks whose instance is no longer in that folder.
+local function doRefreshTags()
+    local sceneName  = panel:getSimpleSceneName()
+    local folderName = panel._tagFolderName
+    if not sceneName or sceneName == "" then
+        warn("[MultiAnimation] Set a scene name before refreshing tags")
+        return
+    end
+    if not folderName then
+        warn("[MultiAnimation] Select a folder before refreshing tags")
+        return
+    end
+    local folder = workspace:FindFirstChild(folderName)
+    if not folder then
+        warn("[MultiAnimation] Folder not found in workspace: " .. folderName)
+        return
+    end
+
+    local tag    = "MAnim:" .. sceneName
+    local types  = panel:getTagToggles()
+    local newlyTagged = 0
+    local folderSet   = {}
+
+    for _, child in ipairs(folder:GetChildren()) do
+        folderSet[child.Name] = true
+        local shouldTag = false
+        if types.rigs    and RigScanner.isAnimatableRig(child)     then shouldTag = true end
+        if types.props   and not RigScanner.isAnimatableRig(child) then
+            if child.Name ~= SIMPLE_CAMERA_NAME and getPropPart(child) then
+                shouldTag = true
+            end
+        end
+        if types.effects and EffectRunner.classify(child)          then shouldTag = true end
+        if shouldTag and not CollectionService:HasTag(child, tag) then
+            CollectionService:AddTag(child, tag)
+            newlyTagged += 1
+        end
+    end
+
+    -- Find recorder tracks whose rig/prop is no longer in the selected folder.
+    local orphans = {}
+    local session = recorder:getSession()
+    for rigName, rigData in pairs(session.rigs or {}) do
+        if not folderSet[rigName] then
+            if next(rigData.jointTrack or {}) ~= nil then
+                table.insert(orphans, rigName)
+            end
+        end
+    end
+    for propName in pairs(session.props or {}) do
+        if not folderSet[propName] then
+            table.insert(orphans, propName)
+        end
+    end
+    table.sort(orphans)
+
+    print(string.format("[MultiAnimation] Refresh: %d new tag(s), %d orphaned track(s)", newlyTagged, #orphans))
+    doSimpleScan()
+
+    if #orphans > 0 then
+        panel:showTagConfirm(
+            "Missing from " .. folderName,
+            "These recorded tracks have no matching instance\nin the folder and will not play:\n\n"
+                .. table.concat(orphans, "\n"),
+            function() end  -- informational — OK just dismisses
+        )
+    end
 end
 
 -- ── Auto-save ─────────────────────────────────────────────────────────────────
@@ -2105,6 +2187,9 @@ panel.onTagAllInRequested:Connect(function(folderName, types)
 end)
 panel.onClearSceneTagsRequested:Connect(function()
     doClearSceneTags()
+end)
+panel.onRefreshTagsRequested:Connect(function()
+    doRefreshTags()
 end)
 
 local function getTagCounts(sceneName)

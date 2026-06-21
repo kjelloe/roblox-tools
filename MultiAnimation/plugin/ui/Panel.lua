@@ -357,12 +357,13 @@ function Panel.new(widget)
     local eSimpleLook       = mkEvent("onSimpleLookThroughToggled")
     local eSimpleFPS        = mkEvent("onSimpleFPSChanged")
     local eSimpleOnion      = mkEvent("onSimpleOnionToggled")
-    local eTagFolderReq     = mkEvent("onTagFolderListRequested")   -- fires ()
-    local eTagAllIn         = mkEvent("onTagAllInRequested")        -- fires (folder, {rigs,props,effects})
+    local eTagFolderReq          = mkEvent("onTagFolderListRequested")        -- fires ()
+    local eTagAllIn              = mkEvent("onTagAllInRequested")             -- fires (folder, {rigs,props,effects})
     local eClearSceneTags        = mkEvent("onClearSceneTagsRequested")       -- fires ()
     local eNewAnimation          = mkEvent("onNewAnimationRequested")         -- fires (newName)
     local eClearSceneTagsPreview = mkEvent("onClearSceneTagsPreviewRequested")-- fires ()
     local eNewAnimationPreview   = mkEvent("onNewAnimationPreviewRequested")  -- fires (newName)
+    local eRefreshTags           = mkEvent("onRefreshTagsRequested")          -- fires ()
 
     -- Playback tab events
     local ePlaybackSceneChanged   = mkEvent("onPlaybackSceneChanged")    -- fires (sceneName)
@@ -973,12 +974,21 @@ function Panel.new(widget)
         setRigsOn(true); setPropsOn(true); setEffectsOn(false)
     end
 
-    local clearTagsBtn = btn(simpleTagRow, "Clear scene tags", 6)
+    function self:getTagToggles()
+        return { rigs = getRigsOn(), props = getPropsOn(), effects = getEffectsOn() }
+    end
+
+    local refreshTagsBtn = btn(simpleTagRow, "Refresh tags", 6)
+    refreshTagsBtn.MouseButton1Click:Connect(function()
+        if not self._isPlaying then eRefreshTags:Fire() end
+    end)
+
+    local clearTagsBtn = btn(simpleTagRow, "Clear scene tags", 7)
     clearTagsBtn.MouseButton1Click:Connect(function()
         if not self._isPlaying then eClearSceneTagsPreview:Fire() end
     end)
 
-    local manualTagLbl = lbl(simpleTagRow, "", nil, 7)
+    local manualTagLbl = lbl(simpleTagRow, "", nil, 8)
     manualTagLbl.TextSize = 10
     local function updateManualTagLbl()
         local name = (simpleSceneBox and simpleSceneBox.Text) or "Scene_001"
@@ -999,6 +1009,7 @@ function Panel.new(widget)
     self.onTagFolderListRequested  = eTagFolderReq.Event
     self.onTagAllInRequested       = eTagAllIn.Event
     self.onClearSceneTagsRequested = eClearSceneTags.Event
+    self.onRefreshTagsRequested    = eRefreshTags.Event
 
     -- Called by init.server.lua in response to onTagFolderListRequested.
     function self:openTagFolderDropdown(folderNames)
@@ -1205,6 +1216,13 @@ function Panel.new(widget)
 
     function self:setSimpleSceneName(name)
         if self._simpleSceneBox then self._simpleSceneBox.Text = name end
+    end
+
+    function self:setTagFolder(name)
+        self._tagFolderName = name or nil
+        if self._tagFolderBtn then
+            self._tagFolderBtn.Text = name and ("  " .. name .. " ▼  ") or "folder ▼"
+        end
     end
 
     -- ── Load list overlay ─────────────────────────────────────────────────────
