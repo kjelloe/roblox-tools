@@ -90,21 +90,15 @@ function PlayerRigProxy.resolve(entry, anchorCF)
 
     local character = player.Character
     if not character then
-        -- Character may still be loading — wait up to 10 s before giving up.
-        local timer = 0
-        repeat
-            task.wait(0.05)
-            timer += 0.05
-            character = player.Character
-        until character or timer >= 10
-        if not character then
-            warn("[PlayerRigProxy] Player '" .. player.Name .. "' has no character after 10s")
-            return nil, function() end
-        end
+        warn("[PlayerRigProxy] Player '" .. player.Name .. "' has no character yet")
+        return nil, function() end
     end
 
     if mode == "clone" then
+        -- Player.Character has Archivable=false by default; must enable before Clone().
+        character.Archivable = true
         local clone = character:Clone()
+        character.Archivable = false
         clone.Name  = character.Name .. "_MultiAnimClone"
         -- Strip any scripts so they don't re-run
         for _, s in ipairs(clone:GetDescendants()) do

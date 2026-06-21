@@ -42,7 +42,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # Only game/ targets are effective without a plugin reload.
 
 PATCH_MAP: dict[str, str] = {
-    "game/MultiAnimPlayer.lua": "ServerStorage.MultiAnimationData.MultiAnimPlayer",
+    "game/MultiAnimPlayer.lua":     "ServerStorage.MultiAnimationData.MultiAnimPlayer",
+    "game/PlayerRigProxy.lua":      "ReplicatedStorage.PlayerRigProxy",
+    "game/CutscenePlayer.lua":      "ReplicatedStorage.CutscenePlayer",
+    "game/MultiAnimDataServer.lua": "ServerStorage.MultiAnimationData.MultiAnimDataServer",
+    "game/LetterboxGui.lua":        "ReplicatedStorage.LetterboxGui",
+    "game/CutsceneServer.lua":      "ServerStorage.MultiAnimationData.CutsceneServer",
+    "game/CutsceneCamera.lua":      "ServerStorage.MultiAnimationData.CutsceneCamera",
 }
 
 # ── helpers ───────────────────────────────────────────────────────────────────

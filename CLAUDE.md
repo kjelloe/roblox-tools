@@ -67,6 +67,28 @@ game.ServerScriptService.Handler
 Workspace.Folder.Script
 ```
 
+## Roblox Creator Docs
+
+Navigation guide: `~/GIT/Roblox/roblox-docs/roblox_creator_docs_navigation_guide.md`
+Primary source: https://github.com/Roblox/creator-docs
+
+**Always prefer creator-docs over model training knowledge** — APIs, properties, events, enums, and security capabilities change. Model knowledge may be outdated.
+
+Key sections in creator-docs:
+| Question type | Path |
+|---|---|
+| Class / Method / Event / Property | `content/en-us/reference/engine` |
+| Luau syntax / coroutines / types | `content/en-us/scripting` |
+| Plugin APIs (PluginToolbar, DockWidget, etc.) | `content/en-us/studio/plugins` |
+| UI (ScreenGui, Frames, constraints) | `content/en-us/ui` |
+| Animation / Physics / Characters | `content/en-us/animation`, `/physics`, `/characters` |
+
+Fetch docs with the `http_get` MCP tool:
+```
+http_get(url: "https://create.roblox.com/docs/reference/engine/classes/Player.md")
+```
+Always check: security level, deprecated tags, thread safety, and NotReplicated before using any API.
+
 ## Development Notes
 
 - Scripts written here can be pasted into Studio, or use `multi_edit` / `execute_luau` to push changes directly.
@@ -74,6 +96,7 @@ Workspace.Folder.Script
 - Generation tools (`generate_*`) are async — always follow with `wait_job_finished`.
 - Multiple Studio instances: call `list_roblox_studios` then `set_active_studio` to pick the right one.
 - `execute_luau` requires `datamodel_type` ("Edit"/"Client"/"Server").
+- **Cloning Player.Character:** requires `character.Archivable = true` first — the default is `false` and `Clone()` silently returns nil otherwise. Always reset to `false` after cloning.
 
 ## Dev Tooling
 
