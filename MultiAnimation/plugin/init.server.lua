@@ -617,6 +617,10 @@ local function loadNamed(name)
         return
     end
     applySessionData(data)
+    -- Old saves have no sceneName field; fall back to the slot name itself.
+    if (not data.sceneName or data.sceneName == "") and name ~= "_autosave" then
+        panel:setSimpleSceneName(name)
+    end
     print("[MultiAnimation] Loaded '" .. name .. "'")
 end
 
