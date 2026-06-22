@@ -4,6 +4,26 @@
 local SpawnedEffectRunner = {}
 
 function SpawnedEffectRunner.fire(pos, effectType, params)
+    if effectType == "Sound" then
+        local part        = Instance.new("Part")
+        part.Name         = "__MAnim_SpawnedFX"
+        part.Anchored     = true; part.CanCollide = false; part.CastShadow = false
+        part.Transparency = 1; part.Size = Vector3.new(0.1, 0.1, 0.1)
+        part.CFrame       = CFrame.new(pos); part.Parent = workspace
+        local snd             = Instance.new("Sound")
+        snd.SoundId           = params.soundId or ""
+        snd.Volume            = math.clamp(params.volume or 1, 0, 10)
+        snd.RollOffMaxDistance = params.maxDistance or 80
+        snd.Parent            = part
+        snd:Play()
+        local function cleanup()
+            if part and part.Parent then part:Destroy() end
+        end
+        snd.Ended:Connect(cleanup)
+        task.delay(30, cleanup)
+        return
+    end
+
     local part            = Instance.new("Part")
     part.Name             = "__MAnim_SpawnedFX"
     part.Anchored         = true

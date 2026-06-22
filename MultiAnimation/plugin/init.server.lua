@@ -447,13 +447,18 @@ local function serializeSession()
     end
     out.spawnedEffects = {}
     for _, sfx in ipairs(session.spawnedEffects or {}) do
-        table.insert(out.spawnedEffects, {
+        local entry = {
             id = sfx.id, frame = sfx.frame, effectType = sfx.effectType,
             posX = sfx.posX, posY = sfx.posY, posZ = sfx.posZ,
-            size = sfx.size, colorR = sfx.colorR, colorG = sfx.colorG,
-            colorB = sfx.colorB, count = sfx.count, duration = sfx.duration,
-            speed = sfx.speed, lifetime = sfx.lifetime,
-        })
+        }
+        if sfx.effectType == "Sound" then
+            entry.soundId = sfx.soundId; entry.volume = sfx.volume; entry.maxDistance = sfx.maxDistance
+        else
+            entry.size = sfx.size; entry.colorR = sfx.colorR; entry.colorG = sfx.colorG
+            entry.colorB = sfx.colorB; entry.count = sfx.count; entry.duration = sfx.duration
+            entry.speed = sfx.speed; entry.lifetime = sfx.lifetime
+        end
+        table.insert(out.spawnedEffects, entry)
     end
     return out
 end
@@ -907,9 +912,9 @@ createEffectGizmo = function(fx)
     p.CastShadow    = false
     p.Transparency  = 0.3
     p.Archivable    = false
-    p.Color         = fx.effectType == "Smoke"
-        and Color3.fromRGB(150, 150, 150)
-        or  Color3.fromRGB(255, 120, 0)
+    p.Color         = fx.effectType == "Smoke" and Color3.fromRGB(150, 150, 150)
+                   or fx.effectType == "Sound" and Color3.fromRGB(80, 160, 255)
+                   or Color3.fromRGB(255, 120, 0)
     p.CFrame        = CFrame.new(fx.posX or 0, fx.posY or 0, fx.posZ or 0)
     p.Parent        = getEffectGizmoFolder()
     effectGizmos[fx.id] = p

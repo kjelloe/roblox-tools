@@ -12,6 +12,9 @@ SpawnedEffectRunner.PRESETS = {
         size = 5, colorR = 160, colorG = 160, colorB = 160,
         count = 25, duration = 4.0, speed = 4, lifetime = 5.0,
     },
+    Sound = {
+        soundId = "", volume = 1, maxDistance = 80,
+    },
 }
 
 -- Ordered list of editable properties shown in the Effects overlay.
@@ -37,9 +40,29 @@ function SpawnedEffectRunner.buildParams(effectType, overrides)
     return p
 end
 
--- Create a temporary Part+ParticleEmitter at pos, Emit, then Destroy after lifetime elapses.
+-- Create a temporary Part+ParticleEmitter (or Sound) at pos, fire it, then Destroy.
 -- Returns a cancel function that destroys it early.
 function SpawnedEffectRunner.fire(pos, effectType, params)
+    if effectType == "Sound" then
+        local part        = Instance.new("Part")
+        part.Name         = "__MAnim_SpawnedFX"
+        part.Anchored     = true; part.CanCollide = false; part.CastShadow = false
+        part.Transparency = 1; part.Size = Vector3.new(0.1, 0.1, 0.1)
+        part.CFrame       = CFrame.new(pos); part.Parent = workspace
+        local snd             = Instance.new("Sound")
+        snd.SoundId           = params.soundId or ""
+        snd.Volume            = math.clamp(params.volume or 1, 0, 10)
+        snd.RollOffMaxDistance = params.maxDistance or 80
+        snd.Parent            = part
+        snd:Play()
+        local function cleanup()
+            if part and part.Parent then part:Destroy() end
+        end
+        snd.Ended:Connect(cleanup)
+        task.delay(30, cleanup)  -- fallback if Ended never fires
+        return cleanup
+    end
+
     local part            = Instance.new("Part")
     part.Name             = "__MAnim_SpawnedFX"
     part.Anchored         = true

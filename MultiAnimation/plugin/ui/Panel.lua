@@ -1524,12 +1524,13 @@ function Panel.new(widget)
     end -- ── end DELETE OVERLAY ──────────────────────────────────────────────
 
     do -- SPAWNED FX OVERLAY
-    -- Card overlay for adding/editing single-frame spawned effects (Explosion, Smoke).
+    -- Card overlay for adding/editing single-frame spawned effects (Explosion, Smoke, Sound).
     -- Opened by the Effects button in Simple Mode action row, or by clicking a gizmo sphere.
-    local FX_TYPES = { "Explosion", "Smoke" }
+    local FX_TYPES = { "Explosion", "Smoke", "Sound" }
     local FX_DEFAULTS = {
         Explosion = { size=3, colorR=255, colorG=80,  colorB=0,   count=50, duration=0.6, speed=20, lifetime=1.0 },
         Smoke     = { size=5, colorR=160, colorG=160, colorB=160, count=25, duration=4.0, speed=4,  lifetime=5.0 },
+        Sound     = { soundId="", volume=1, maxDistance=80 },
     }
     local FX_PROPS = {
         { key="size",     label="Size"     },
@@ -1543,7 +1544,8 @@ function Panel.new(widget)
 
     local fxOv = Instance.new("Frame")
     fxOv.Name              = "SpawnedFxOverlay"
-    fxOv.Size              = UDim2.new(0, 240, 0, 368)
+    fxOv.Size              = UDim2.new(0, 240, 0, 0)
+    fxOv.AutomaticSize     = Enum.AutomaticSize.Y
     fxOv.AnchorPoint       = Vector2.new(0.5, 0.5)
     fxOv.Position          = UDim2.new(0.5, 0, 0.5, 0)
     fxOv.BackgroundColor3  = Color3.fromRGB(55, 55, 55)
@@ -1594,8 +1596,9 @@ function Panel.new(widget)
     local fxTypeBtn = btn(fxTypeRow, "Explosion", 2)
     fxTypeBtn.ZIndex = 56
 
-    -- Property input rows
+    -- Particle property input rows (LayoutOrder 3-9; hidden when type == Sound)
     local fxBoxes = {}
+    local fxBoxRows = {}
     for i, prop in ipairs(FX_PROPS) do
         local row = hrow(fxOv, 2 + i, 4)
         lbl(row, prop.label .. ":", 70, 1)
@@ -1603,6 +1606,36 @@ function Panel.new(widget)
         local box = textBox(row, tostring(defVal ~= nil and defVal or ""), 90, 2)
         box.ZIndex = 56
         fxBoxes[prop.key] = box
+        fxBoxRows[prop.key] = row
+    end
+
+    -- Sound-specific rows (LayoutOrder 3-5; hidden by default; shown only for Sound type)
+    local fxSoundIdRow = hrow(fxOv, 3, 4)
+    fxSoundIdRow.Visible = false
+    lbl(fxSoundIdRow, "Sound ID:", 62, 1)
+    local fxSoundIdBox = textBox(fxSoundIdRow, "rbxassetid://", 140, 2)
+    fxSoundIdBox.ZIndex = 56; fxSoundIdBox.ClearTextOnFocus = false
+
+    local fxSoundVolRow = hrow(fxOv, 4, 4)
+    fxSoundVolRow.Visible = false
+    lbl(fxSoundVolRow, "Volume:", 62, 1)
+    local fxSoundVolBox = textBox(fxSoundVolRow, "1", 80, 2)
+    fxSoundVolBox.ZIndex = 56
+
+    local fxSoundDistRow = hrow(fxOv, 5, 4)
+    fxSoundDistRow.Visible = false
+    lbl(fxSoundDistRow, "Max Dist:", 62, 1)
+    local fxSoundDistBox = textBox(fxSoundDistRow, "80", 80, 2)
+    fxSoundDistBox.ZIndex = 56
+
+    local function fxApplyTypeVisibility(effectType)
+        local isSound = effectType == "Sound"
+        for _, prop in ipairs(FX_PROPS) do
+            fxBoxRows[prop.key].Visible = not isSound
+        end
+        fxSoundIdRow.Visible  = isSound
+        fxSoundVolRow.Visible = isSound
+        fxSoundDistRow.Visible = isSound
     end
 
     -- Position row
@@ -1644,11 +1677,16 @@ function Panel.new(widget)
         end
         self._spawnedFxType = nextType
         fxTypeBtn.Text = "  " .. nextType .. "  "
+        fxApplyTypeVisibility(nextType)
         local p = FX_DEFAULTS[nextType]
         if p then
-            for _, prop in ipairs(FX_PROPS) do
-                if p[prop.key] ~= nil then
-                    fxBoxes[prop.key].Text = tostring(p[prop.key])
+            if nextType == "Sound" then
+                fxSoundIdBox.Text  = p.soundId or ""
+                fxSoundVolBox.Text = tostring(p.volume or 1)
+                fxSoundDistBox.Text = tostring(p.maxDistance or 80)
+            else
+                for _, prop in ipairs(FX_PROPS) do
+                    if p[prop.key] ~= nil then fxBoxes[prop.key].Text = tostring(p[prop.key]) end
                 end
             end
         end
@@ -1662,8 +1700,14 @@ function Panel.new(widget)
             effectType = self._spawnedFxType  or "Explosion",
             posX = pos.X, posY = pos.Y, posZ = pos.Z,
         }
-        for _, prop in ipairs(FX_PROPS) do
-            data[prop.key] = tonumber(fxBoxes[prop.key].Text) or 1
+        if self._spawnedFxType == "Sound" then
+            data.soundId     = fxSoundIdBox.Text
+            data.volume      = tonumber(fxSoundVolBox.Text) or 1
+            data.maxDistance = tonumber(fxSoundDistBox.Text) or 80
+        else
+            for _, prop in ipairs(FX_PROPS) do
+                data[prop.key] = tonumber(fxBoxes[prop.key].Text) or 1
+            end
         end
         if self._spawnedFxEditId then
             data.id = self._spawnedFxEditId
@@ -1699,10 +1743,18 @@ function Panel.new(widget)
         local effectType = (data and data.effectType) or "Explosion"
         self._spawnedFxType = effectType
         fxTypeBtn.Text = "  " .. effectType .. "  "
+        fxApplyTypeVisibility(effectType)
+        local isSound = effectType == "Sound"
         local defaults = FX_DEFAULTS[effectType] or FX_DEFAULTS.Explosion
         if data then
-            for _, prop in ipairs(FX_PROPS) do
-                fxBoxes[prop.key].Text = tostring(data[prop.key] ~= nil and data[prop.key] or (defaults[prop.key] or ""))
+            if isSound then
+                fxSoundIdBox.Text   = data.soundId     or defaults.soundId or ""
+                fxSoundVolBox.Text  = tostring(data.volume      ~= nil and data.volume      or (defaults.volume or 1))
+                fxSoundDistBox.Text = tostring(data.maxDistance ~= nil and data.maxDistance or (defaults.maxDistance or 80))
+            else
+                for _, prop in ipairs(FX_PROPS) do
+                    fxBoxes[prop.key].Text = tostring(data[prop.key] ~= nil and data[prop.key] or (defaults[prop.key] or ""))
+                end
             end
             if data.posX then
                 self._spawnedFxPos = Vector3.new(data.posX, data.posY, data.posZ)
@@ -1712,8 +1764,14 @@ function Panel.new(widget)
                 fxCoordLbl.Text = "X: —  Y: —  Z: —"
             end
         else
-            for _, prop in ipairs(FX_PROPS) do
-                fxBoxes[prop.key].Text = tostring(defaults[prop.key] ~= nil and defaults[prop.key] or "")
+            if isSound then
+                fxSoundIdBox.Text   = defaults.soundId or ""
+                fxSoundVolBox.Text  = tostring(defaults.volume or 1)
+                fxSoundDistBox.Text = tostring(defaults.maxDistance or 80)
+            else
+                for _, prop in ipairs(FX_PROPS) do
+                    fxBoxes[prop.key].Text = tostring(defaults[prop.key] ~= nil and defaults[prop.key] or "")
+                end
             end
             self._spawnedFxPos = nil
             fxCoordLbl.Text = "X: —  Y: —  Z: —"

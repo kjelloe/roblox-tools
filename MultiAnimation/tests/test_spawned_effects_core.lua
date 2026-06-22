@@ -20,6 +20,7 @@ end
 local PRESETS = {
     Explosion = { size=3, colorR=255, colorG=80,  colorB=0,   count=50, duration=0.6, speed=20, lifetime=1.0 },
     Smoke     = { size=5, colorR=160, colorG=160, colorB=160, count=25, duration=4.0, speed=4,  lifetime=5.0 },
+    Sound     = { soundId="", volume=1, maxDistance=80 },
 }
 
 local PROPS = {
@@ -178,6 +179,43 @@ rec2:addSpawnedEffect({ id=5, frame=3, effectType="Smoke", posX=0, posY=0, posZ=
 ok("restore with explicit id=5",        rec2:getSpawnedEffectById(5) ~= nil)
 local next_fx = rec2:addSpawnedEffect({ frame=4, effectType="Explosion", posX=0, posY=0, posZ=0 })
 ok("nextId advanced past restored id",  next_fx.id == 6)
+
+-- ── 7. Sound preset and buildParams ─────────────────────────────────────────
+
+ok("Sound preset exists",           PRESETS.Sound ~= nil)
+ok("Sound preset soundId",          PRESETS.Sound.soundId == "")
+ok("Sound preset volume=1",         PRESETS.Sound.volume == 1)
+ok("Sound preset maxDistance=80",   PRESETS.Sound.maxDistance == 80)
+ok("Sound preset no size field",    PRESETS.Sound.size == nil)
+
+local pSound = buildParams("Sound")
+ok("buildParams Sound not nil",     pSound ~= nil)
+ok("buildParams Sound volume=1",    pSound ~= nil and pSound.volume == 1)
+ok("buildParams Sound maxDist=80",  pSound ~= nil and pSound.maxDistance == 80)
+
+local pSoundOv = buildParams("Sound", { soundId="rbxassetid://1", volume=0.5 })
+ok("buildParams Sound override",    pSoundOv ~= nil and pSoundOv.soundId == "rbxassetid://1")
+ok("buildParams Sound vol override",pSoundOv ~= nil and math.abs(pSoundOv.volume - 0.5) < 0.001)
+ok("buildParams Sound maxDist kept",pSoundOv ~= nil and pSoundOv.maxDistance == 80)
+
+-- ── 8. Recorder CRUD with Sound type ────────────────────────────────────────
+
+local recS = newRecorder()
+local fxS = recS:addSpawnedEffect({
+    frame=3, effectType="Sound", posX=1, posY=0, posZ=0,
+    soundId="rbxassetid://99", volume=0.8, maxDistance=120,
+})
+ok("Sound add returns table",       type(fxS) == "table")
+ok("Sound add effectType",          fxS.effectType == "Sound")
+ok("Sound add soundId",             fxS.soundId == "rbxassetid://99")
+ok("Sound add volume",              fxS.volume == 0.8)
+ok("Sound add maxDistance",         fxS.maxDistance == 120)
+
+recS:updateSpawnedEffect(fxS.id, { soundId="rbxassetid://77", volume=0.5 })
+local updS = recS:getSpawnedEffectById(fxS.id)
+ok("Sound update soundId",          updS and updS.soundId == "rbxassetid://77")
+ok("Sound update volume",           updS and math.abs(updS.volume - 0.5) < 0.001)
+ok("Sound update effectType kept",  updS and updS.effectType == "Sound")
 
 -- ── Result ───────────────────────────────────────────────────────────────────
 

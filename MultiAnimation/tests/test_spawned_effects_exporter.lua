@@ -25,13 +25,22 @@ local function buildSpawnedEffectsSource(session)
     add("return {")
     add("    effects = {")
     for _, fx in ipairs(session.spawnedEffects or {}) do
-        add(string.format(
-            "        {id=%d, frame=%d, effectType=%q, posX=%.4f, posY=%.4f, posZ=%.4f," ..
-            " size=%.2f, colorR=%d, colorG=%d, colorB=%d, count=%d, duration=%.2f, speed=%.2f, lifetime=%.2f},",
-            fx.id, fx.frame, fx.effectType, fx.posX or 0, fx.posY or 0, fx.posZ or 0,
-            fx.size or 3, fx.colorR or 255, fx.colorG or 80, fx.colorB or 0,
-            fx.count or 50, fx.duration or 0.6, fx.speed or 20, fx.lifetime or 1.0
-        ))
+        if fx.effectType == "Sound" then
+            add(string.format(
+                "        {id=%d, frame=%d, effectType=%q, posX=%.4f, posY=%.4f, posZ=%.4f," ..
+                " soundId=%q, volume=%.2f, maxDistance=%.1f},",
+                fx.id, fx.frame, fx.effectType, fx.posX or 0, fx.posY or 0, fx.posZ or 0,
+                fx.soundId or "", fx.volume or 1, fx.maxDistance or 80
+            ))
+        else
+            add(string.format(
+                "        {id=%d, frame=%d, effectType=%q, posX=%.4f, posY=%.4f, posZ=%.4f," ..
+                " size=%.2f, colorR=%d, colorG=%d, colorB=%d, count=%d, duration=%.2f, speed=%.2f, lifetime=%.2f},",
+                fx.id, fx.frame, fx.effectType, fx.posX or 0, fx.posY or 0, fx.posZ or 0,
+                fx.size or 3, fx.colorR or 255, fx.colorG or 80, fx.colorB or 0,
+                fx.count or 50, fx.duration or 0.6, fx.speed or 20, fx.lifetime or 1.0
+            ))
+        end
     end
     add("    },")
     add("}")
@@ -145,6 +154,50 @@ if fn4 then
     ok("default duration≈0.6",       math.abs(e.duration - 0.6) < 0.01)
     ok("default speed=20",           e.speed == 20)
     ok("default lifetime=1.0",       math.abs(e.lifetime - 1.0) < 0.001)
+end
+
+-- ── 6. Sound entry ───────────────────────────────────────────────────────────
+
+local sessionS = {
+    spawnedEffects = {
+        { id=7, frame=15, effectType="Sound", posX=5, posY=0, posZ=-3,
+          soundId="rbxassetid://12345678", volume=0.75, maxDistance=120 },
+    },
+}
+local srcS, errS = pcall(buildSpawnedEffectsSource, sessionS)
+local fnS, errSL = loadstring(buildSpawnedEffectsSource(sessionS))
+ok("Sound source loadstring OK",     fnS ~= nil, errSL)
+if fnS then
+    local eS = fnS().effects[1]
+    ok("Sound effectType",           eS.effectType == "Sound")
+    ok("Sound id round-trips",       eS.id == 7)
+    ok("Sound frame round-trips",    eS.frame == 15)
+    ok("Sound soundId round-trips",  eS.soundId == "rbxassetid://12345678")
+    ok("Sound volume round-trips",   math.abs(eS.volume - 0.75) < 0.01)
+    ok("Sound maxDistance rt",       math.abs(eS.maxDistance - 120) < 0.1)
+    ok("Sound has no size field",    eS.size == nil)
+    ok("Sound has no colorR field",  eS.colorR == nil)
+end
+
+-- ── 7. Mixed Explosion + Sound ────────────────────────────────────────────────
+
+local sessionM = {
+    spawnedEffects = {
+        { id=1, frame=5,  effectType="Explosion", posX=0, posY=0, posZ=0,
+          size=3, colorR=255, colorG=80, colorB=0, count=50, duration=0.6, speed=20, lifetime=1.0 },
+        { id=2, frame=20, effectType="Sound", posX=1, posY=2, posZ=3,
+          soundId="rbxassetid://99", volume=1, maxDistance=80 },
+    },
+}
+local fnM, errM = loadstring(buildSpawnedEffectsSource(sessionM))
+ok("mixed loadstring OK",            fnM ~= nil, errM)
+if fnM then
+    local rM = fnM()
+    ok("mixed count=2",              #rM.effects == 2)
+    ok("mixed[1] is Explosion",      rM.effects[1].effectType == "Explosion")
+    ok("mixed[2] is Sound",          rM.effects[2].effectType == "Sound")
+    ok("mixed[1] has size",          rM.effects[1].size == 3)
+    ok("mixed[2] soundId",           rM.effects[2].soundId == "rbxassetid://99")
 end
 
 -- ── Result ───────────────────────────────────────────────────────────────────

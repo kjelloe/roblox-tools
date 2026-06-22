@@ -362,13 +362,22 @@ local function buildSpawnedEffectsSource(session)
     add("return {")
     add("    effects = {")
     for _, fx in ipairs(session.spawnedEffects or {}) do
-        add(string.format(
-            "        {id=%d, frame=%d, effectType=%q, posX=%.4f, posY=%.4f, posZ=%.4f," ..
-            " size=%.2f, colorR=%d, colorG=%d, colorB=%d, count=%d, duration=%.2f, speed=%.2f, lifetime=%.2f},",
-            fx.id, fx.frame, fx.effectType, fx.posX or 0, fx.posY or 0, fx.posZ or 0,
-            fx.size or 3, fx.colorR or 255, fx.colorG or 80, fx.colorB or 0,
-            fx.count or 50, fx.duration or 0.6, fx.speed or 20, fx.lifetime or 1.0
-        ))
+        if fx.effectType == "Sound" then
+            add(string.format(
+                "        {id=%d, frame=%d, effectType=%q, posX=%.4f, posY=%.4f, posZ=%.4f," ..
+                " soundId=%q, volume=%.2f, maxDistance=%.1f},",
+                fx.id, fx.frame, fx.effectType, fx.posX or 0, fx.posY or 0, fx.posZ or 0,
+                fx.soundId or "", fx.volume or 1, fx.maxDistance or 80
+            ))
+        else
+            add(string.format(
+                "        {id=%d, frame=%d, effectType=%q, posX=%.4f, posY=%.4f, posZ=%.4f," ..
+                " size=%.2f, colorR=%d, colorG=%d, colorB=%d, count=%d, duration=%.2f, speed=%.2f, lifetime=%.2f},",
+                fx.id, fx.frame, fx.effectType, fx.posX or 0, fx.posY or 0, fx.posZ or 0,
+                fx.size or 3, fx.colorR or 255, fx.colorG or 80, fx.colorB or 0,
+                fx.count or 50, fx.duration or 0.6, fx.speed or 20, fx.lifetime or 1.0
+            ))
+        end
     end
     add("    },")
     add("}")
