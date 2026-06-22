@@ -518,6 +518,40 @@ as one of the rigs.
        -- fps uses the scene's recorded export fps by default; add fps=N to override
    )
    -- handle.stop() to cancel early
+
+   -- handle.onComplete fires once after full teardown (natural end, stop(), or error)
+   handle.onComplete = function()
+       print("cutscene finished")
+   end
+   ```
+
+   **Props are animated automatically.** `CutscenePlayer` reads prop tracks from
+   the scene data and drives each prop's `CFrame` every frame — no matter what
+   the plugin scrubber was parked at when you pressed Play. Props are resolved by
+   CollectionService tag (`MAnim:<sceneName>`) first, then by `workspace:FindFirstChild`
+   fallback.
+
+   **Debounce pattern** — `Touched` fires once per body part that contacts the trigger
+   (4–5 events simultaneously for a player). Without a debounce, multiple animations
+   start in parallel and camera teardown breaks. Use `handle.onComplete` to reset:
+
+   ```lua
+   local CutscenePlayer = require(game.ReplicatedStorage.CutscenePlayer)
+   local debounce = false
+
+   part.Touched:Connect(function(hit)
+       local character = game.Players.LocalPlayer.Character
+       if debounce or not character or not hit:IsDescendantOf(character) then return end
+       debounce = true
+
+       local handle = CutscenePlayer.play("MyScene",
+           { Rig1 = { player = game.Players.LocalPlayer, mode = "clone" } },
+           { movieMode = true, resetOnEnd = true })
+
+       handle.onComplete = function()
+           debounce = false
+       end
+   end)
    ```
 
 ### Rig mapping modes

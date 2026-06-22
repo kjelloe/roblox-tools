@@ -181,7 +181,9 @@ PlayerRigProxy.lua      ModuleScript — resolves player→rig (R6 or R15) for C
                           Sets camera.CameraSubject = clone.HumanoidRootPart at resolve time
                           so the player sees the animation (not the hidden original at the
                           trigger zone). Teardown restores CameraSubject to original char
-                          Humanoid and force-unanchors original HumanoidRootPart.
+                          Humanoid BEFORE destroying the clone (prevents a frame where
+                          CameraSubject points to a destroyed BasePart) and
+                          force-unanchors original HumanoidRootPart.
                         direct mode: PlatformStand=true; teardown restores it
                         Supports R6 and R15 player characters
 
@@ -201,15 +203,31 @@ MultiAnimDataServer.lua ModuleScript — server bridge for client playback
 
 CutscenePlayer.lua      ModuleScript — client LocalScript orchestrator
                         .play(sceneName, rigMap, opts) → handle
-                          opts: { fps (optional; sceneData.fps used when omitted), loop, movieMode }
+                          opts: { fps (optional; sceneData.fps used when omitted),
+                                  loop, movieMode, resetOnEnd }
                           handle.stop() — cancel early
+                          handle.onComplete = function() end  — fires after full teardown
+                            (natural end OR stop()); set after play() returns
                         Flow: MultiAnimGetScene:InvokeServer → PlayerRigProxy.resolveAll
-                          → LetterboxGui.show (if movieMode) → RunService.Heartbeat loop
-                          → teardown on finish
+                          → prop instance resolution (CollectionService tags + workspace
+                          search fallback) → LetterboxGui.show (if movieMode)
+                          → RunService.Heartbeat loop → doTeardown on finish/stop/error
                         Heartbeat drives: Motor6D.Transform (joints),
                           HumanoidRootPart.CFrame (root track),
-                          Part.Size (scale track), CurrentCamera (camera track),
+                          Part.Size (scale track), Part.CFrame (prop tracks),
+                          CurrentCamera (camera track),
                           SpawnedEffectRunner.fire() (spawned effects crossing-pointer)
+                        doTeardown (shared): applyAtT0 (if resetOnEnd), teardownRigs,
+                          LetterboxGui.hide, camera.CFrame snap to player HRP,
+                          camera.CameraType = Custom, handle.onComplete callback.
+                          Entire Heartbeat body wrapped in pcall — any error triggers
+                          doTeardown so state is always restored.
+                        Prop resolution: for each propName in sceneData.props, prefers a
+                          CollectionService-tagged BasePart with that name; falls back to
+                          workspace:FindFirstChild(propName, true). Prop CFrames are then
+                          driven each Heartbeat from the exported PropTracks.
+                        NOTE: Touched-event triggers fire once per body part; always use
+                          a debounce variable and reset it in handle.onComplete.
                         Requires SpawnedEffectRunner from ReplicatedStorage siblings
                           (deployed there by Exporter.clientMods)
 ```
@@ -400,6 +418,11 @@ Original values are saved in a `hiddenSourceParts` table.
 **Restore:** `teardownRigs` is wrapped to call `restoreSourceRigs()` first (restoring
 saved Transparency values), then runs the original teardown (clone destroy, PlatformStand
 restore). Fires on both natural end and early `handle.stop()`.
+
+**Teardown robustness:** The entire Heartbeat body is wrapped in `pcall`. Any unhandled
+error (malformed keyframe data, destroyed instance, etc.) prints a warning and calls
+`doTeardown()` — preventing permanent stuck states (anchored character, hidden source
+rigs, Scriptable camera) that previously occurred when the Heartbeat threw.
 
 ### Dynamic Rig Support (R6, R15, Custom)
 

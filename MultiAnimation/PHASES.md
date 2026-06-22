@@ -811,6 +811,42 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
   - `test_spawned_effects_exporter.lua` +15 cases (Sound round-trip, mixed entries).
   - **Suite: 669 cases, 27 files.**
 
+- ✅ **CutscenePlayer robustness + prop animation + onComplete callback:**
+  - **Prop animation missing:** `CutscenePlayer` only animated rigs; prop BaseParts
+    (e.g. a tracked Ball) stayed at whatever pose the plugin scrubber was parked at
+    when F5 was pressed — invisible if scrubbed to an underground frame. Fix: resolve
+    prop instances via CollectionService tags (MAnim:<scene> tagged BaseParts) with
+    workspace search fallback; animate each prop's CFrame in the Heartbeat from
+    `sceneData.props`; include prop track end-time in duration calculation; reset
+    props to frame-1 in `applyAtT0` when `resetOnEnd = true`.
+  - **Camera stuck after cutscene:** `CameraType` was restored to a captured
+    `prevCameraType` which could be `Scriptable` if multiple animations fired
+    simultaneously (Touched fires per body part — no debounce). Additionally,
+    Roblox's CameraModule re-initialised from the last cinematic CFrame (far from
+    player), placing the camera at a large orbit distance. Fix: always restore to
+    `Enum.CameraType.Custom`; snap `camera.CFrame` to `hrp.CFrame * CFrame.new(0,2,12)`
+    before handing back to CameraModule so it starts from the correct position.
+  - **Teardown on error:** any unhandled throw in the Heartbeat previously left clones
+    alive, characters anchored, source rigs transparent, and camera in Scriptable mode.
+    Fix: entire Heartbeat body wrapped in `pcall`; errors call `doTeardown()` and warn.
+  - **PlayerRigProxy camera ordering:** CameraSubject was restored to character Humanoid
+    AFTER `clone:Destroy()`, leaving a frame where CameraSubject pointed to a destroyed
+    BasePart. Fix: restore CameraSubject BEFORE destroying the clone.
+  - **`handle.onComplete` callback:** `CutscenePlayer.play()` handle now exposes
+    `handle.onComplete = function() end`. Set after `play()` returns; fires once after
+    full `doTeardown()` completes (natural end, stop(), or error). Intended use:
+    debounce reset, follow-up actions. Example:
+    ```lua
+    local debounce = false
+    part.Touched:Connect(function(hit)
+        if debounce or hit.Parent ~= character then return end
+        debounce = true
+        local h = CutscenePlayer.play("scene1", rigMap, opts)
+        h.onComplete = function() debounce = false end
+    end)
+    ```
+  - **Suite: 673 cases, 27 files.**
+
 ### Backlog
 
 - Multiple named cameras + switcher track (authoring sugar over Phase 8 cuts)

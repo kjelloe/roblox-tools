@@ -124,7 +124,7 @@ python3 devsync.py uninstall   # back to build.py + manual reload
 ### Other dev scripts
 
 ```bash
-python3 run_tests.py [pattern] [-v]   # full suite (669 cases, 27 files), or `mcp test`
+python3 run_tests.py [pattern] [-v]   # full suite (673 cases, 27 files), or `mcp test`
 python3 export.py                     # package plugin + game scripts for distribution → export/
 python3 watch.py                      # auto-build on save (when not using devsync)
 python3 hotpatch.py game/MultiAnimPlayer.lua   # push one game/ module, or `mcp deploy`
@@ -232,7 +232,7 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 | `test_spawned_effects_core.lua` | SpawnedEffectRunner PRESETS/PROPS/buildParams; Recorder spawnedEffects CRUD: add/update/delete/getById, clearSession reset, id preservation on restore; Sound preset/buildParams/CRUD (64 cases, headless) |
 | `test_spawned_effects_exporter.lua` | buildSpawnedEffectsSource: empty, single Explosion, Smoke, multi-entry; loadstring round-trip preserving all fields; default field fallbacks; Sound entry round-trip; mixed Explosion+Sound (62 cases, headless) |
 
-Suite total: **669 cases** across 27 files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive). Note: `test_ui_playback` test 19 now asserts fps is absent from snippet; `test_ui_simple` insert-frame tests now assert Duplicate (cursor to frame+1, frame+1 has data).
+Suite total: **673 cases** across 27 files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive). Note: `test_ui_playback` test 19 now asserts fps is absent from snippet; `test_ui_simple` insert-frame tests now assert Duplicate (cursor to frame+1, frame+1 has data).
 
 **Test isolation:** UI test files that need deterministic rig availability call `scanFigures` at their start (bridge command on `__MultiAnimTestBridge`). This rescans `Workspace.FIGURES`, normalises `frameCount` to ≥120, and sets `mode = "advanced"`. Required because Simple Mode resets `frameCount` to 1 for empty sessions — without this, parking-frame arithmetic (`PARK = frameCount - N`) goes negative and all subsequent frame operations clamp to frame 1. `test_ui_easing.lua` was also rewritten from the old bridge protocol (`MultiAnimTestBridge`, plain-Lua returns) to the current one (`__MultiAnimTestBridge`, JSON `{ok,result}`).
 
