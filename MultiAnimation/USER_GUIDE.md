@@ -459,7 +459,9 @@ Speed:    [20    ]    Lifetime: [1.0   ]
 - A small **coloured sphere gizmo** appears in the scene at the effect's position
   (orange = Explosion, grey = Smoke). Click the sphere to reopen the overlay in
   **edit mode** with a **Delete** button, so you can adjust or remove the effect.
-- Effects are saved with the session and exported with the scene. During **Simple Mode
+- Effects are saved with the session and exported with the scene. During in-game playback
+  via `CutscenePlayer`, spawned effects fire automatically using the same crossing-pointer
+  logic — no extra setup required, just re-export after adding effects. During **Simple Mode
   play** (`▶ Play`) each effect fires its burst the moment the playhead crosses the
   recorded frame — the same crossing-pointer logic used by the in-game `MultiAnimPlayer`.
 
@@ -486,8 +488,9 @@ as one of the rigs.
    `mcp deploy` or manual paste). This creates the `MultiAnimGetScene`
    RemoteFunction that clients call to fetch scene data.
 
-2. **Client side** — deploy `CutscenePlayer.lua`, `PlayerRigProxy.lua`, and
-   `LetterboxGui.lua` to `ReplicatedStorage`.
+2. **Client side** — deploy `CutscenePlayer.lua`, `PlayerRigProxy.lua`,
+   `LetterboxGui.lua`, and `SpawnedEffectRunner.lua` to `ReplicatedStorage`.
+   Pressing **Export** in the plugin does all of this automatically.
 
 3. **Paste the snippet** from the Playback tab into a `LocalScript`. Example:
    ```lua
@@ -509,7 +512,7 @@ as one of the rigs.
 | Mode | What it does |
 |------|-------------|
 | **Fixed rig** | Uses the workspace rig as-is (default) |
-| **LocalPlayer — clone** | Clones the local player's character; strips scripts and Humanoid; hides the original during playback; restores on finish |
+| **LocalPlayer — clone** | Clones the local player's character; strips scripts and Humanoid; hides the original during playback; camera follows the clone so you see the scene; restores character + camera on finish |
 | **LocalPlayer — direct** | Animates the player's real character; sets `PlatformStand = true` to suppress physics; restores on finish |
 | **UserId — clone** | Same as clone but looks up the player by UserId (must be in the same server) |
 | **UserId — direct** | Same as direct but by UserId |

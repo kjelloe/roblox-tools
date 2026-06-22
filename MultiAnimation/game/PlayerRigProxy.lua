@@ -118,10 +118,25 @@ function PlayerRigProxy.resolve(entry, anchorCF)
         local saved = savePartStates(character)
         hideCharacter(character)
 
+        -- Point camera at the clone's HumanoidRootPart during the animation so the
+        -- player sees the scene, not the hidden/anchored original at the trigger zone.
+        local cam        = workspace.CurrentCamera
+        local prevSubject = cam and cam.CameraSubject
+        local cloneHrp   = clone:FindFirstChild("HumanoidRootPart")
+        if cam and cloneHrp then cam.CameraSubject = cloneHrp end
+
         return clone, function()
             if clone and clone.Parent then clone:Destroy() end
             if character and character.Parent then
                 restoreCharacter(character, saved)
+                local hrp = character:FindFirstChild("HumanoidRootPart")
+                if hrp then hrp.Anchored = false end
+            end
+            -- Restore camera to original character's Humanoid
+            local camNow = workspace.CurrentCamera
+            if camNow then
+                local hum = character and character:FindFirstChildOfClass("Humanoid")
+                camNow.CameraSubject = hum or prevSubject
             end
         end
 

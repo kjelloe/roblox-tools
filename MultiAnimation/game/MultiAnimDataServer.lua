@@ -102,6 +102,10 @@ local function getSceneData(sceneName)
         local m = sceneFolder:FindFirstChild("CameraTrack"); return m and require(m) or nil
     end)
     if not ok5 then camTrack = nil end
+    local ok6, sfxData = pcall(function()
+        local m = sceneFolder:FindFirstChild("SpawnedEffects"); return m and require(m) or nil
+    end)
+    if not ok6 then sfxData = nil end
 
     local fps = (scaleTracks and scaleTracks.fps)
              or (propTracks  and propTracks.fps)
@@ -110,7 +114,7 @@ local function getSceneData(sceneName)
              or (camTrack    and camTrack.fps)
              or 24
 
-    local out = { fps = fps, rigs = {}, props = {}, camera = {}, effects = {} }
+    local out = { fps = fps, rigs = {}, props = {}, camera = {}, effects = {}, spawnedEffects = {} }
 
     -- Joint tracks (KeyframeSequence per rig)
     for _, child in ipairs(sceneFolder:GetChildren()) do
@@ -178,6 +182,11 @@ local function getSceneData(sceneName)
                 end),
             }
         end
+    end
+
+    -- Spawned effects (plain table — serialises cleanly over RemoteFunction)
+    if sfxData and sfxData.effects then
+        out.spawnedEffects = sfxData.effects
     end
 
     return out

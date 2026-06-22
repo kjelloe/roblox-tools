@@ -771,6 +771,27 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
   - **5 new test cases** in `test_ui_bridge.lua` (save / listSessions / deleteSession /
     verify-absent round-trip). **Suite: 626 cases, 27 files.**
 
+- ✅ **In-game spawned effects via CutscenePlayer + PlayerRigProxy clone camera fix:**
+  - **`MultiAnimDataServer.getSceneData()`** previously returned only `{fps, rigs, props,
+    camera, effects}` — the `SpawnedEffects` ModuleScript was never read. Added `ok6/sfxData`
+    pcall; `out.spawnedEffects = sfxData.effects or {}` now included in every response.
+    Plain-table structure serialises cleanly over `RemoteFunction:InvokeServer()`.
+  - **`CutscenePlayer.play()`** had no spawned effects handling. Added: require
+    `SpawnedEffectRunner` from `selfModule.Parent` (ReplicatedStorage siblings); build sorted
+    `spawnedFxEvents` list (time = `(frame-1)/fps`); crossing-pointer loop in Heartbeat using
+    `lastSfxTime` upvalue; `lastSfxTime = -1` reset on loop.
+  - **`Exporter.clientMods`** — added `"SpawnedEffectRunner"` so Export deploys it to
+    ReplicatedStorage alongside CutscenePlayer (previously only in serverMods).
+  - **`PlayerRigProxy` clone camera bug:** in clone mode the original character is hidden and
+    anchored at the trigger zone, but `camera.CameraSubject` still pointed to the original's
+    Humanoid — player saw empty space above the trigger zone, not the animation. Fix: at
+    resolve time, set `camera.CameraSubject = clone.HumanoidRootPart`; teardown restores to
+    `character.Humanoid` and force-unanchors `HumanoidRootPart`. After teardown, player sees
+    their character correctly and physics resumes.
+  - **7 new test cases** in `test_player_rig_proxy.lua` (camera subject set/restored, HRP
+    force-unanchored, teardown-with-destroyed-character, sequential-clone correctness).
+    **Suite: 633 cases, 27 files.**
+
 ### Backlog
 
 - Multiple named cameras + switcher track (authoring sugar over Phase 8 cuts)

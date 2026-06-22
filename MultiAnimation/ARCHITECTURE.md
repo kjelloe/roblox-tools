@@ -177,7 +177,11 @@ PlayerRigProxy.lua      ModuleScript — resolves player→rig (R6 or R15) for C
                         clone mode: character.Archivable = true before Clone()
                           (Roblox default is false; Clone() silently returns nil otherwise);
                           strip scripts/Humanoid, hide original; teardown destroys clone
-                          + restores original; Archivable reset to false after Clone()
+                          + restores original; Archivable reset to false after Clone().
+                          Sets camera.CameraSubject = clone.HumanoidRootPart at resolve time
+                          so the player sees the animation (not the hidden original at the
+                          trigger zone). Teardown restores CameraSubject to original char
+                          Humanoid and force-unanchors original HumanoidRootPart.
                         direct mode: PlatformStand=true; teardown restores it
                         Supports R6 and R15 player characters
 
@@ -187,7 +191,10 @@ MultiAnimDataServer.lua ModuleScript — server bridge for client playback
                           (2) creates "MultiAnimGetScene" RemoteFunction in
                           ReplicatedStorage; OnServerInvoke parses scene folder
                           from ServerStorage.MultiAnimationData into serializable
-                          Lua table (joints, scale, root, props, camera, effects).
+                          Lua table (joints, scale, root, props, camera, effects,
+                          spawnedEffects). spawnedEffects is the raw effects array from
+                          the SpawnedEffects ModuleScript — plain numbers/strings, so it
+                          serialises cleanly over RemoteFunction.
                           parseKFS handles both flat format (current) and legacy R6
                           hierarchy (Torso child) for backward compat.
                         Call setup() once from a Script in ServerScriptService
@@ -201,7 +208,10 @@ CutscenePlayer.lua      ModuleScript — client LocalScript orchestrator
                           → teardown on finish
                         Heartbeat drives: Motor6D.Transform (joints),
                           HumanoidRootPart.CFrame (root track),
-                          Part.Size (scale track), CurrentCamera (camera track)
+                          Part.Size (scale track), CurrentCamera (camera track),
+                          SpawnedEffectRunner.fire() (spawned effects crossing-pointer)
+                        Requires SpawnedEffectRunner from ReplicatedStorage siblings
+                          (deployed there by Exporter.clientMods)
 ```
 
 ---
@@ -833,7 +843,8 @@ explicit `data.id` for session restore and advances `_nextSpawnedEffectId` past 
 
 `buildSpawnedEffectsSource(session)` emits a `return { effects = {...} }` ModuleScript.
 Written only when `session.spawnedEffects` is non-empty (file name: `SpawnedEffects`).
-`SpawnedEffectRunner` is added to `serverMods` → deployed alongside `MultiAnimPlayer`.
+`SpawnedEffectRunner` is added to both `serverMods` (ServerStorage.MultiAnimationData,
+used by MultiAnimPlayer) and `clientMods` (ReplicatedStorage, used by CutscenePlayer).
 
 ### Edit-mode playback (`plugin/init.server.lua — startPlayback`)
 
@@ -851,7 +862,7 @@ end
 This runs every Heartbeat alongside the regular `allEffects` loop; `lastEventFrame` is
 shared so each frame fires at most once.
 
-### In-game playback (`game/MultiAnimPlayer.lua`)
+### In-game playback via MultiAnimPlayer (`game/MultiAnimPlayer.lua`)
 
 `MultiAnimPlayer.play()` loads `SpawnedEffects` and `SpawnedEffectRunner` from
 `script.Parent` (= `ServerStorage.MultiAnimationData`). Builds a sorted
@@ -867,6 +878,27 @@ end
 ```
 
 `fireSpawnedFx` calls `sfxRunner.fire(Vector3.new(fx.posX, fx.posY, fx.posZ), fx.effectType, fx)`.
+
+### In-game playback via CutscenePlayer (`game/CutscenePlayer.lua`)
+
+`CutscenePlayer.play()` receives `sceneData.spawnedEffects` (raw array) from
+`MultiAnimDataServer.getSceneData()` via `MultiAnimGetScene:InvokeServer()`. Builds the
+same `spawnedFxEvents` list (time = `(sfx.frame - 1) / fps`). Fires in the Heartbeat
+crossing-pointer pattern using `lastSfxTime`:
+
+```lua
+for _, ev in ipairs(spawnedFxEvents) do
+    if ev.time > lastSfxTime and ev.time <= t then
+        SpawnedEffectRunner.fire(
+            Vector3.new(ev.sfx.posX, ev.sfx.posY, ev.sfx.posZ),
+            ev.sfx.effectType, ev.sfx)
+    end
+end
+lastSfxTime = t
+```
+
+`lastSfxTime` resets to `-1` on loop so effects re-fire. `SpawnedEffectRunner` is
+required from `selfModule.Parent` (ReplicatedStorage siblings, deployed by Exporter).
 
 ### Session persistence
 

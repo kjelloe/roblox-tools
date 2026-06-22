@@ -478,7 +478,7 @@ function Exporter.export(session, sceneName)
     if gameFolder then
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
         local serverMods = { "MultiAnimPlayer", "CutsceneServer", "CutsceneCamera", "MultiAnimDataServer", "SpawnedEffectRunner" }
-        local clientMods = { "CutscenePlayer", "CutsceneCamera", "PlayerRigProxy", "LetterboxGui" }
+        local clientMods = { "CutscenePlayer", "CutsceneCamera", "PlayerRigProxy", "LetterboxGui", "SpawnedEffectRunner" }
         for _, modName in ipairs(serverMods) do
             local src = gameFolder:FindFirstChild(modName)
             if src then
@@ -499,8 +499,8 @@ function Exporter.export(session, sceneName)
 
     print(string.format(
         "[Exporter] Scene '%s' exported — %d rig(s)\n" ..
-        "  Server: ServerStorage.MultiAnimationData (MultiAnimPlayer, CutsceneServer, CutsceneCamera, MultiAnimDataServer)\n" ..
-        "  Client: ReplicatedStorage (CutscenePlayer, CutsceneCamera, PlayerRigProxy, LetterboxGui)\n" ..
+        "  Server: ServerStorage.MultiAnimationData (MultiAnimPlayer, CutsceneServer, CutsceneCamera, MultiAnimDataServer, SpawnedEffectRunner)\n" ..
+        "  Client: ReplicatedStorage (CutscenePlayer, CutsceneCamera, PlayerRigProxy, LetterboxGui, SpawnedEffectRunner)\n" ..
         "  Server prerequisite: require(game.ServerStorage.MultiAnimationData.MultiAnimDataServer).setup()",
         sceneName, kfsCount
     ))

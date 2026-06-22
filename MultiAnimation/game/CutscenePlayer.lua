@@ -157,6 +157,8 @@ function CutscenePlayer.play(sceneName, rigMap, options)
                                 or selfModule.Parent.Parent:FindFirstChild("PlayerRigProxy"))
     local LetterboxGui   = require(selfModule.Parent:FindFirstChild("LetterboxGui")
                                 or selfModule.Parent.Parent:FindFirstChild("LetterboxGui"))
+    local SpawnedEffectRunner = require(selfModule.Parent:FindFirstChild("SpawnedEffectRunner")
+                                    or selfModule.Parent.Parent:FindFirstChild("SpawnedEffectRunner"))
 
     -- Fetch scene data from the server.
     local remote = ReplicatedStorage:WaitForChild("MultiAnimGetScene", 10)
@@ -235,6 +237,14 @@ function CutscenePlayer.play(sceneName, rigMap, options)
     -- Recompute anchors now that we have the actual resolved models.
     local anchorCFs = buildAnchorCFs(sceneData, resolvedRigs)
 
+    -- Spawned effects: convert frame → time, sort
+    local spawnedFxEvents = {}
+    for _, sfx in ipairs(sceneData.spawnedEffects or {}) do
+        local t = (sfx.frame - 1) / fps
+        table.insert(spawnedFxEvents, { time = t, sfx = sfx })
+    end
+    table.sort(spawnedFxEvents, function(a, b) return a.time < b.time end)
+
     -- Letterbox
     if movieMode then LetterboxGui.show() end
 
@@ -260,9 +270,10 @@ function CutscenePlayer.play(sceneName, rigMap, options)
     end
     if duration == 0 then duration = 1 end
 
-    local camera   = workspace.CurrentCamera
-    local stopped  = false
-    local elapsed  = 0
+    local camera      = workspace.CurrentCamera
+    local stopped     = false
+    local elapsed     = 0
+    local lastSfxTime = -1
 
     local conn
     conn = RunService.Heartbeat:Connect(function(dt)
@@ -273,8 +284,9 @@ function CutscenePlayer.play(sceneName, rigMap, options)
 
         if t > duration then
             if loop then
-                elapsed = elapsed - duration
-                t       = elapsed
+                elapsed     = elapsed - duration
+                t           = elapsed
+                lastSfxTime = -1
             else
                 t = duration
                 stopped = true
@@ -322,6 +334,18 @@ function CutscenePlayer.play(sceneName, rigMap, options)
                 camera.CameraType = Enum.CameraType.Scriptable
             end
         end
+
+        -- Spawned effects crossing-pointer
+        for _, ev in ipairs(spawnedFxEvents) do
+            if ev.time > lastSfxTime and ev.time <= t then
+                SpawnedEffectRunner.fire(
+                    Vector3.new(ev.sfx.posX, ev.sfx.posY, ev.sfx.posZ),
+                    ev.sfx.effectType,
+                    ev.sfx
+                )
+            end
+        end
+        lastSfxTime = t
 
         if stopped then
             conn:Disconnect()

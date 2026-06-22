@@ -100,10 +100,21 @@ function PlayerRigProxy.resolve(entry, anchorCF)
         clone.Parent = workspace
         local saved = savePartStates(character)
         hideCharacter(character)
+        local cam         = workspace.CurrentCamera
+        local prevSubject = cam and cam.CameraSubject
+        local cloneHrp    = clone:FindFirstChild("HumanoidRootPart")
+        if cam and cloneHrp then cam.CameraSubject = cloneHrp end
         return clone, function()
             if clone and clone.Parent then clone:Destroy() end
             if character and character.Parent then
                 restoreCharacter(character, saved)
+                local origHrp = character:FindFirstChild("HumanoidRootPart")
+                if origHrp then origHrp.Anchored = false end
+            end
+            local camNow = workspace.CurrentCamera
+            if camNow then
+                local hum = character and character:FindFirstChildOfClass("Humanoid")
+                camNow.CameraSubject = hum or prevSubject
             end
         end
     elseif mode == "direct" then
@@ -345,6 +356,67 @@ ancChar:Destroy()
 
 -- 20. findPlayerByUserId returns nil when no player has that id (headless edit mode)
 ok(findPlayerByUserId(1) == nil, "findPlayerByUserId returns nil in edit mode (no players)")
+
+-- 21. Clone resolve sets camera.CameraSubject to clone's HumanoidRootPart
+do
+    local camChar   = makeR6Character("CamSubjectTestChar")
+    local fakeCam   = { Character = camChar }
+    local savedCamSubject = workspace.CurrentCamera and workspace.CurrentCamera.CameraSubject
+    local camClone, camTd = PlayerRigProxy.resolve({ player = fakeCam, mode = "clone" }, nil)
+    local cloneHrp = camClone and camClone:FindFirstChild("HumanoidRootPart")
+    local cam = workspace.CurrentCamera
+    ok(cam ~= nil and cam.CameraSubject == cloneHrp,
+        "clone resolve: CameraSubject points to clone HumanoidRootPart")
+    -- 22. Clone teardown restores CameraSubject to original character Humanoid
+    camTd()
+    local charHum = camChar:FindFirstChildOfClass("Humanoid")
+    ok(cam ~= nil and cam.CameraSubject == charHum,
+        "clone teardown: CameraSubject restored to original character Humanoid")
+    camChar:Destroy()
+    -- restore studio camera subject
+    if cam then cam.CameraSubject = savedCamSubject end
+end
+
+-- 23. Clone teardown force-unanchors original HumanoidRootPart
+do
+    local hrpChar = makeR6Character("HRPUnanchorTestChar")
+    local fakeHRP = { Character = hrpChar }
+    local _, hrpTd = PlayerRigProxy.resolve({ player = fakeHRP, mode = "clone" }, nil)
+    local origHrp = hrpChar:FindFirstChild("HumanoidRootPart")
+    ok(origHrp and origHrp.Anchored == true, "clone resolve: original HRP is anchored")
+    hrpTd()
+    ok(origHrp and origHrp.Anchored == false, "clone teardown: original HRP force-unanchored")
+    hrpChar:Destroy()
+end
+
+-- 24. Clone teardown with destroyed character does not error
+do
+    local deadChar = makeR6Character("DeadCamChar")
+    local fakeDead = { Character = deadChar }
+    local _, deadTd = PlayerRigProxy.resolve({ player = fakeDead, mode = "clone" }, nil)
+    deadChar:Destroy()
+    local ok24 = pcall(deadTd)
+    ok(ok24, "clone teardown with destroyed character: no error")
+end
+
+-- 25. Multiple sequential clones each save/restore their own camera subject correctly
+do
+    local mc1 = makeR6Character("MultiClone1")
+    local mc2 = makeR6Character("MultiClone2")
+    local cam = workspace.CurrentCamera
+    local savedSubject = cam and cam.CameraSubject
+    local _, td1 = PlayerRigProxy.resolve({ player = { Character = mc1 }, mode = "clone" }, nil)
+    local _, td2 = PlayerRigProxy.resolve({ player = { Character = mc2 }, mode = "clone" }, nil)
+    -- teardown in reverse order
+    td2()
+    ok(cam and cam.CameraSubject == mc2:FindFirstChildOfClass("Humanoid"),
+        "sequential clone: second teardown restores to second char Humanoid")
+    td1()
+    ok(cam and cam.CameraSubject == mc1:FindFirstChildOfClass("Humanoid"),
+        "sequential clone: first teardown restores to first char Humanoid")
+    mc1:Destroy(); mc2:Destroy()
+    if cam then cam.CameraSubject = savedSubject end
+end
 
 -- ──────────────────────────────────────────────────────────────────────────────
 -- Result
