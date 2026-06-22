@@ -119,10 +119,10 @@ ok(snippet:find("TestScene") ~= nil, "snippet contains scene name")
 ok(snippet:find("CutscenePlayer") ~= nil, "snippet references CutscenePlayer")
 ok(snippet:find("%.play%(") ~= nil, "snippet calls .play()")
 
--- ── 11. Snippet: fixed rig references workspace.FIGURES ───────────────────────
+-- ── 11. Snippet: fixed rig emits commented placeholder ────────────────────────
 call("setPlaybackRigMode", { rigName = "Rig1", mode = "fixed" })
 snippet = call("getPlaybackSnippet")
-ok(snippet:find("workspace%.FIGURES%.Rig1") ~= nil, "fixed rig: snippet references workspace.FIGURES.Rig1")
+ok(snippet:find("workspace%.YourFolder%.Rig1") ~= nil, "fixed rig: snippet contains workspace.YourFolder.Rig1 placeholder")
 
 -- ── 12. Snippet: localClone references LocalPlayer ────────────────────────────
 call("setPlaybackRigMode", { rigName = "Rig1", mode = "localClone" })
@@ -187,7 +187,7 @@ call("setPlaybackRigMode", { rigName = "Rig2", mode = "localClone" })
 snippet = call("getPlaybackSnippet")
 ok(snippet:find("Rig1") ~= nil and snippet:find("Rig2") ~= nil,
     "multi-rig snippet contains both Rig1 and Rig2")
-ok(snippet:find("workspace%.FIGURES%.Rig1") ~= nil, "multi-rig: Rig1 is fixed")
+ok(snippet:find("workspace%.YourFolder%.Rig1") ~= nil, "multi-rig: Rig1 is fixed (placeholder)")
 ok(snippet:find("LocalPlayer") ~= nil, "multi-rig: Rig2 references LocalPlayer")
 
 -- ── 23. No scene selected → snippet shows placeholder ────────────────────────

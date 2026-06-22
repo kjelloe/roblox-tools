@@ -436,7 +436,7 @@ each time you change frames. Toggle off to clear them. (Ghosts are never
 saved with the place file and vanish on plugin unload.)
 
 **Effects (SpawnedEffects):** click **Add effect** in the action row to add a
-one-shot particle burst at any frame. An overlay opens:
+one-shot world-position event (particle burst or sound) at any frame. An overlay opens:
 
 ```
 ADD EFFECT  •  FRAME 5                                     [✕]
@@ -449,21 +449,34 @@ Speed:    [20    ]    Lifetime: [1.0   ]
 [  Add to Frame  ]    [Cancel]
 ```
 
-- **Type** cycles between `Explosion` (orange burst, spread-180°) and `Smoke`
-  (gray column). Each type loads useful defaults automatically.
+For the **Sound** type the overlay shows different fields:
+
+```
+ADD EFFECT  •  FRAME 5                                     [✕]
+Type:  [Sound ◄►]
+Sound ID:   [rbxassetid://          ]
+Volume:     [1   ]
+Max Dist:   [80  ]
+[Select Position]     X: —  Y: —  Z: —
+[  Add to Frame  ]    [Cancel]
+```
+
+- **Type** cycles through `Explosion` (orange burst), `Smoke` (gray column), and
+  `Sound` (plays a Roblox Sound asset at the world position with 3-D rolloff).
+  Each type loads its defaults automatically; only the relevant fields are shown.
+- **Sound ID** — paste the `rbxassetid://` URI of any uploaded Roblox audio asset.
 - **Select Position** switches to a click-in-viewport picker — click anywhere in
   the scene to choose where the effect fires. You can re-click to move it.
   The X/Y/Z coordinates update in the overlay.
-- **Add to Frame** saves the effect to the current frame and fires a preview burst
-  at the chosen position immediately (edit-mode only, no play mode needed).
-- A small **coloured sphere gizmo** appears in the scene at the effect's position
-  (orange = Explosion, grey = Smoke). Click the sphere to reopen the overlay in
-  **edit mode** with a **Delete** button, so you can adjust or remove the effect.
+- **Add to Frame** saves the effect to the current frame and fires a preview
+  immediately (edit-mode only, no play mode needed).
+- A small **coloured sphere gizmo** appears at the effect's position
+  (orange = Explosion, gray = Smoke, blue = Sound). Click the sphere to reopen the
+  overlay in **edit mode** with a **Delete** button, so you can adjust or remove it.
 - Effects are saved with the session and exported with the scene. During in-game playback
   via `CutscenePlayer`, spawned effects fire automatically using the same crossing-pointer
   logic — no extra setup required, just re-export after adding effects. During **Simple Mode
-  play** (`▶ Play`) each effect fires its burst the moment the playhead crosses the
-  recorded frame — the same crossing-pointer logic used by the in-game `MultiAnimPlayer`.
+  play** (`▶ Play`) each effect fires the moment the playhead crosses the recorded frame.
 
 **Save / Export** work exactly as in Advanced mode, right there in the
 Simple panel — no need to switch modes just to save your work or export

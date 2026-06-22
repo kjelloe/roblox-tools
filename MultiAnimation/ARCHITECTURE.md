@@ -764,40 +764,55 @@ scene export; the snippet includes a comment to add `fps=N` if needed).
 
 ## SpawnedEffects System (Simple Mode)
 
-Spawned effects are single-frame particle bursts (Explosion, Smoke) defined at an
-absolute world position, separate from the existing Effect Track system (which
-targets live instances in the scene). They are designed for Simple Mode use: no
-manual Effect Track setup needed.
+Spawned effects are single-frame world-position events (Explosion, Smoke particle
+bursts, or Sound playback) defined at an absolute world position, separate from the
+existing Effect Track system (which targets live instances in the scene). They are
+designed for Simple Mode use: no manual Effect Track setup needed.
 
 ### Data model
 
 Each effect entry is a plain table stored in `session.spawnedEffects` (array):
 
 ```lua
+-- Particle types (Explosion / Smoke):
 {
     id         = 1,           -- unique integer, managed by Recorder
     frame      = 5,           -- timeline frame to fire on
-    effectType = "Explosion", -- preset name
+    effectType = "Explosion", -- "Explosion" or "Smoke"
     posX, posY, posZ          -- world-space position
     size, colorR, colorG, colorB, count, duration, speed, lifetime  -- scalar params
+}
+
+-- Sound type:
+{
+    id         = 2,
+    frame      = 10,
+    effectType = "Sound",
+    posX, posY, posZ          -- world-space position (3-D rolloff origin)
+    soundId    = "rbxassetid://12345678",
+    volume     = 1,           -- 0–10
+    maxDistance = 80,         -- RollOffMaxDistance
 }
 ```
 
 ### Plugin side (`plugin/core/SpawnedEffectRunner.lua`)
 
-- `PRESETS` table: Explosion (orange, spread-180, LightEmission 0.8) and Smoke (gray,
-  spread-25, no light).
-- `PROPS`: ordered list of editable properties shown in the overlay.
+- `PRESETS` table: `Explosion` (orange, spread-180°, LightEmission 0.8), `Smoke`
+  (gray, spread-25°, no light), `Sound` (soundId="", volume=1, maxDistance=80).
+- `PROPS`: ordered list of particle-specific editable properties (not used for Sound).
 - `buildParams(effectType, overrides)`: merges preset defaults with user values.
-- `fire(pos, effectType, params)`: creates a transparent `Part` + `ParticleEmitter`,
-  calls `pe:Emit(params.count)`, and `task.delay`-destroys it after
-  `duration + lifetime` seconds. Returns a cancel function. Used for edit-mode preview
-  immediately after the user clicks "Add to Frame" or "Update".
+- `fire(pos, effectType, params)`:
+  - **Sound:** creates a transparent `Part` at `pos`, parents a `Sound` to it, sets
+    `SoundId`/`Volume`/`RollOffMaxDistance`, calls `:Play()`. Destroys on `Ended` or
+    after a 30-second `task.delay` fallback. Returns a cancel function.
+  - **Particle (Explosion/Smoke):** creates a transparent `Part` + `ParticleEmitter`,
+    calls `pe:Emit(params.count)`, `task.delay`-destroys after `duration + lifetime`.
+    Returns a cancel function. Used for edit-mode preview immediately after "Add/Update".
 
 ### Game side (`game/SpawnedEffectRunner.lua`)
 
-Identical `fire()` function; zero plugin dependencies. Deployed to
-`ServerStorage.MultiAnimationData` via `Exporter.serverMods`. `MultiAnimPlayer`
+Identical `fire()` function (including Sound branch); zero plugin dependencies. Deployed
+to `ServerStorage.MultiAnimationData` via `Exporter.serverMods`. `MultiAnimPlayer`
 requires it from `script.Parent` and calls `sfxRunner.fire(pos, effectType, fx)`.
 
 ### Recorder CRUD (`plugin/core/Recorder.lua`)
@@ -805,19 +820,25 @@ requires it from `script.Parent` and calls `sfxRunner.fire(pos, effectType, fx)`
 `session.spawnedEffects` is an array (not a dict) — order is preserved for export.
 `_nextSpawnedEffectId` increments monotonically. `addSpawnedEffect(data)` respects an
 explicit `data.id` for session restore and advances `_nextSpawnedEffectId` past it.
-`clearSession()` resets both array and counter.
+`clearSession()` resets both array and counter. Sound-type entries carry `soundId`,
+`volume`, and `maxDistance` instead of particle scalar params.
 
 ### Panel overlay (`plugin/ui/Panel.lua`)
 
-- **"Add effect" button** in `simpleActionRow` at layout order 6 (renamed from "Effects").
-- `do -- SPAWNED FX OVERLAY` block (ZIndex 55) contains: header with frame number,
-  type cycle button (Explosion → Smoke → Explosion), scalar property input boxes for
-  all PROPS keys, "Select Position" button + coordinate label, and Add/Cancel/Delete
-  buttons. Delete is hidden when creating (only visible when editing).
-- `showSpawnedFxOverlay(frame, data?)`: populates from preset defaults (new) or
-  existing effect data (edit mode).
-- `setSpawnedFxPosition(pos)`: called by `init.server.lua` after position pick
-  completes; updates the coordinate label and `_spawnedFxPos`.
+- **"Add effect" button** in `simpleActionRow` at layout order 6.
+- `do -- SPAWNED FX OVERLAY` block (ZIndex 55, `AutomaticSize = Enum.AutomaticSize.Y`):
+  header with frame number; type cycle button (Explosion → Smoke → Sound → Explosion);
+  `fxApplyTypeVisibility(effectType)` shows/hides particle rows vs Sound rows —
+  `UIListLayout` skips `Visible = false` children so the frame resizes automatically.
+  - **Particle rows** (LayoutOrders 3–9): one textbox per PROPS key (Size, Color R/G/B,
+    Count, Duration, Speed, Lifetime). Visible when type ≠ Sound.
+  - **Sound rows** (LayoutOrders 3–5, `Visible = false` by default):
+    `fxSoundIdRow` (SoundId textbox, `ClearTextOnFocus = false`, default "rbxassetid://"),
+    `fxSoundVolRow` (Volume), `fxSoundDistRow` (Max Distance). Visible only when Sound.
+  - "Select Position" button + coordinate label, Add/Cancel/Delete buttons.
+- `showSpawnedFxOverlay(frame, data?)`: calls `fxApplyTypeVisibility`, populates Sound
+  fields or particle fields depending on `effectType`.
+- `setSpawnedFxPosition(pos)`: called by `init.server.lua` after position pick completes.
 - Events: `onSpawnedFxAdded`, `onSpawnedFxUpdated`, `onSpawnedFxDeleted`,
   `onSpawnedFxPickPosRequested`.
 
@@ -832,8 +853,9 @@ explicit `data.id` for session restore and advances `_nextSpawnedEffectId` past 
 ### Gizmo spheres
 
 - Folder: `workspace.__MultiAnimEffectGizmos` (`Archivable = false`).
-- Each effect gets a `Part` (Ball shape, 0.7 studs, 30% transparent, orange for
-  Explosion, gray for Smoke), named `SpawnedFX_<id>`.
+- Each effect gets a `Part` (Ball shape, 0.7 studs, 30% transparent), named
+  `SpawnedFX_<id>`. Color: orange `(255,120,0)` for Explosion, gray `(150,150,150)`
+  for Smoke, blue `(80,160,255)` for Sound.
 - `Selection.SelectionChanged` handler: when the selected Part matches a gizmo, opens
   `panel:showSpawnedFxOverlay(fx.frame, fx)` in edit mode, then clears the selection.
 - `destroyAllEffectGizmos()` is forward-declared so `applySessionData` (defined earlier)
@@ -843,6 +865,9 @@ explicit `data.id` for session restore and advances `_nextSpawnedEffectId` past 
 
 `buildSpawnedEffectsSource(session)` emits a `return { effects = {...} }` ModuleScript.
 Written only when `session.spawnedEffects` is non-empty (file name: `SpawnedEffects`).
+Branches on `effectType`: Sound entries emit `soundId`/`volume`/`maxDistance` fields;
+particle entries emit the full scalar set. `serializeSession()` applies the same branch
+so only the relevant fields are stored per entry.
 `SpawnedEffectRunner` is added to both `serverMods` (ServerStorage.MultiAnimationData,
 used by MultiAnimPlayer) and `clientMods` (ReplicatedStorage, used by CutscenePlayer).
 

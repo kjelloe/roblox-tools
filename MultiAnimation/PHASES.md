@@ -703,39 +703,43 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
     has only Loop and Movie Mode toggles. `setPlaybackFPSDisplay` is a no-op. Bridge
     `setPlaybackParams` still accepts `fps` for test compatibility.
 
-- ✅ **SpawnedEffects (Simple Mode particle bursts):**
+- ✅ **SpawnedEffects (Simple Mode particle bursts + Sound):**
   - **Effects button** added to Simple Mode action row (position 6).
-  - **Effects overlay** — card at ZIndex 55 (separate `do...end` block to respect the
-    200-register limit): type cycle (Explosion / Smoke), scalar property inputs
-    (Size, Color R/G/B, Count, Duration, Speed, Lifetime), "Select Position" button
-    + coordinate label, Add / Cancel / Delete buttons. Delete hidden in create mode.
-  - **`plugin/core/SpawnedEffectRunner.lua`** (new): `PRESETS` table (Explosion:
-    orange, spread-180°, LightEmission 0.8; Smoke: gray, spread-25°), `PROPS` ordered
-    list, `buildParams(effectType, overrides)`, `fire(pos, effectType, params)` — creates
-    a transparent `Part` + `ParticleEmitter`, calls `:Emit(count)`, `task.delay`-destroys
-    after `duration + lifetime`.
-  - **`game/SpawnedEffectRunner.lua`** (new): identical `fire()` function; zero plugin
-    dependencies; deployed to `ServerStorage.MultiAnimationData` via `Exporter.serverMods`.
+  - **Effects overlay** — card at ZIndex 55, `AutomaticSize = Enum.AutomaticSize.Y`
+    (separate `do...end` block to respect the 200-register limit): type cycle
+    (Explosion / Smoke / Sound), `fxApplyTypeVisibility()` toggles particle rows vs
+    Sound rows (UIListLayout skips `Visible=false` children). Particle inputs: Size,
+    Color R/G/B, Count, Duration, Speed, Lifetime. Sound inputs: SoundId TextBox
+    (`ClearTextOnFocus = false`), Volume, Max Distance. "Select Position" picker +
+    coordinate label. Add / Cancel / Delete buttons. Delete hidden in create mode.
+  - **`plugin/core/SpawnedEffectRunner.lua`** (new): `PRESETS` (Explosion: orange
+    burst; Smoke: gray column; Sound: soundId/volume/maxDistance), `PROPS` ordered
+    list (particle only), `buildParams`, `fire()` — Sound branch creates `Part` +
+    `Sound`, calls `:Play()`, destroys on `Ended` or 30s fallback; particle branch
+    creates `Part` + `ParticleEmitter`, `:Emit(count)`, `task.delay`-destroys.
+  - **`game/SpawnedEffectRunner.lua`** (new): identical `fire()` including Sound
+    branch; zero plugin dependencies; deployed via `Exporter.serverMods` and
+    `clientMods`.
   - **Recorder CRUD:** `session.spawnedEffects` array + `_nextSpawnedEffectId`;
     `addSpawnedEffect`, `updateSpawnedEffect`, `deleteSpawnedEffect`, `getSpawnedEffects`,
     `getSpawnedEffectById`; `clearSession()` resets both.
   - **Position picking:** `plugin:Activate(true)` + `plugin:GetMouse().Button1Down`;
-    calls `panel:setSpawnedFxPosition(pos)` on click, then `plugin:Deactivate()`.
+    calls `panel:setSpawnedFxPosition(pos)` on click.
   - **Gizmo spheres:** `workspace.__MultiAnimEffectGizmos` folder; Ball Part per effect
-    (orange = Explosion, grey = Smoke); `Selection.SelectionChanged` opens overlay in
-    edit mode on gizmo click. Forward-declared `destroyAllEffectGizmos` / `createEffectGizmo`
-    so `applySessionData` (defined earlier in init.server.lua) can call them.
+    (orange = Explosion, gray = Smoke, blue = Sound); `Selection.SelectionChanged` opens
+    overlay in edit mode on gizmo click.
   - **Edit-mode preview:** fires immediately on "Add to Frame" / "Update".
-  - **Session persistence:** `serializeSession` + `applySessionData` round-trip
-    `spawnedEffects`; gizmos recreated on restore.
-  - **Export:** `buildSpawnedEffectsSource()` → `SpawnedEffects` ModuleScript in scene
-    folder (omitted if empty). `SpawnedEffectRunner` added to `serverMods`.
-  - **In-game playback:** `MultiAnimPlayer.play()` loads `SpawnedEffects` + requires
-    `SpawnedEffectRunner` from `script.Parent`; builds sorted `spawnedFxEvents` list;
-    fires via same crossing-pointer pattern as `effectEvents`.
-  - **Tests:** `test_spawned_effects_core.lua` (44 cases — PRESETS, PROPS, buildParams,
-    Recorder CRUD, clearSession, id restore), `test_spawned_effects_exporter.lua` (46
-    cases — source builder, loadstring round-trip, field preservation, defaults).
+  - **Session persistence:** `serializeSession` branches on effectType (Sound stores
+    soundId/volume/maxDistance; particles store scalar set); `applySessionData`
+    round-trips; gizmos recreated on restore.
+  - **Export:** `buildSpawnedEffectsSource()` branches on effectType → `SpawnedEffects`
+    ModuleScript in scene folder (omitted if empty). `SpawnedEffectRunner` added to
+    `serverMods` and `clientMods`.
+  - **In-game playback:** `MultiAnimPlayer.play()` and `CutscenePlayer.play()` both fire
+    spawned effects via crossing-pointer pattern; Sound fires a Part+Sound at world pos.
+  - **Tests:** `test_spawned_effects_core.lua` (64 cases — PRESETS incl. Sound,
+    buildParams, Recorder CRUD incl. Sound type), `test_spawned_effects_exporter.lua`
+    (62 cases — particle + Sound round-trip, mixed entries, inline builder updated).
     **Suite: 621 cases, 27 files.**
 
 - ✅ **Test infrastructure — UI test isolation:** Added `scanFigures` TestBridge command that
@@ -790,7 +794,22 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
     their character correctly and physics resumes.
   - **7 new test cases** in `test_player_rig_proxy.lua` (camera subject set/restored, HRP
     force-unanchored, teardown-with-destroyed-character, sequential-clone correctness).
-    **Suite: 633 cases, 27 files.**
+    **Suite: 669 cases, 27 files.**
+
+- ✅ **Sound spawned effect type:**
+  - `FX_TYPES` extended to `{ "Explosion", "Smoke", "Sound" }` in Panel.lua.
+  - Overlay `AutomaticSize = Enum.AutomaticSize.Y`; `fxApplyTypeVisibility()` shows
+    Sound rows (SoundId, Volume, MaxDistance) and hides particle rows when Sound is
+    selected, and vice-versa.
+  - `SpawnedEffectRunner.PRESETS.Sound`, `fire()` Sound branch: creates a transparent
+    `Part` at world-pos, parents a `Sound`, sets `SoundId`/`Volume`/`RollOffMaxDistance`,
+    calls `:Play()`. On `Ended` (or 30s fallback) destroys the Part.
+  - `Exporter.buildSpawnedEffectsSource` and `init.server.lua serializeSession` both
+    branch on `effectType == "Sound"` to emit/store only Sound fields (not size/color/etc).
+  - Blue `(80,160,255)` gizmo sphere for Sound effects.
+  - `test_spawned_effects_core.lua` +20 cases (Sound PRESETS, buildParams, Recorder CRUD).
+  - `test_spawned_effects_exporter.lua` +15 cases (Sound round-trip, mixed entries).
+  - **Suite: 669 cases, 27 files.**
 
 ### Backlog
 
