@@ -156,8 +156,9 @@ local playbackScenes   = {}     -- sorted list of saved scene names
 local playbackSceneIdx = 0      -- index into playbackScenes (1-based)
 local playbackRigModes = {}     -- { [rigName] = modeKey }
 local playbackFPS      = 30
-local playbackLoop     = false
-local playbackMovieMode= true   -- default ON; drives letterbox + camera
+local playbackLoop       = false
+local playbackMovieMode  = true   -- default ON; drives letterbox + camera
+local playbackResetOnEnd = false  -- when true, rigs/props snap back to frame 1 after animation
 -- Cached scene contents (populated in refreshCurrentPlaybackScene)
 local exportedPropNames    = {}
 local exportedEffectNames  = {}
@@ -1807,9 +1808,10 @@ buildPlaybackSnippet = function()
         and table.concat(rigLines, "\n")
         or  '        -- No rigs detected — export the scene first'
 
-    -- Opts: movieMode always listed (toggle controls value), loop only when on.
+    -- Opts: movieMode always listed; loop and resetOnEnd only when on.
     local optExtras = { playbackMovieMode and "movieMode = true" or "movieMode = false" }
-    if playbackLoop then table.insert(optExtras, "loop = true") end
+    if playbackLoop        then table.insert(optExtras, "loop = true") end
+    if playbackResetOnEnd  then table.insert(optExtras, "resetOnEnd = true") end
     local optsStr = "{ " .. table.concat(optExtras, ", ") .. " }"
 
     -- Scene-contents comment lines.
@@ -2018,8 +2020,10 @@ panel.onPlaybackRigChanged:Connect(function(rigName, modeKey)
 end)
 
 panel.onPlaybackParamsChanged:Connect(function(params)
-    if params.loop       ~= nil then playbackLoop      = params.loop end
-    if params.movieMode  ~= nil then playbackMovieMode = params.movieMode end
+    if params.loop        ~= nil then playbackLoop       = params.loop end
+    if params.movieMode   ~= nil then playbackMovieMode  = params.movieMode end
+    if params.resetOnEnd  ~= nil then playbackResetOnEnd = params.resetOnEnd
+        panel:setPlaybackResetOnEndDisplay(playbackResetOnEnd) end
     buildPlaybackSnippet()
 end)
 
@@ -3344,15 +3348,17 @@ local testBridge = TestBridge.start({
         if a.fps        ~= nil then playbackFPS       = math.clamp(math.floor(tonumber(a.fps) or 30), 1, 999) end
         if a.loop       ~= nil then playbackLoop      = a.loop and true or false end
         if a.movieMode  ~= nil then playbackMovieMode = a.movieMode and true or false end
+        if a.resetOnEnd ~= nil then playbackResetOnEnd = a.resetOnEnd and true or false end
         panel:setPlaybackFPSDisplay(playbackFPS)
         panel:setPlaybackLoopDisplay(playbackLoop)
         panel:setPlaybackMovieModeDisplay(playbackMovieMode)
+        panel:setPlaybackResetOnEndDisplay(playbackResetOnEnd)
         buildPlaybackSnippet()
-        return { fps = playbackFPS, loop = playbackLoop, movieMode = playbackMovieMode }
+        return { fps = playbackFPS, loop = playbackLoop, movieMode = playbackMovieMode, resetOnEnd = playbackResetOnEnd }
     end,
 
     getPlaybackParams = function()
-        return { fps = playbackFPS, loop = playbackLoop, movieMode = playbackMovieMode }
+        return { fps = playbackFPS, loop = playbackLoop, movieMode = playbackMovieMode, resetOnEnd = playbackResetOnEnd }
     end,
 
     -- Returns the current snippet text.

@@ -1860,7 +1860,7 @@ function Panel.new(widget)
         { key = "userIdDirect", label = "UserId—direct"      },
     }
 
-    -- Params row: Loop / Movie Mode (FPS removed — set during export)
+    -- Params row: Loop / Movie Mode / Reset On End (FPS removed — set during export)
     local pbParamRow = hrow(playbackSec, 5, 4)
     local pbLoopBtn = btn(pbParamRow, "Loop: OFF", 1)
     self._pbLoopBtn = pbLoopBtn
@@ -1868,7 +1868,7 @@ function Panel.new(widget)
     pbLoopBtn.MouseButton1Click:Connect(function()
         self._pbLoop = not self._pbLoop
         pbLoopBtn.Text = "Loop: " .. (self._pbLoop and "ON" or "OFF")
-        ePlaybackParams:Fire({ loop = self._pbLoop, movieMode = self._pbMovieMode })
+        ePlaybackParams:Fire({ loop = self._pbLoop, movieMode = self._pbMovieMode, resetOnEnd = self._pbResetOnEnd })
     end)
     local pbMovieBtn = btn(pbParamRow, "Movie: ON", 2)
     self._pbMovieBtn = pbMovieBtn
@@ -1876,7 +1876,15 @@ function Panel.new(widget)
     pbMovieBtn.MouseButton1Click:Connect(function()
         self._pbMovieMode = not self._pbMovieMode
         pbMovieBtn.Text = "Movie: " .. (self._pbMovieMode and "ON" or "OFF")
-        ePlaybackParams:Fire({ loop = self._pbLoop, movieMode = self._pbMovieMode })
+        ePlaybackParams:Fire({ loop = self._pbLoop, movieMode = self._pbMovieMode, resetOnEnd = self._pbResetOnEnd })
+    end)
+    local pbResetBtn = btn(pbParamRow, "Reset: OFF", 3)
+    self._pbResetBtn    = pbResetBtn
+    self._pbResetOnEnd  = false
+    pbResetBtn.MouseButton1Click:Connect(function()
+        self._pbResetOnEnd = not self._pbResetOnEnd
+        pbResetBtn.Text = "Reset: " .. (self._pbResetOnEnd and "ON" or "OFF")
+        ePlaybackParams:Fire({ loop = self._pbLoop, movieMode = self._pbMovieMode, resetOnEnd = self._pbResetOnEnd })
     end)
 
     -- Snippet label
@@ -2191,6 +2199,14 @@ function Panel:setPlaybackLoopDisplay(on)
     self._pbLoop = on and true or false
     if self._pbLoopBtn then
         self._pbLoopBtn.Text = "Loop: " .. (self._pbLoop and "ON" or "OFF")
+    end
+end
+
+-- Push ResetOnEnd state display.
+function Panel:setPlaybackResetOnEndDisplay(on)
+    self._pbResetOnEnd = on and true or false
+    if self._pbResetBtn then
+        self._pbResetBtn.Text = "Reset: " .. (self._pbResetOnEnd and "ON" or "OFF")
     end
 end
 

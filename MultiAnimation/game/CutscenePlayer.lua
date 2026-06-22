@@ -148,8 +148,9 @@ function CutscenePlayer.play(sceneName, rigMap, options)
     options  = options  or {}
     rigMap   = rigMap   or {}
     local fps        = math.max(1, math.floor(options.fps  or 30))
-    local loop       = options.loop       or false
-    local movieMode  = options.movieMode  or false
+    local loop       = options.loop        or false
+    local movieMode  = options.movieMode   or false
+    local resetOnEnd = options.resetOnEnd  or false
 
     -- Grab modules; they live next to CutscenePlayer in ReplicatedStorage.
     local selfModule  = script  -- the ModuleScript itself (for sibling access)
@@ -270,8 +271,27 @@ function CutscenePlayer.play(sceneName, rigMap, options)
     end
     if duration == 0 then duration = 1 end
 
-    local camera      = workspace.CurrentCamera
-    local stopped     = false
+    -- Snap all resolved rigs back to their frame-1 pose.
+    local function applyAtT0()
+        for rigName, rig in pairs(resolvedRigs) do
+            local rd = sceneData.rigs[rigName]
+            if not rd then continue end
+            if rd.rootKFs and #rd.rootKFs > 0 then
+                local hrp = rig:FindFirstChild("HumanoidRootPart")
+                if hrp then hrp.CFrame = rd.rootKFs[1].data end
+            end
+            if rd.jointKFs and #rd.jointKFs > 0 then
+                applyJoints(jointMaps[rigName] or {}, rd.jointKFs[1].poses)
+            end
+            if rd.scaleKFs and #rd.scaleKFs > 0 then
+                applyScale(rig, rd.scaleKFs[1].data)
+            end
+        end
+    end
+
+    local camera         = workspace.CurrentCamera
+    local prevCameraType = camera and camera.CameraType
+    local stopped        = false
     local elapsed     = 0
     local lastSfxTime = -1
 
@@ -349,10 +369,13 @@ function CutscenePlayer.play(sceneName, rigMap, options)
 
         if stopped then
             conn:Disconnect()
+            if resetOnEnd then pcall(applyAtT0) end
             teardownRigs()
             if movieMode then LetterboxGui.hide() end
-            -- Return camera control to player
-            camera.CameraType = Enum.CameraType.Custom
+            -- Restore camera type to whatever was active before the cutscene.
+            if camera then
+                camera.CameraType = prevCameraType or Enum.CameraType.Custom
+            end
         end
     end)
 
@@ -361,6 +384,7 @@ function CutscenePlayer.play(sceneName, rigMap, options)
         if not stopped then
             stopped = true
             conn:Disconnect()
+            if resetOnEnd then applyAtT0() end
             teardownRigs()
             if movieMode then LetterboxGui.hide() end
             camera.CameraType = Enum.CameraType.Custom

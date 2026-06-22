@@ -126,17 +126,18 @@ function PlayerRigProxy.resolve(entry, anchorCF)
         if cam and cloneHrp then cam.CameraSubject = cloneHrp end
 
         return clone, function()
+            -- Restore CameraSubject BEFORE destroying the clone so it never points
+            -- to a destroyed BasePart (which leaves the camera in an undefined state).
+            local camNow = workspace.CurrentCamera
+            if camNow then
+                local hum = character and character:FindFirstChildOfClass("Humanoid")
+                camNow.CameraSubject = hum or prevSubject
+            end
             if clone and clone.Parent then clone:Destroy() end
             if character and character.Parent then
                 restoreCharacter(character, saved)
                 local hrp = character:FindFirstChild("HumanoidRootPart")
                 if hrp then hrp.Anchored = false end
-            end
-            -- Restore camera to original character's Humanoid
-            local camNow = workspace.CurrentCamera
-            if camNow then
-                local hum = character and character:FindFirstChildOfClass("Humanoid")
-                camNow.CameraSubject = hum or prevSubject
             end
         end
 

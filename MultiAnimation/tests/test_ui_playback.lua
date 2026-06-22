@@ -210,7 +210,35 @@ ok(gotParams.movieMode == true, "partial setPlaybackParams: movieMode preserved"
 -- ── 25. Playback tab stays in playback mode (no implicit mode switch) ─────────
 ok(call("getPlaybackMode") == "playback", "mode is still 'playback' at end of test")
 
--- ── 26. frameCount preserved through playback→advanced round-trip ────────────
+-- ── 26. resetOnEnd param round-trips ─────────────────────────────────────────
+params = call("setPlaybackParams", { resetOnEnd = true })
+ok(params.resetOnEnd == true, "setPlaybackParams: resetOnEnd=true stored")
+params = call("setPlaybackParams", { resetOnEnd = false })
+ok(params.resetOnEnd == false, "setPlaybackParams: resetOnEnd=false stored")
+
+-- ── 27. resetOnEnd=true appears in snippet opts ───────────────────────────────
+call("setPlaybackParams", { resetOnEnd = true })
+snippet = call("getPlaybackSnippet")
+ok(snippet:find("resetOnEnd = true") ~= nil, "snippet: resetOnEnd=true in opts when enabled")
+
+-- ── 28. resetOnEnd=false → no resetOnEnd key in snippet ──────────────────────
+call("setPlaybackParams", { resetOnEnd = false })
+snippet = call("getPlaybackSnippet")
+ok(snippet:find("resetOnEnd") == nil, "snippet: no resetOnEnd key when false")
+
+-- ── 29. partial update preserves resetOnEnd ────────────────────────────────────
+call("setPlaybackParams", { loop = false, resetOnEnd = true })
+call("setPlaybackParams", { loop = true })   -- only loop changed
+gotParams = call("getPlaybackParams")
+ok(gotParams.resetOnEnd == true, "partial update: resetOnEnd preserved")
+
+-- ── 30. getPlaybackParams includes resetOnEnd field ───────────────────────────
+call("setPlaybackParams", { resetOnEnd = false })
+gotParams = call("getPlaybackParams")
+ok(gotParams.resetOnEnd == false, "getPlaybackParams includes resetOnEnd field")
+call("setPlaybackParams", { resetOnEnd = false })   -- restore default
+
+-- ── 31. frameCount preserved through playback→advanced round-trip ────────────
 -- Regression: entering playback used to skip saving advancedFrameCount, so the
 -- advanced frame count was lost when restoring (the restore branch found nil).
 call("setMode", { mode = (origMode and origMode ~= "playback") and origMode or "advanced" })

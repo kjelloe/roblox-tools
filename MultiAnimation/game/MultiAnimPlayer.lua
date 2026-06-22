@@ -25,6 +25,7 @@ local MultiAnimPlayer = {}
 local _finishedCb = nil
 local _heartbeat  = nil
 local _sceneName  = nil
+local _resetFn    = nil   -- set when resetOnEnd=true; called on stop/finish
 
 -- ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -166,6 +167,7 @@ end
 local function clearActive()
     if _heartbeat then _heartbeat:Disconnect(); _heartbeat = nil end
     _sceneName = nil
+    _resetFn   = nil
 end
 
 local function fireFinished(sn)
@@ -181,11 +183,12 @@ end
 function MultiAnimPlayer.stop()
     if not _sceneName then return end
     local sn = _sceneName
+    if _resetFn then pcall(_resetFn) end
     clearActive()
     fireFinished(sn)
 end
 
-function MultiAnimPlayer.play(sceneName, rigMap, propMap)
+function MultiAnimPlayer.play(sceneName, rigMap, propMap, opts)
     if _sceneName then clearActive() end
 
     local ServerStorage = game:GetService("ServerStorage")
@@ -370,6 +373,35 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap)
         return
     end
 
+    -- When resetOnEnd is requested, build a closure over rigStates/propStates.
+    if opts and opts.resetOnEnd then
+        _resetFn = function()
+            for _, state in pairs(rigStates) do
+                if #state.jointKFs > 0 then
+                    for jName, motor in pairs(state.joints) do
+                        local p = state.jointKFs[1].poses[jName]
+                        if p then motor.Transform = p end
+                    end
+                end
+                if #state.scaleKFs > 0 then
+                    for pName, sz in pairs(state.scaleKFs[1].data) do
+                        local part = state.model:FindFirstChild(pName)
+                        if part then part.Size = sz end
+                    end
+                end
+                if #state.rootKFs > 0 then
+                    local hrp = state.model:FindFirstChild("HumanoidRootPart")
+                    if hrp then hrp.CFrame = state.rootKFs[1].data end
+                end
+            end
+            for _, state in pairs(propStates) do
+                if #state.kfs > 0 and state.part and state.part.Parent then
+                    state.part.CFrame = state.kfs[1].data
+                end
+            end
+        end
+    end
+
     -- ── Heartbeat loop ────────────────────────────────────────────────────────
 
     _sceneName = sceneName
@@ -469,6 +501,7 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap)
         if elapsed >= totalLength then
             done = true
             local sn = _sceneName
+            if _resetFn then pcall(_resetFn) end
             clearActive()
             fireFinished(sn)
         end
