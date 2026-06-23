@@ -519,10 +519,10 @@ as one of the rigs.
    )
    -- handle.stop() to cancel early
 
-   -- handle.onComplete fires once after full teardown (natural end, stop(), or error)
-   handle.onComplete = function()
+   -- handle.onComplete(fn) fires once after full teardown (natural end, stop(), or error)
+   handle.onComplete(function()
        print("cutscene finished")
-   end
+   end)
    ```
 
    **Props are animated automatically.** `CutscenePlayer` reads prop tracks from
@@ -548,9 +548,9 @@ as one of the rigs.
            { Rig1 = { player = game.Players.LocalPlayer, mode = "clone" } },
            { movieMode = true, resetOnEnd = true })
 
-       handle.onComplete = function()
+       handle.onComplete(function()
            debounce = false
-       end
+       end)
    end)
    ```
 

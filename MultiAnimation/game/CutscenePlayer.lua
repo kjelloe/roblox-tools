@@ -13,7 +13,8 @@
 --       Rig1 = workspace.FIGURES.Rig1,                             -- fixed rig
 --       Rig2 = { player = game.Players.LocalPlayer, mode = "clone" },
 --   }, { fps = 30, loop = false, movieMode = true })
---   -- handle.stop() cancels early
+--   -- handle.stop()              cancels early
+--   -- handle.onComplete(function() ... end)  fires after full teardown
 --
 -- rigMap values:
 --   Instance                              → fixed workspace rig (pass-through)
@@ -320,9 +321,14 @@ function CutscenePlayer.play(sceneName, rigMap, options)
     local elapsed     = 0
     local lastSfxTime = -1
 
-    -- handle is declared here so doTeardown can read handle.onComplete.
+    -- handle is declared here so doTeardown can close over _onComplete.
     local handle = {}
-    handle.onComplete = nil  -- user sets this after play() returns
+    local _onComplete = nil
+
+    -- handle.onComplete(fn) — register a callback to fire after full teardown.
+    function handle.onComplete(fn)
+        _onComplete = fn
+    end
 
     -- Shared teardown: runs once on natural completion OR handle.stop() OR Heartbeat error.
     local function doTeardown()
@@ -343,9 +349,9 @@ function CutscenePlayer.play(sceneName, rigMap, options)
             camera.CameraType = Enum.CameraType.Custom
         end
         -- Fire onComplete callback last, after full state restore.
-        if handle.onComplete then
-            local cb = handle.onComplete
-            handle.onComplete = nil
+        if _onComplete then
+            local cb = _onComplete
+            _onComplete = nil
             pcall(cb)
         end
     end

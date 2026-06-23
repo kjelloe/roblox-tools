@@ -833,8 +833,8 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
     AFTER `clone:Destroy()`, leaving a frame where CameraSubject pointed to a destroyed
     BasePart. Fix: restore CameraSubject BEFORE destroying the clone.
   - **`handle.onComplete` callback:** `CutscenePlayer.play()` handle now exposes
-    `handle.onComplete = function() end`. Set after `play()` returns; fires once after
-    full `doTeardown()` completes (natural end, stop(), or error). Intended use:
+    `handle.onComplete(fn)`. Call after `play()` returns; fires once after full
+    `doTeardown()` completes (natural end, stop(), or error). Intended use:
     debounce reset, follow-up actions. Example:
     ```lua
     local debounce = false
@@ -842,7 +842,7 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
         if debounce or hit.Parent ~= character then return end
         debounce = true
         local h = CutscenePlayer.play("scene1", rigMap, opts)
-        h.onComplete = function() debounce = false end
+        h.onComplete(function() debounce = false end)
     end)
     ```
   - **Suite: 673 cases, 27 files.**

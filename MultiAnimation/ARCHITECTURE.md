@@ -206,8 +206,8 @@ CutscenePlayer.lua      ModuleScript — client LocalScript orchestrator
                           opts: { fps (optional; sceneData.fps used when omitted),
                                   loop, movieMode, resetOnEnd }
                           handle.stop() — cancel early
-                          handle.onComplete = function() end  — fires after full teardown
-                            (natural end OR stop()); set after play() returns
+                          handle.onComplete(fn) — register callback; fires after full
+                            teardown (natural end, stop(), or error)
                         Flow: MultiAnimGetScene:InvokeServer → PlayerRigProxy.resolveAll
                           → prop instance resolution (CollectionService tags + workspace
                           search fallback) → LetterboxGui.show (if movieMode)
