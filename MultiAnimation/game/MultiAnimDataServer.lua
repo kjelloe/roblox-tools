@@ -106,6 +106,10 @@ local function getSceneData(sceneName)
         local m = sceneFolder:FindFirstChild("SpawnedEffects"); return m and require(m) or nil
     end)
     if not ok6 then sfxData = nil end
+    local ok7, subTrack = pcall(function()
+        local m = sceneFolder:FindFirstChild("SubtitleTrack"); return m and require(m) or nil
+    end)
+    if not ok7 then subTrack = nil end
 
     local fps = (scaleTracks and scaleTracks.fps)
              or (propTracks  and propTracks.fps)
@@ -187,6 +191,12 @@ local function getSceneData(sceneName)
     -- Spawned effects (plain table — serialises cleanly over RemoteFunction)
     if sfxData and sfxData.effects then
         out.spawnedEffects = sfxData.effects
+    end
+
+    -- Subtitle track (style + events; pass through as-is — no CFrame conversion needed)
+    if subTrack then
+        out.subtitles     = subTrack.events or {}
+        out.subtitleStyle = subTrack.style  or {}
     end
 
     return out

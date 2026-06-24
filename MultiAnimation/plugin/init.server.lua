@@ -446,6 +446,12 @@ local function serializeSession()
         end
         out.effects[name] = { kind = fx.kind, action = fx.action, path = fx.path, track = tOut }
     end
+    out.subtitlesEnabled = session.subtitlesEnabled or false
+    out.subtitleStyle    = session.subtitleStyle    or {}
+    out.subtitles        = {}
+    for _, ev in ipairs(session.subtitles or {}) do
+        table.insert(out.subtitles, { frame = ev.frame, text = ev.text })
+    end
     out.spawnedEffects = {}
     for _, sfx in ipairs(session.spawnedEffects or {}) do
         local entry = {
@@ -640,6 +646,17 @@ local function applySessionData(data)
     for _, sfxData in ipairs(data.spawnedEffects or {}) do
         local fx = recorder:addSpawnedEffect(sfxData)
         createEffectGizmo(fx)
+    end
+
+    -- Restore subtitle track
+    recorder:setSubtitlesEnabled(data.subtitlesEnabled or false)
+    panel:setSubtitleEnabled(data.subtitlesEnabled or false)
+    if data.subtitleStyle then
+        recorder:setSubtitleStyle(data.subtitleStyle)
+        panel:setSubtitleStyleDisplay(data.subtitleStyle)
+    end
+    for _, ev in ipairs(data.subtitles or {}) do
+        recorder:setSubtitleEvent(ev.frame, ev.text)
     end
 
     panel:setRigs(allRigs)
@@ -1102,12 +1119,60 @@ end
 
 -- ── Playback ──────────────────────────────────────────────────────────────────
 
+local _previewSubGui = nil  -- CoreGui ScreenGui for subtitle preview during edit-mode playback
+
+local function _destroyPreviewSubGui()
+    if _previewSubGui and _previewSubGui.Parent then
+        _previewSubGui:Destroy()
+    end
+    _previewSubGui = nil
+end
+
+local function _showPreviewSubtitle(text, style)
+    _destroyPreviewSubGui()
+    style = style or {}
+    local sg = Instance.new("ScreenGui")
+    sg.Name           = "MultiAnimSubPreview"
+    sg.IgnoreGuiInset = true
+    sg.DisplayOrder   = 201
+    sg.ResetOnSpawn   = false
+    sg.Parent         = game:GetService("CoreGui")
+
+    local xOff = style.xOffset or 0.05
+    local yOff = style.yOffset or 0.85
+    local frame = Instance.new("Frame")
+    frame.Size                 = UDim2.new(1 - 2 * xOff, 0, 0, 0)
+    frame.AutomaticSize        = Enum.AutomaticSize.Y
+    frame.Position             = UDim2.new(xOff, 0, yOff, 0)
+    frame.BackgroundColor3     = Color3.fromRGB(style.bgColorR or 0, style.bgColorG or 0, style.bgColorB or 0)
+    frame.BackgroundTransparency = style.bgTransparency or 0.6
+    frame.BorderSizePixel      = 0
+    frame.Parent               = sg
+
+    local tl = Instance.new("TextLabel")
+    tl.Size               = UDim2.new(1, 0, 0, 0)
+    tl.AutomaticSize      = Enum.AutomaticSize.Y
+    tl.BackgroundTransparency = 1
+    tl.TextWrapped        = true
+    tl.TextXAlignment     = Enum.TextXAlignment.Center
+    tl.Font               = Enum.Font.GothamMedium
+    tl.TextSize           = style.size or 28
+    tl.TextColor3         = Color3.fromRGB(style.textColorR or 255, style.textColorG or 255, style.textColorB or 255)
+    tl.TextStrokeColor3   = Color3.fromRGB(style.strokeColorR or 0, style.strokeColorG or 0, style.strokeColorB or 0)
+    tl.TextTransparency       = style.textTransparency   or 0
+    tl.TextStrokeTransparency = style.strokeTransparency or 0
+    tl.Text               = text
+    tl.Parent             = frame
+    _previewSubGui = sg
+end
+
 local function stopPlayback()
     if playConn then
         playConn:Disconnect()
         playConn = nil
     end
     isPlaying = false
+    _destroyPreviewSubGui()
     ChangeHistoryService:SetEnabled(true)
     ChangeHistoryService:SetWaypoint("MultiAnim_PreviewEnd")
     panel:setPlaybackState(false)
@@ -1170,6 +1235,21 @@ local function startPlayback()
                 end
             end
             lastEventFrame = intFrame
+        end
+
+        -- Subtitle preview in edit mode
+        if recorder:getSubtitlesEnabled() then
+            local activeText = recorder:getActiveSubtitleAt(intFrame)
+            if activeText then
+                if not _previewSubGui or not _previewSubGui.Parent then
+                    _showPreviewSubtitle(activeText, recorder:getSubtitleStyle())
+                elseif _previewSubGui:FindFirstChildOfClass("Frame") then
+                    local lbl = _previewSubGui:FindFirstChildOfClass("Frame"):FindFirstChildOfClass("TextLabel")
+                    if lbl then lbl.Text = activeText end
+                end
+            else
+                _destroyPreviewSubGui()
+            end
         end
 
         local clamped = timeline:setCurrent(intFrame)
@@ -1921,6 +2001,28 @@ panel.onSimpleFPSChanged:Connect(function(fps)
     recorder:setFps(fps)
 end)
 
+panel.onSubtitleEnabledChanged:Connect(function(on)
+    recorder:setSubtitlesEnabled(on)
+end)
+panel.onSubtitleTextChanged:Connect(function(text)
+    -- Text field changed; if "Show" is active at this frame, update the event.
+    local frame = timeline:getCurrent()
+    if recorder:getSubtitleEventAt(frame) then
+        recorder:setSubtitleEvent(frame, text)
+    end
+end)
+panel.onSubtitleShowChanged:Connect(function(frame, show)
+    local text = panel:getSubtitleText()
+    if show then
+        recorder:setSubtitleEvent(frame, text)
+    else
+        recorder:removeSubtitleEvent(frame)
+    end
+end)
+panel.onSubtitleStyleChanged:Connect(function(patch)
+    recorder:setSubtitleStyle(patch)
+end)
+
 -- ── Playback tab event handlers ───────────────────────────────────────────────
 
 refreshCurrentPlaybackScene = function()
@@ -2263,6 +2365,12 @@ panel.onFrameChanged:Connect(function(newFrame)
                 panel:setSimpleEasingDisplay(fe)
                 break
             end
+        end
+        -- Subtitle nav sync: update textbox (inherited text) + show-at-frame checkbox
+        if recorder:getSubtitlesEnabled() then
+            local activeText = recorder:getActiveSubtitleAt(f) or ""
+            panel:setSubtitleText(activeText)
+            panel:updateSubtitleShowBtn(f, recorder:getSubtitleEventAt(f) ~= nil)
         end
     end
 end)
@@ -3365,6 +3473,50 @@ local testBridge = TestBridge.start({
     getPlaybackSnippet = function()
         buildPlaybackSnippet()
         return panel._pbSnipBox and panel._pbSnipBox.Text or ""
+    end,
+
+    -- Subtitle bridge commands
+    getSubtitleEnabled = function()
+        return recorder:getSubtitlesEnabled()
+    end,
+
+    setSubtitleEnabled = function(a)
+        local on = a.enabled == true
+        recorder:setSubtitlesEnabled(on)
+        panel:setSubtitleEnabled(on)
+        return on
+    end,
+
+    getSubtitleEvents = function()
+        return recorder:getSubtitleEvents()
+    end,
+
+    -- Set or clear a subtitle event at the given frame.
+    -- Pass text=nil or show=false to remove.
+    setSubtitleEvent = function(a)
+        local frame = tonumber(a.frame) or timeline:getCurrent()
+        if a.show == false or a.text == nil then
+            recorder:removeSubtitleEvent(frame)
+        else
+            recorder:setSubtitleEvent(frame, tostring(a.text or ""))
+        end
+        panel:updateSubtitleShowBtn(frame, recorder:getSubtitleEventAt(frame) ~= nil)
+        return recorder:getSubtitleEvents()
+    end,
+
+    getActiveSubtitleAt = function(a)
+        local frame = tonumber(a.frame) or timeline:getCurrent()
+        return recorder:getActiveSubtitleAt(frame)
+    end,
+
+    getSubtitleStyle = function()
+        return recorder:getSubtitleStyle()
+    end,
+
+    setSubtitleStyle = function(a)
+        recorder:setSubtitleStyle(a)
+        panel:setSubtitleStyleDisplay(recorder:getSubtitleStyle())
+        return recorder:getSubtitleStyle()
     end,
 })
 

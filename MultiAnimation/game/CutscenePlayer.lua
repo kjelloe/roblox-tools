@@ -161,6 +161,9 @@ function CutscenePlayer.play(sceneName, rigMap, options)
                                 or selfModule.Parent.Parent:FindFirstChild("LetterboxGui"))
     local SpawnedEffectRunner = require(selfModule.Parent:FindFirstChild("SpawnedEffectRunner")
                                     or selfModule.Parent.Parent:FindFirstChild("SpawnedEffectRunner"))
+    local subtitleGuiMod = selfModule.Parent:FindFirstChild("SubtitleGui")
+                        or selfModule.Parent.Parent:FindFirstChild("SubtitleGui")
+    local SubtitleGui = subtitleGuiMod and require(subtitleGuiMod) or nil
 
     -- Fetch scene data from the server.
     local remote = ReplicatedStorage:WaitForChild("MultiAnimGetScene", 10)
@@ -264,6 +267,11 @@ function CutscenePlayer.play(sceneName, rigMap, options)
     end
     table.sort(spawnedFxEvents, function(a, b) return a.time < b.time end)
 
+    -- Subtitle track: sorted events + style (nil when scene has no SubtitleTrack)
+    local subtitleEvents = sceneData.subtitles or {}
+    local subtitleStyle  = sceneData.subtitleStyle or {}
+    local _lastSubText   = nil  -- tracks currently displayed subtitle to avoid redundant show() calls
+
     -- Letterbox
     if movieMode then LetterboxGui.show() end
 
@@ -335,6 +343,7 @@ function CutscenePlayer.play(sceneName, rigMap, options)
         if resetOnEnd then pcall(applyAtT0) end
         teardownRigs()
         if movieMode then LetterboxGui.hide() end
+        if SubtitleGui then pcall(SubtitleGui.hide) end
         -- Snap camera back to the live player character before restoring CameraType so
         -- Roblox's CameraModule resumes from the character position, not the cinematic
         -- endpoint (which would look like the camera is stuck far from the player).
@@ -432,6 +441,23 @@ function CutscenePlayer.play(sceneName, rigMap, options)
                 end
             end
             lastSfxTime = t
+
+            -- Subtitle stepped sampling
+            if SubtitleGui and #subtitleEvents > 0 then
+                local frame = math.floor(t * fps) + 1
+                local activeText = nil
+                for _, ev in ipairs(subtitleEvents) do
+                    if ev.frame <= frame then activeText = ev.text else break end
+                end
+                if activeText ~= _lastSubText then
+                    _lastSubText = activeText
+                    if activeText then
+                        pcall(SubtitleGui.show, activeText, subtitleStyle)
+                    else
+                        pcall(SubtitleGui.hide)
+                    end
+                end
+            end
 
             if stopped then
                 conn:Disconnect()

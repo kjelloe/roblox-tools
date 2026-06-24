@@ -28,7 +28,22 @@ function Recorder.new()
         props          = {},
         camera         = { track = {} },   -- [frame] = {cf=CFrame, fov=number, mode="move"|"cut"}
         effects        = {},               -- [name] = {kind, action, path, track={[frame]={action,count}}}
-        spawnedEffects = {},               -- array of {id, frame, effectType, posX/Y/Z, size, colorR/G/B, count, duration, speed, lifetime}
+        spawnedEffects = {},               -- array of {id, frame, effectType, posX/Y/Z, ...}
+        subtitlesEnabled = false,
+        subtitleStyle    = {
+            fontAsset         = "rbxasset://fonts/families/GothamSSm.json",
+            fontWeight        = "Regular",
+            size              = 28,
+            textColorR        = 255, textColorG = 255, textColorB = 255,
+            textTransparency  = 0,
+            strokeColorR      = 0,   strokeColorG = 0,  strokeColorB = 0,
+            strokeTransparency = 0,
+            bgColorR          = 0,   bgColorG = 0,  bgColorB = 0,
+            bgTransparency    = 0.6,
+            xOffset           = 0.05,
+            yOffset           = 0.85,
+        },
+        subtitles = {},  -- sorted array of {frame, text}
     }
     self._nextSpawnedEffectId = 1
 
@@ -326,13 +341,28 @@ function Recorder:deleteEffectEvent(name, frame)
 end
 
 function Recorder:clearSession()
-    self._session.rigs           = {}
-    self._session.props          = {}
-    self._session.camera         = { track = {} }
-    self._session.effects        = {}
-    self._session.spawnedEffects = {}
-    self._nextSpawnedEffectId    = 1
-    self._restPoses              = {}
+    self._session.rigs            = {}
+    self._session.props           = {}
+    self._session.camera          = { track = {} }
+    self._session.effects         = {}
+    self._session.spawnedEffects  = {}
+    self._nextSpawnedEffectId     = 1
+    self._restPoses               = {}
+    self._session.subtitlesEnabled = false
+    self._session.subtitles        = {}
+    self._session.subtitleStyle    = {
+        fontAsset         = "rbxasset://fonts/families/GothamSSm.json",
+        fontWeight        = "Regular",
+        size              = 28,
+        textColorR        = 255, textColorG = 255, textColorB = 255,
+        textTransparency  = 0,
+        strokeColorR      = 0,   strokeColorG = 0,  strokeColorB = 0,
+        strokeTransparency = 0,
+        bgColorR          = 0,   bgColorG = 0,  bgColorB = 0,
+        bgTransparency    = 0.6,
+        xOffset           = 0.05,
+        yOffset           = 0.85,
+    }
 end
 
 -- ── SpawnedEffects CRUD ───────────────────────────────────────────────────────
@@ -446,6 +476,77 @@ end
 
 function Recorder:destroy()
     self._added:Destroy()
+end
+
+-- ── Subtitles ─────────────────────────────────────────────────────────────────
+
+function Recorder:setSubtitlesEnabled(enabled)
+    self._session.subtitlesEnabled = enabled == true
+end
+
+function Recorder:getSubtitlesEnabled()
+    return self._session.subtitlesEnabled
+end
+
+function Recorder:setSubtitleStyle(style)
+    for k, v in pairs(style) do
+        self._session.subtitleStyle[k] = v
+    end
+end
+
+function Recorder:getSubtitleStyle()
+    return self._session.subtitleStyle
+end
+
+-- Add or update the subtitle event at `frame`. Keeps list sorted by frame.
+function Recorder:setSubtitleEvent(frame, text)
+    local subs = self._session.subtitles
+    for i, ev in ipairs(subs) do
+        if ev.frame == frame then
+            ev.text = text
+            return
+        elseif ev.frame > frame then
+            table.insert(subs, i, { frame = frame, text = text })
+            return
+        end
+    end
+    table.insert(subs, { frame = frame, text = text })
+end
+
+function Recorder:removeSubtitleEvent(frame)
+    local subs = self._session.subtitles
+    for i, ev in ipairs(subs) do
+        if ev.frame == frame then
+            table.remove(subs, i)
+            return
+        end
+    end
+end
+
+-- Returns the event at exactly `frame`, or nil.
+function Recorder:getSubtitleEventAt(frame)
+    for _, ev in ipairs(self._session.subtitles) do
+        if ev.frame == frame then return ev end
+    end
+    return nil
+end
+
+-- Returns the active subtitle text at `frame` (stepped: most recent event ≤ frame).
+-- Returns nil if no subtitle is active.
+function Recorder:getActiveSubtitleAt(frame)
+    local active = nil
+    for _, ev in ipairs(self._session.subtitles) do
+        if ev.frame <= frame then
+            active = ev
+        else
+            break
+        end
+    end
+    return active and active.text or nil
+end
+
+function Recorder:getSubtitleEvents()
+    return self._session.subtitles
 end
 
 return Recorder

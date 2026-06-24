@@ -384,6 +384,33 @@ local function buildSpawnedEffectsSource(session)
     return table.concat(lines, "\n")
 end
 
+local function buildSubtitleTrackSource(session)
+    local style = session.subtitleStyle or {}
+    local lines = {}
+    local function add(s) table.insert(lines, s) end
+    add("return {")
+    add(string.format("    style = {"))
+    add(string.format("        fontAsset          = %q,",          style.fontAsset          or "rbxasset://fonts/families/GothamSSm.json"))
+    add(string.format("        fontWeight         = %q,",          style.fontWeight         or "Regular"))
+    add(string.format("        size               = %d,",           style.size               or 28))
+    add(string.format("        textColorR         = %d, textColorG = %d, textColorB = %d,", style.textColorR or 255, style.textColorG or 255, style.textColorB or 255))
+    add(string.format("        textTransparency   = %.3f,",         style.textTransparency   or 0))
+    add(string.format("        strokeColorR       = %d, strokeColorG = %d, strokeColorB = %d,", style.strokeColorR or 0, style.strokeColorG or 0, style.strokeColorB or 0))
+    add(string.format("        strokeTransparency = %.3f,",         style.strokeTransparency or 0))
+    add(string.format("        bgColorR           = %d, bgColorG = %d, bgColorB = %d,", style.bgColorR or 0, style.bgColorG or 0, style.bgColorB or 0))
+    add(string.format("        bgTransparency     = %.3f,",         style.bgTransparency     or 0.6))
+    add(string.format("        xOffset            = %.4f,",         style.xOffset            or 0.05))
+    add(string.format("        yOffset            = %.4f,",         style.yOffset            or 0.85))
+    add("    },")
+    add("    events = {")
+    for _, ev in ipairs(session.subtitles or {}) do
+        add(string.format("        {frame = %d, text = %q},", ev.frame, ev.text))
+    end
+    add("    },")
+    add("}")
+    return table.concat(lines, "\n")
+end
+
 function Exporter.export(session, sceneName)
     if not session or not session.rigs or not next(session.rigs) then
         warn("[Exporter] Nothing to export — record some keyframes first")
@@ -478,16 +505,24 @@ function Exporter.export(session, sceneName)
         sfxModule.Parent       = sceneFolder
     end
 
+    -- SubtitleTrack — only written when subtitles are enabled and events exist
+    if session.subtitlesEnabled and session.subtitles and next(session.subtitles) then
+        local subModule        = Instance.new("ModuleScript")
+        subModule.Name         = "SubtitleTrack"
+        subModule.Source       = buildSubtitleTrackSource(session)
+        subModule.Parent       = sceneFolder
+    end
+
     -- Deploy game-side modules.
     -- Server-side (ServerStorage.MultiAnimationData): MultiAnimPlayer, CutsceneServer,
     --   CutsceneCamera, MultiAnimDataServer, SpawnedEffectRunner.
     -- Client-side (ReplicatedStorage): CutscenePlayer, CutsceneCamera, PlayerRigProxy,
-    --   LetterboxGui — siblings so CutscenePlayer's require() finds them.
+    --   LetterboxGui, SubtitleGui — siblings so CutscenePlayer's require() finds them.
     local gameFolder = script.Parent.Parent:FindFirstChild("game")
     if gameFolder then
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
         local serverMods = { "MultiAnimPlayer", "CutsceneServer", "CutsceneCamera", "MultiAnimDataServer", "SpawnedEffectRunner" }
-        local clientMods = { "CutscenePlayer", "CutsceneCamera", "PlayerRigProxy", "LetterboxGui", "SpawnedEffectRunner" }
+        local clientMods = { "CutscenePlayer", "CutsceneCamera", "PlayerRigProxy", "LetterboxGui", "SpawnedEffectRunner", "SubtitleGui" }
         for _, modName in ipairs(serverMods) do
             local src = gameFolder:FindFirstChild(modName)
             if src then

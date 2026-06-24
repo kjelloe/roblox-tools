@@ -428,6 +428,12 @@ function Panel.new(widget)
     local eSpawnedFxDelete  = mkEvent("onSpawnedFxDeleted")     -- fires (id)
     local eSpawnedFxPickPos = mkEvent("onSpawnedFxPickPosRequested") -- fires ()
 
+    -- Subtitle events
+    local eSubtitleEnabled = mkEvent("onSubtitleEnabledChanged") -- fires (bool)
+    local eSubtitleText    = mkEvent("onSubtitleTextChanged")    -- fires (text)
+    local eSubtitleShow    = mkEvent("onSubtitleShowChanged")    -- fires (frame, bool)
+    local eSubtitleStyle   = mkEvent("onSubtitleStyleChanged")   -- fires (styleTable)
+
     self._evts = evts
     self._lastSaveName = nil
 
@@ -1076,6 +1082,219 @@ function Panel.new(widget)
     function self:getSimpleSceneName()
         return simpleSceneBox and simpleSceneBox.Text or ""
     end
+
+    do -- ── SUBTITLE ROW + STYLE OVERLAY ───────────────────────────────────────
+    local simpleSubRow = hrow(simpleSec, 8, 4)
+    local subEnabledBtn = btn(simpleSubRow, "Sub-titles: OFF", 1)
+    self._subEnabledOn  = false
+    local subTextBox    = textBox(simpleSubRow, "", 140, 2)
+    subTextBox.PlaceholderText    = "Subtitle text…"
+    subTextBox.ClearTextOnFocus   = false
+    self._subTextBox = subTextBox
+    local subShowBtn = btn(simpleSubRow, "Show at 1", 3)
+    self._subShowBtn = subShowBtn
+    self._subShowOn  = false
+    local subStyleBtn = btn(simpleSubRow, "Style…", 4)
+
+    subEnabledBtn.MouseButton1Click:Connect(function()
+        self._subEnabledOn = not self._subEnabledOn
+        subEnabledBtn.Text = "Sub-titles: " .. (self._subEnabledOn and "ON" or "OFF")
+        eSubtitleEnabled:Fire(self._subEnabledOn)
+    end)
+    subTextBox.FocusLost:Connect(function()
+        eSubtitleText:Fire(subTextBox.Text)
+    end)
+    subShowBtn.MouseButton1Click:Connect(function()
+        self._subShowOn = not self._subShowOn
+        subShowBtn.Text = (self._subShowOn and "✓" or "○") .. " Frame " .. tostring(self._currentFrame)
+        eSubtitleShow:Fire(self._currentFrame, self._subShowOn)
+    end)
+    self.onSubtitleEnabledChanged = eSubtitleEnabled.Event
+    self.onSubtitleTextChanged    = eSubtitleText.Event
+    self.onSubtitleShowChanged    = eSubtitleShow.Event
+    self.onSubtitleStyleChanged   = eSubtitleStyle.Event
+
+    function self:setSubtitleEnabled(on)
+        self._subEnabledOn = on
+        subEnabledBtn.Text = "Sub-titles: " .. (on and "ON" or "OFF")
+    end
+
+    function self:setSubtitleText(text)
+        subTextBox.Text = text or ""
+    end
+
+    function self:getSubtitleText()
+        return subTextBox.Text
+    end
+
+    function self:updateSubtitleShowBtn(frame, hasEvent)
+        self._subShowOn  = hasEvent
+        subShowBtn.Text  = (hasEvent and "✓" or "○") .. " Frame " .. tostring(frame)
+    end
+
+    -- ── Subtitle Style Overlay ────────────────────────────────────────────────
+    local SUBTITLE_FONTS = {
+        { name = "Gotham",       asset = "rbxasset://fonts/families/GothamSSm.json"     },
+        { name = "Source Sans",  asset = "rbxasset://fonts/families/SourceSansPro.json" },
+        { name = "Arial",        asset = "rbxasset://fonts/families/Arimo.json"         },
+        { name = "Roboto Mono",  asset = "rbxasset://fonts/families/RobotoMono.json"    },
+        { name = "Bangers",      asset = "rbxasset://fonts/families/Bangers.json"       },
+        { name = "Oswald",       asset = "rbxasset://fonts/families/Oswald.json"        },
+        { name = "Ubuntu",       asset = "rbxasset://fonts/families/Ubuntu.json"        },
+        { name = "Nunito",       asset = "rbxasset://fonts/families/Nunito.json"        },
+    }
+    local FONT_WEIGHTS = { "Thin","Light","Regular","Medium","SemiBold","Bold","ExtraBold","Heavy" }
+
+    local subStyleOv = Instance.new("Frame")
+    subStyleOv.Name             = "SubtitleStyleOverlay"
+    subStyleOv.Size             = UDim2.new(0, 260, 0, 0)
+    subStyleOv.AutomaticSize    = Enum.AutomaticSize.Y
+    subStyleOv.AnchorPoint      = Vector2.new(0.5, 0.5)
+    subStyleOv.Position         = UDim2.new(0.5, 0, 0.5, 0)
+    subStyleOv.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+    subStyleOv.BorderSizePixel  = 0
+    subStyleOv.ZIndex           = 55
+    subStyleOv.Visible          = false
+    subStyleOv.Parent           = widget
+    Instance.new("UICorner", subStyleOv).CornerRadius = UDim.new(0, 6)
+    local _subStroke = Instance.new("UIStroke")
+    _subStroke.Color     = Color3.fromRGB(90, 90, 90)
+    _subStroke.Thickness = 1
+    _subStroke.Parent    = subStyleOv
+    listLayout(subStyleOv, Enum.FillDirection.Vertical, 4)
+    addPadding(subStyleOv, 10, 10)
+
+    local subOvHdr = Instance.new("Frame")
+    subOvHdr.Size                   = UDim2.new(1, 0, 0, 20)
+    subOvHdr.BackgroundTransparency = 1
+    subOvHdr.LayoutOrder            = 1
+    subOvHdr.ZIndex                 = 56
+    subOvHdr.Parent                 = subStyleOv
+    local subOvTitle = Instance.new("TextLabel")
+    subOvTitle.Size               = UDim2.new(1, -24, 1, 0)
+    subOvTitle.BackgroundTransparency = 1
+    subOvTitle.TextColor3         = C.header
+    subOvTitle.TextSize           = 10
+    subOvTitle.Font               = Enum.Font.GothamBold
+    subOvTitle.TextXAlignment     = Enum.TextXAlignment.Left
+    subOvTitle.Text               = "SUBTITLE STYLE"
+    subOvTitle.ZIndex             = 56
+    subOvTitle.Parent             = subOvHdr
+    local subOvClose = Instance.new("TextButton")
+    subOvClose.Size               = UDim2.new(0, 20, 1, 0)
+    subOvClose.Position           = UDim2.new(1, -20, 0, 0)
+    subOvClose.BackgroundTransparency = 1
+    subOvClose.TextColor3         = C.muted
+    subOvClose.Text               = "✕"
+    subOvClose.TextSize           = 14
+    subOvClose.Font               = Enum.Font.Gotham
+    subOvClose.ZIndex             = 56
+    subOvClose.Parent             = subOvHdr
+    subOvClose.MouseButton1Click:Connect(function() subStyleOv.Visible = false end)
+
+    -- Font family cycle
+    local subFontRow = hrow(subStyleOv, 2, 4)
+    lbl(subFontRow, "Font:", 44, 1)
+    local subFontBtn = btn(subFontRow, SUBTITLE_FONTS[1].name, 2)
+    subFontBtn.ZIndex = 56
+    local _subFontIdx = 1
+    subFontBtn.MouseButton1Click:Connect(function()
+        _subFontIdx = (_subFontIdx % #SUBTITLE_FONTS) + 1
+        subFontBtn.Text = SUBTITLE_FONTS[_subFontIdx].name
+        eSubtitleStyle:Fire({ fontAsset = SUBTITLE_FONTS[_subFontIdx].asset })
+    end)
+
+    -- Font weight cycle
+    local subWeightRow = hrow(subStyleOv, 3, 4)
+    lbl(subWeightRow, "Weight:", 44, 1)
+    local subWeightBtn = btn(subWeightRow, "Regular", 2)
+    subWeightBtn.ZIndex = 56
+    local _subWeightIdx = 3  -- "Regular"
+    subWeightBtn.MouseButton1Click:Connect(function()
+        _subWeightIdx = (_subWeightIdx % #FONT_WEIGHTS) + 1
+        subWeightBtn.Text = FONT_WEIGHTS[_subWeightIdx]
+        eSubtitleStyle:Fire({ fontWeight = FONT_WEIGHTS[_subWeightIdx] })
+    end)
+
+    -- Helper: numeric input row that fires a style field
+    local function subNumRow(order, label, defVal, key, min, max, isFloat)
+        local row = hrow(subStyleOv, order, 4)
+        lbl(row, label .. ":", 80, 1)
+        local box = textBox(row, tostring(defVal), 70, 2)
+        box.ZIndex = 56
+        box.ClearTextOnFocus = false
+        box.FocusLost:Connect(function()
+            local n = tonumber(box.Text)
+            if n then
+                n = math.clamp(n, min, max)
+                box.Text = isFloat and string.format("%.2f", n) or tostring(math.floor(n))
+                local patch = {}; patch[key] = n
+                eSubtitleStyle:Fire(patch)
+            else
+                box.Text = tostring(defVal)
+            end
+        end)
+        return box
+    end
+
+    -- Helper: R/G/B row
+    local function subRGBRow(order, label, r, g, b, keyR, keyG, keyB)
+        local row = hrow(subStyleOv, order, 4)
+        lbl(row, label .. ":", 80, 1)
+        local rBox = textBox(row, tostring(r), 38, 2)
+        local gBox = textBox(row, tostring(g), 38, 3)
+        local bBox = textBox(row, tostring(b), 38, 4)
+        for _, box in ipairs({ rBox, gBox, bBox }) do
+            box.ZIndex = 56; box.ClearTextOnFocus = false
+        end
+        local function commit()
+            local rv = math.clamp(math.floor(tonumber(rBox.Text) or r), 0, 255)
+            local gv = math.clamp(math.floor(tonumber(gBox.Text) or g), 0, 255)
+            local bv = math.clamp(math.floor(tonumber(bBox.Text) or b), 0, 255)
+            rBox.Text = tostring(rv); gBox.Text = tostring(gv); bBox.Text = tostring(bv)
+            local patch = {}
+            patch[keyR] = rv; patch[keyG] = gv; patch[keyB] = bv
+            eSubtitleStyle:Fire(patch)
+        end
+        rBox.FocusLost:Connect(commit); gBox.FocusLost:Connect(commit); bBox.FocusLost:Connect(commit)
+        return rBox, gBox, bBox
+    end
+
+    subNumRow(4,  "Size",           28,  "size",               6,   200, false)
+    subRGBRow(5,  "Text Color",     255, 255, 255, "textColorR",   "textColorG",   "textColorB")
+    subNumRow(6,  "Text Alpha",     0,   "textTransparency",   0,   1,   true)
+    subRGBRow(7,  "Stroke Color",   0,   0,   0,   "strokeColorR", "strokeColorG", "strokeColorB")
+    subNumRow(8,  "Stroke Alpha",   0,   "strokeTransparency", 0,   1,   true)
+    subRGBRow(9,  "BG Color",       0,   0,   0,   "bgColorR",     "bgColorG",     "bgColorB")
+    subNumRow(10, "BG Alpha",       0.6, "bgTransparency",     0,   1,   true)
+    subNumRow(11, "X Offset (0-1)", 0.05,"xOffset",            0,   1,   true)
+    subNumRow(12, "Y Offset (0-1)", 0.85,"yOffset",            0,   1,   true)
+
+    subStyleBtn.MouseButton1Click:Connect(function()
+        subStyleOv.Visible = not subStyleOv.Visible
+    end)
+
+    -- Public: sync style overlay controls from a loaded style table
+    function self:setSubtitleStyleDisplay(style)
+        style = style or {}
+        if style.fontAsset then
+            for i, f in ipairs(SUBTITLE_FONTS) do
+                if f.asset == style.fontAsset then
+                    _subFontIdx = i; subFontBtn.Text = f.name; break
+                end
+            end
+        end
+        if style.fontWeight then
+            for i, w in ipairs(FONT_WEIGHTS) do
+                if w == style.fontWeight then
+                    _subWeightIdx = i; subWeightBtn.Text = w; break
+                end
+            end
+        end
+    end
+
+    end -- ── SUBTITLE ROW + STYLE OVERLAY ───────────────────────────────────────
+
     end -- ── end SIMPLE MODE ──────────────────────────────────────────────────
 
     do -- ── OVERLAYS ─────────────────────────────────────────────────────────
