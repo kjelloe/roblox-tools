@@ -18,6 +18,8 @@ Structure expected:
         *.lua                  → not included in plugin build (in-game only)
 """
 
+import glob
+import hashlib
 import os
 import sys
 
@@ -97,6 +99,22 @@ def modules_from_dir(dir_path: str, indent: int) -> str:
 
 # ── build ─────────────────────────────────────────────────────────────────────
 
+def compute_build_hash(here: str) -> str:
+    plugin_dir = os.path.join(here, "plugin")
+    game_dir   = os.path.join(here, "game")
+    dirs = [
+        plugin_dir,
+        os.path.join(plugin_dir, "core"),
+        os.path.join(plugin_dir, "ui"),
+        game_dir,
+    ]
+    paths = sorted(p for d in dirs if os.path.isdir(d) for p in glob.glob(os.path.join(d, "*.lua")))
+    h = hashlib.sha1()
+    for p in paths:
+        h.update(read(p).encode())
+    return h.hexdigest()[:12]
+
+
 def build(dry_run: bool = False) -> None:
     here       = os.path.dirname(os.path.abspath(__file__))
     plugin_dir = os.path.join(here, "plugin")
@@ -120,8 +138,13 @@ def build(dry_run: bool = False) -> None:
         game_xml = folder_xml("game", game_children, indent=3)
         children_xml += "\n" + game_xml
 
-    # Root Script
+    # Root Script — inject build hash before bundling
+    build_hash  = compute_build_hash(here)
     init_source = read(os.path.join(plugin_dir, "init.server.lua"))
+    init_source = init_source.replace(
+        'local PLUGIN_BUILD_HASH = "dev"  -- replaced by build.py with sha1 of all source files',
+        f'local PLUGIN_BUILD_HASH = "{build_hash}"',
+    )
     root_xml = script_xml("MultiAnimation", init_source, children_xml)
 
     output = ROBLOX_HEADER + root_xml + "\n" + ROBLOX_FOOTER
@@ -134,6 +157,12 @@ def build(dry_run: bool = False) -> None:
     os.makedirs(PLUGINS_DIR_WSL, exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(output)
+
+    hash_path = os.path.join(here, ".build_hash")
+    with open(hash_path, "w") as f:
+        f.write(build_hash)
+
+    print(f"[build] Hash: {build_hash}")
     print(f"[build] Written → {out_path}")
     print("[build] Reload the plugin in Studio: Plugins → Manage Plugins → reload MultiAnimation")
 

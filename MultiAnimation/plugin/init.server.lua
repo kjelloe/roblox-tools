@@ -26,6 +26,8 @@ end
 _G.__MultiAnimBootCount = (_G.__MultiAnimBootCount or 0) + 1
 local BOOT_N = _G.__MultiAnimBootCount
 
+local PLUGIN_BUILD_HASH = "dev"  -- replaced by build.py with sha1 of all source files
+
 local RunService           = game:GetService("RunService")
 local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local HttpService          = game:GetService("HttpService")
@@ -3517,6 +3519,10 @@ local testBridge = TestBridge.start({
         recorder:setSubtitleStyle(a)
         panel:setSubtitleStyleDisplay(recorder:getSubtitleStyle())
         return recorder:getSubtitleStyle()
+    end,
+
+    getPluginBuildHash = function()
+        return PLUGIN_BUILD_HASH
     end,
 })
 

@@ -60,6 +60,7 @@ local preexistingSimpleCam = figForCam0 and figForCam0:FindFirstChild("SimpleCam
 
 -- ── Mode toggle ───────────────────────────────────────────────────────────────
 
+call("scanFigures")  -- rescan FIGURES, normalise frameCount ≥ 120, set mode=advanced
 local r = call("setMode", { mode = "simple" })
 ok("setMode simple", r.ok and r.result == "simple", r.err)
 r = call("getMode")

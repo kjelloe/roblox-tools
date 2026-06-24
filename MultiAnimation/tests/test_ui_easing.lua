@@ -131,9 +131,13 @@ local allRigsR = call("getRigs")
 for _, rn in ipairs((allRigsR.ok and allRigsR.result) or {}) do
     call("setEasing", { rig = rn, frame = 1, easing = "EaseOut" })
 end
+-- Park at frame 2 in advanced mode so switching to simple starts with no data at departure.
+-- (simpleNavigate auto-captures the departure frame; if we were at frame 1, that capture
+-- would stamp simpleCurrentEasing over the EaseOut we just set.)
+call("setFrame", { frame = 2 })
 
 call("setMode", { mode = "simple" })
-call("setSimpleEasing", { easing = "Linear" })
+-- Depart from frame 2 (no data → no auto-capture) and arrive at frame 1 (EaseOut keyframe).
 call("simpleNavigate", { frame = 1 })
 r = call("getSimpleEasing")
 ok("navigation syncs easing display", r.ok and r.result == "EaseOut", r.ok and r.result or r.err)

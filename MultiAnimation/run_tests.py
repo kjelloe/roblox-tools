@@ -144,6 +144,37 @@ def run_all(files: list[str], verbose: bool) -> bool:
 
     return total_failed == 0 and not any_error
 
+# ── build version pre-flight ───────────────────────────────────────────────────
+
+_VERSION_CHECK_CODE = """
+local ok, res = pcall(function()
+    local bf = game:GetService("CoreGui"):WaitForChild("__MultiAnimTestBridge", 3)
+    local hs = game:GetService("HttpService")
+    local raw = bf:Invoke("getPluginBuildHash", nil)
+    local r = hs:JSONDecode(raw)
+    return r.ok and tostring(r.result) or "error"
+end)
+return ok and res or "unreachable"
+"""
+
+def check_plugin_version() -> None:
+    hash_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".build_hash")
+    if not os.path.exists(hash_file):
+        return
+    with open(hash_file) as f:
+        expected = f.read().strip()
+    texts, err = call_mcp("execute_luau",
+                          {"code": _VERSION_CHECK_CODE, "datamodel_type": "Edit"},
+                          timeout=8)
+    if err or not texts:
+        return
+    running = texts[0].strip() if texts else ""
+    if running != expected:
+        print(f"  *** WARNING: plugin not reloaded after last build ***")
+        print(f"  *** Built: {expected}  Running: {running} ***")
+        print(f"  *** Plugins → Manage Plugins → reload MultiAnimation ***\n")
+
+
 # ── entry point ───────────────────────────────────────────────────────────────
 
 def main():
@@ -157,6 +188,7 @@ def main():
         print(f"No test files match pattern '{pattern}' in {TESTS_DIR}")
         sys.exit(1)
 
+    check_plugin_version()
     ok = run_all(files, verbose)
     sys.exit(0 if ok else 1)
 
