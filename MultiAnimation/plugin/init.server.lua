@@ -1565,8 +1565,20 @@ local function doSimpleAddFrame()
         local f = timeline:setCurrent(newCount)
         panel:setFrameDisplay(f, newCount)
         applyPosesAt(f, false)
+    elseif frame == frameCount - 1 then
+        -- Cursor is at the last tile (frameCount is always lastTile+1).
+        -- Grow by 1 and capture the next slot so a new tile appears immediately.
+        local newCount = frameCount + 1
+        timeline:setFrameCount(newCount)
+        recorder:setFrameCount(newCount)
+        panel:setFrameCount(newCount)
+        doSimpleCaptureFrame(frame + 1)
+        panel:setSimpleSlots(getSimpleKeyframedFrames())
+        local f = timeline:setCurrent(frame + 1)
+        panel:setFrameDisplay(f, newCount)
+        applyPosesAt(f, false)
     else
-        -- Cursor is at an existing frame — update its data, advance one step.
+        -- Cursor is at a middle frame — update its data, advance one step.
         panel:setSimpleSlots(getSimpleKeyframedFrames())
         local f = timeline:setCurrent(frame + 1)
         panel:setFrameDisplay(f, frameCount)
