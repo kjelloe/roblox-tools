@@ -148,6 +148,7 @@ local simpleCameraFOV       = 70
 local simpleLookThroughOn   = false
 local simpleOnionOn         = false
 local simpleCurrentEasing   = "Linear"
+local _simpleArrivalSnap    = nil  -- Part CFrames right after applyPosesAt; nil outside simple nav
 local savedSimpleCamState   = nil
 local simpleLookThroughConn = nil
 local setSimpleLookThroughOn -- forward declared; defined in the SIMPLE MODE section, used by setSimpleCameraOn below
@@ -1477,6 +1478,33 @@ local function simpleFrameHasData(frame)
     return false
 end
 
+local function snapshotRigParts()
+    local snap = {}
+    for rigName, rig in pairs(allRigs) do
+        local parts = {}
+        for _, child in ipairs(rig:GetChildren()) do
+            if child:IsA("BasePart") then parts[child.Name] = child.CFrame end
+        end
+        snap[rigName] = parts
+    end
+    return snap
+end
+
+local function simpleIsDirty()
+    if _simpleArrivalSnap == nil then return false end
+    for rigName, rig in pairs(allRigs) do
+        local partSnap = _simpleArrivalSnap[rigName]
+        if partSnap then
+            for _, child in ipairs(rig:GetChildren()) do
+                if child:IsA("BasePart") and partSnap[child.Name] then
+                    if child.CFrame ~= partSnap[child.Name] then return true end
+                end
+            end
+        end
+    end
+    return false
+end
+
 local function doSimpleCaptureFrame(frame)
     if next(allRigs) ~= nil or next(allProps) ~= nil then
         recorder:addKeyframe(frame, allRigs, allProps)
@@ -2342,8 +2370,9 @@ panel.onFrameChanged:Connect(function(newFrame)
     if mode == "simple" and not isPlaying and not simpleScrubbing then
         local departureFrame = timeline:getCurrent()
         if departureFrame ~= newFrame then
-            if simpleFrameHasData(departureFrame) then
+            if simpleFrameHasData(departureFrame) or simpleIsDirty() then
                 doSimpleCaptureFrame(departureFrame)
+                _simpleArrivalSnap = nil
                 scheduleAutoSave()
             elseif simpleCameraOn and simpleCameraPart and simpleCameraPart.Parent then
                 -- Camera-only capture: no rig data at this frame, but user may have
@@ -2358,6 +2387,9 @@ panel.onFrameChanged:Connect(function(newFrame)
     local f = timeline:setCurrent(newFrame)
     panel:setFrameDisplay(f, timeline:getFrameCount())
     applyPosesAt(f, false)
+    if mode == "simple" and not isPlaying and not simpleScrubbing then
+        _simpleArrivalSnap = snapshotRigParts()
+    end
     if simpleOnionOn and mode == "simple" then updateOnionSkin() end
     if mode == "simple" then
         for rName in pairs(allRigs) do
@@ -2384,8 +2416,9 @@ panel.onScrubBegan:Connect(function()
             -- Simple Mode: auto-capture the departure frame so pose changes
             -- made while parked at a frame are not lost on scrub.
             simpleScrubbing = true
-            if simpleFrameHasData(frame) then
+            if simpleFrameHasData(frame) or simpleIsDirty() then
                 doSimpleCaptureFrame(frame)
+                _simpleArrivalSnap = nil
                 scheduleAutoSave()
             elseif simpleCameraOn and simpleCameraPart and simpleCameraPart.Parent then
                 recorder:addCameraKeyframe(frame, simpleCameraPart.CFrame, simpleCameraFOV, "move", simpleCurrentEasing)
@@ -3332,8 +3365,9 @@ local testBridge = TestBridge.start({
         if mode == "simple" and not isPlaying then
             local departureFrame = timeline:getCurrent()
             if departureFrame ~= targetFrame then
-                if simpleFrameHasData(departureFrame) then
+                if simpleFrameHasData(departureFrame) or simpleIsDirty() then
                     doSimpleCaptureFrame(departureFrame)
+                    _simpleArrivalSnap = nil
                     scheduleAutoSave()
                 elseif simpleCameraOn and simpleCameraPart and simpleCameraPart.Parent then
                     recorder:addCameraKeyframe(departureFrame, simpleCameraPart.CFrame, simpleCameraFOV, "move", simpleCurrentEasing)
@@ -3345,6 +3379,7 @@ local testBridge = TestBridge.start({
         local f = timeline:setCurrent(targetFrame)
         panel:setFrameDisplay(f, timeline:getFrameCount())
         applyPosesAt(f, false)
+        _simpleArrivalSnap = snapshotRigParts()
         if mode == "simple" then
             for rName in pairs(allRigs) do
                 if recorder:hasKeyframe(rName, f) then
