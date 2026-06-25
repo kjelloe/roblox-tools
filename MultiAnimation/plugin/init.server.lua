@@ -2647,6 +2647,46 @@ panel.onDeleteNamedRequested:Connect(function(name)
     panel:hideDeleteList()
     doPlaybackScan()
 end)
+
+local SESSIONS_FOLDER = "MultiAnimSessions"
+
+panel.onFileExportRequested:Connect(function()
+    local ss = game:GetService("ServerStorage")
+    local folder = ss:FindFirstChild(SESSIONS_FOLDER) or Instance.new("Folder")
+    folder.Name = SESSIONS_FOLDER
+    folder.Parent = ss
+    local sceneName = panel:getSimpleSceneName()
+    local svName = (sceneName and sceneName ~= "") and sceneName or "session"
+    local sv = folder:FindFirstChild(svName) or Instance.new("StringValue")
+    sv.Name   = svName
+    sv.Value  = HttpService:JSONEncode(serializeSession())
+    sv.Parent = folder
+    game:GetService("Selection"):Set({ sv })
+    print(string.format(
+        "[MultiAnimation] Exported session to ServerStorage.%s.%s — right-click it in Explorer → Save to File (.rbxm)",
+        SESSIONS_FOLDER, svName))
+end)
+
+panel.onFileImportRequested:Connect(function()
+    local sel = SelectionService:Get()
+    if #sel ~= 1 or not sel[1]:IsA("StringValue") then
+        warn("[MultiAnimation] Import File: select a MultiAnim session StringValue in Explorer first")
+        return
+    end
+    local ok, data = pcall(HttpService.JSONDecode, HttpService, sel[1].Value)
+    if not ok or type(data) ~= "table" or not data.rigs then
+        warn("[MultiAnimation] Import File: selected StringValue is not a valid MultiAnim session")
+        return
+    end
+    applySessionData(data)
+    if mode == "simple" then
+        local sn = panel:getSimpleSceneName()
+        local tf = panel._tagFolderName
+        if sn and sn ~= "" and tf and tf ~= "" then doRefreshTags() else doSimpleScan() end
+    end
+    print("[MultiAnimation] Imported session from: " .. sel[1].Name)
+end)
+
 panel.onPreviewRequested:Connect(startPlayback)
 panel.onStopRequested:Connect(stopPlayback)
 

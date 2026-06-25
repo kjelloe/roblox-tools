@@ -847,6 +847,27 @@ viewport camera; hard cuts and smooth moves; synchronized multiplayer playback.
     ```
   - **Suite: 673 cases, 27 files.**
 
+---
+
+## Session File Transfer ✅
+
+Transfers the editable session between PCs/projects without requiring dev tooling on the target machine.
+
+### Implementation
+
+- `init.server.lua`:
+  - `panel.onFileExportRequested`: calls `serializeSession()`, `HttpService:JSONEncode`s it, writes to a `StringValue` in `ServerStorage.MultiAnimSessions`, selects it in Explorer.
+  - `panel.onFileImportRequested`: reads the `StringValue` currently selected in Explorer via `SelectionService:Get()`, `JSONDecode`s it, calls `applySessionData(data)`, then runs `doRefreshTags()` or `doSimpleScan()` as appropriate for the current mode.
+- `Panel.lua`: two new buttons **Export File** and **Import File** in a row below Save As / Load / New in the RIGS section.
+- Session format is the same structure as `plugin:SetSetting` saves — no separate serialisation code needed.
+
+### Acceptance criteria
+
+- Clicking Export File creates `ServerStorage.MultiAnimSessions.<sceneName>` (StringValue) and selects it.
+- Saving the StringValue as `.rbxm`, inserting in another project, selecting it, and clicking Import File restores all keyframe data, FPS, frameCount, scene name, and tag folder.
+- Re-linking: rigs/props/effects matched by name; missing instances produce a warning, data preserved for export.
+- Simple mode with scene+tag folder: Import triggers `doRefreshTags` so rigs are immediately available.
+
 ### Backlog
 
 - Multiple named cameras + switcher track (authoring sugar over Phase 8 cuts)

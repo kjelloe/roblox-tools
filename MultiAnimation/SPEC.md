@@ -78,6 +78,15 @@ architectural changes.
 | E-03 | As an animator, the export creates one `KeyframeSequence` per rig (joint data) and one `ModuleScript` (scale data) inside the scene folder. |
 | E-04 | As an animator, exporting a scene that already exists prompts for overwrite confirmation. |
 
+### Session file transfer
+
+| ID | Story |
+|----|-------|
+| X-01 | As an animator, I can click **Export File** to serialise the current session as JSON into a `StringValue` (`ServerStorage.MultiAnimSessions.<sceneName>`), which I can then save as a `.rbxm` from Explorer. |
+| X-02 | As an animator, I can insert a session `.rbxm` into any Studio project, select the `StringValue` in Explorer, and click **Import File** to restore the full session. |
+| X-03 | On import, rigs/props/effects are re-linked by name; data for instances not found is preserved in the recorder for export but has no live viewport link. |
+| X-04 | On import in Simple mode with a scene name and tag folder set, the plugin re-applies `MAnim:<name>` tags and rescans rigs automatically. |
+
 ### Prop tracking
 
 | ID | Story |

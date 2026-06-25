@@ -274,8 +274,10 @@ function Panel.new(widget)
     local eNextKF   = mkEvent("onNextKeyframeRequested")
     local eRewind   = mkEvent("onRewindRequested")
     local eFF       = mkEvent("onFastForwardRequested")
-    local eSave     = mkEvent("onSaveConfirmed")
-    local eReload     = mkEvent("onLoadRequested")
+    local eSave         = mkEvent("onSaveConfirmed")
+    local eReload       = mkEvent("onLoadRequested")
+    local eFileExport   = mkEvent("onFileExportRequested")
+    local eFileImport   = mkEvent("onFileImportRequested")
     local eDeleteReq  = mkEvent("onDeleteRequested")
     local eMarkerDel = Instance.new("BindableEvent")
     self.onMarkerDeleteRequested = eMarkerDel.Event
@@ -422,6 +424,11 @@ function Panel.new(widget)
     self._eSimpleEasing = eSimpleEasing
     table.insert(evts, eSimpleEasing)
 
+    self.onFileExportRequested = eFileExport.Event
+    self.onFileImportRequested = eFileImport.Event
+    table.insert(evts, eFileExport)
+    table.insert(evts, eFileImport)
+
     -- SpawnedEffects events
     local eSpawnedFxAdd     = mkEvent("onSpawnedFxAdded")       -- fires (data{frame,effectType,posX/Y/Z,...params})
     local eSpawnedFxUpdate  = mkEvent("onSpawnedFxUpdated")     -- fires (data{id,...params})
@@ -540,6 +547,17 @@ function Panel.new(widget)
     saveAsBtn.MouseButton1Click:Connect(function() self:_showSaveOverlay() end)
     loadBtn.MouseButton1Click:Connect(function() eReload:Fire() end)
     newBtn.MouseButton1Click:Connect(function() self:_showNewOverlay() end)
+    do
+        local xferRow = hrow(rigsSec, 7, 4)
+        local exportFileBtn = btn(xferRow, "Export File", 1)
+        local importFileBtn = btn(xferRow, "Import File", 2)
+        exportFileBtn.MouseButton1Click:Connect(function()
+            if not self._isPlaying then eFileExport:Fire() end
+        end)
+        importFileBtn.MouseButton1Click:Connect(function()
+            if not self._isPlaying then eFileImport:Fire() end
+        end)
+    end
 
     divider(advancedWrap, 2)
 

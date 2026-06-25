@@ -286,6 +286,13 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
   both the Delete and Load list overlays closes them without doing anything.
 - Sessions survive closing/reopening the panel within a Studio session.
 
+### Transferring sessions between PCs
+
+- **Export File** serialises the full session to a `StringValue` in `ServerStorage.MultiAnimSessions` and selects it. Right-click the StringValue in Explorer → **Save to File** → `.rbxm`.
+- **Import File** reads a selected `StringValue` and restores the session. Insert the `.rbxm` into the target project, select the StringValue in Explorer, then click **Import File**.
+- Both buttons are in the **RIGS IN SCENE** row, below Save As / Load / New.
+- See `export-import.md` for the full workflow, what is and isn't transferred, and size limits.
+
 ---
 
 ## 11. Export & In-Game Playback
