@@ -549,4 +549,20 @@ function Recorder:getSubtitleEvents()
     return self._session.subtitles
 end
 
+function Recorder:renameRig(oldName, newName)
+    if not self._session.rigs[oldName] then return end
+    self._session.rigs[newName] = self._session.rigs[oldName]
+    self._session.rigs[oldName] = nil
+    if self._restPoses[oldName] then
+        self._restPoses[newName] = self._restPoses[oldName]
+        self._restPoses[oldName] = nil
+    end
+end
+
+function Recorder:renameProp(oldName, newName)
+    if not (self._session.props and self._session.props[oldName]) then return end
+    self._session.props[newName] = self._session.props[oldName]
+    self._session.props[oldName] = nil
+end
+
 return Recorder

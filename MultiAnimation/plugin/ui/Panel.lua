@@ -1454,7 +1454,7 @@ function Panel.new(widget)
     tagConfHdr.Parent             = tagConfOv
 
     local tagConfMsg = Instance.new("TextLabel")
-    tagConfMsg.Size               = UDim2.new(1, 0, 0, 48)
+    tagConfMsg.Size               = UDim2.new(1, 0, 0, 60)
     tagConfMsg.BackgroundTransparency = 1
     tagConfMsg.TextColor3         = C.ovText
     tagConfMsg.Text               = ""
@@ -1469,22 +1469,29 @@ function Panel.new(widget)
     local tagConfRow    = hrow(tagConfOv, 3, 6)
     local tagConfOk     = btn(tagConfRow, "OK",     1)
     local tagConfCancel = btn(tagConfRow, "Cancel", 2)
-    local _tagConfCallback = nil
+    local _tagConfCallback       = nil
+    local _tagConfCancelCallback = nil
     tagConfOk.MouseButton1Click:Connect(function()
         tagConfOv.Visible = false
-        if _tagConfCallback then _tagConfCallback() end
-        _tagConfCallback = nil
+        local cb = _tagConfCallback
+        _tagConfCallback       = nil
+        _tagConfCancelCallback = nil
+        if cb then cb() end
     end)
     tagConfCancel.MouseButton1Click:Connect(function()
         tagConfOv.Visible = false
-        _tagConfCallback  = nil
+        local cb = _tagConfCancelCallback
+        _tagConfCallback       = nil
+        _tagConfCancelCallback = nil
+        if cb then cb() end
     end)
 
-    function self:showTagConfirm(header, message, onOkay)
-        tagConfHdr.Text   = header
-        tagConfMsg.Text   = message
-        _tagConfCallback  = onOkay
-        tagConfOv.Visible = true
+    function self:showTagConfirm(header, message, onOkay, onCancel)
+        tagConfHdr.Text          = header
+        tagConfMsg.Text          = message
+        _tagConfCallback         = onOkay
+        _tagConfCancelCallback   = onCancel
+        tagConfOv.Visible        = true
     end
 
     function self:setSimpleSceneName(name)
@@ -2286,6 +2293,151 @@ function Panel.new(widget)
     self._ctxMenu = ctxMenu
 
     ctxOverlay.MouseButton1Click:Connect(function() self:_hideMenu() end)
+
+    -- ── Name-remap dialog ─────────────────────────────────────────────────────
+    do
+        local remapOv = Instance.new("Frame")
+        remapOv.Name             = "NameRemapOverlay"
+        remapOv.Size             = UDim2.new(0, 280, 0, 0)
+        remapOv.AutomaticSize    = Enum.AutomaticSize.Y
+        remapOv.AnchorPoint      = Vector2.new(0.5, 0.5)
+        remapOv.Position         = UDim2.new(0.5, 0, 0.5, 0)
+        remapOv.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+        remapOv.BorderSizePixel  = 0
+        remapOv.ZIndex           = 60
+        remapOv.Visible          = false
+        remapOv.Parent           = widget
+        Instance.new("UICorner", remapOv).CornerRadius = UDim.new(0, 6)
+        local _rmStroke = Instance.new("UIStroke")
+        _rmStroke.Color     = Color3.fromRGB(90, 90, 90)
+        _rmStroke.Thickness = 1
+        _rmStroke.Parent    = remapOv
+        listLayout(remapOv, Enum.FillDirection.Vertical, 4)
+        addPadding(remapOv, 10, 10)
+
+        local remapHdr = Instance.new("TextLabel")
+        remapHdr.Size                   = UDim2.new(1, 0, 0, 14)
+        remapHdr.BackgroundTransparency = 1
+        remapHdr.TextColor3             = C.header
+        remapHdr.Text                   = "RENAMED OBJECTS"
+        remapHdr.TextSize               = 10
+        remapHdr.Font                   = Enum.Font.GothamBold
+        remapHdr.TextXAlignment         = Enum.TextXAlignment.Left
+        remapHdr.LayoutOrder            = 1
+        remapHdr.ZIndex                 = 61
+        remapHdr.Parent                 = remapOv
+
+        local remapSub = Instance.new("TextLabel")
+        remapSub.Size                   = UDim2.new(1, 0, 0, 28)
+        remapSub.BackgroundTransparency = 1
+        remapSub.TextColor3             = C.muted
+        remapSub.Text                   = "Map old track name to new name in folder. Click to cycle."
+        remapSub.TextSize               = 10
+        remapSub.Font                   = Enum.Font.Gotham
+        remapSub.TextXAlignment         = Enum.TextXAlignment.Left
+        remapSub.TextWrapped            = true
+        remapSub.LayoutOrder            = 2
+        remapSub.ZIndex                 = 61
+        remapSub.Parent                 = remapOv
+
+        local remapRowsFrame = Instance.new("ScrollingFrame")
+        remapRowsFrame.Name                 = "RemapRows"
+        remapRowsFrame.Size                 = UDim2.new(1, 0, 0, 120)
+        remapRowsFrame.CanvasSize           = UDim2.new(0, 0, 0, 0)
+        remapRowsFrame.AutomaticCanvasSize  = Enum.AutomaticSize.Y
+        remapRowsFrame.ScrollBarThickness   = 4
+        remapRowsFrame.BackgroundTransparency = 1
+        remapRowsFrame.BorderSizePixel      = 0
+        remapRowsFrame.LayoutOrder          = 3
+        remapRowsFrame.ZIndex               = 61
+        remapRowsFrame.Parent               = remapOv
+        listLayout(remapRowsFrame, Enum.FillDirection.Vertical, 3)
+
+        local remapBtnRow = hrow(remapOv, 4, 4)
+        local remapApply  = btn(remapBtnRow, "Apply", 1)
+        local remapCancel = btn(remapBtnRow, "Cancel", 2)
+
+        local _remapCallback   = nil
+        local _remapSelections = {}
+
+        remapCancel.MouseButton1Click:Connect(function()
+            remapOv.Visible = false
+            _remapCallback  = nil
+        end)
+        remapApply.MouseButton1Click:Connect(function()
+            remapOv.Visible = false
+            if _remapCallback then _remapCallback(_remapSelections) end
+            _remapCallback = nil
+        end)
+
+        function self:showNameRemapDialog(entries, onApply)
+            for _, ch in ipairs(remapRowsFrame:GetChildren()) do
+                if ch:IsA("GuiObject") then ch:Destroy() end
+            end
+            _remapSelections = {}
+            _remapCallback   = onApply
+
+            for i, entry in ipairs(entries) do
+                local options = { "(skip)" }
+                for _, c in ipairs(entry.candidates) do table.insert(options, c) end
+                _remapSelections[entry.oldName] = entry.candidates[1]
+
+                local row = Instance.new("Frame")
+                row.Size                   = UDim2.new(1, 0, 0, 22)
+                row.BackgroundTransparency = 1
+                row.LayoutOrder            = i
+                row.ZIndex                 = 62
+                row.Parent                 = remapRowsFrame
+
+                local oldLbl = Instance.new("TextLabel")
+                oldLbl.Size                   = UDim2.new(0.44, 0, 1, 0)
+                oldLbl.BackgroundTransparency = 1
+                oldLbl.TextColor3             = C.ovText
+                oldLbl.Text                   = entry.oldName
+                oldLbl.TextSize               = 10
+                oldLbl.Font                   = Enum.Font.Gotham
+                oldLbl.TextXAlignment         = Enum.TextXAlignment.Left
+                oldLbl.TextTruncate           = Enum.TextTruncate.AtEnd
+                oldLbl.ZIndex                 = 62
+                oldLbl.Parent                 = row
+
+                local arrowLbl = Instance.new("TextLabel")
+                arrowLbl.Size                   = UDim2.new(0, 14, 1, 0)
+                arrowLbl.Position               = UDim2.new(0.44, 0, 0, 0)
+                arrowLbl.BackgroundTransparency = 1
+                arrowLbl.TextColor3             = C.muted
+                arrowLbl.Text                   = "→"
+                arrowLbl.TextSize               = 10
+                arrowLbl.Font                   = Enum.Font.Gotham
+                arrowLbl.ZIndex                 = 62
+                arrowLbl.Parent                 = row
+
+                local cycleBtn = Instance.new("TextButton")
+                cycleBtn.Size             = UDim2.new(0.56, -16, 1, -2)
+                cycleBtn.Position         = UDim2.new(0.44, 16, 0, 1)
+                cycleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+                cycleBtn.BorderSizePixel  = 0
+                cycleBtn.TextColor3       = C.text
+                cycleBtn.Text             = entry.candidates[1]
+                cycleBtn.TextSize         = 10
+                cycleBtn.Font             = Enum.Font.Gotham
+                cycleBtn.TextTruncate     = Enum.TextTruncate.AtEnd
+                cycleBtn.ZIndex           = 62
+                cycleBtn.Parent           = row
+                Instance.new("UICorner", cycleBtn).CornerRadius = UDim.new(0, 3)
+
+                local oldName = entry.oldName
+                local optIdx  = 2
+                cycleBtn.MouseButton1Click:Connect(function()
+                    optIdx = (optIdx % #options) + 1
+                    cycleBtn.Text = options[optIdx]
+                    _remapSelections[oldName] = options[optIdx] ~= "(skip)" and options[optIdx] or nil
+                end)
+            end
+
+            remapOv.Visible = true
+        end
+    end
 
     self._root = root
     return self

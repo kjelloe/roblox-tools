@@ -764,52 +764,135 @@ local function doRefreshTags()
 
     local tag    = "MAnim:" .. sceneName
     local types  = panel:getTagToggles()
-    local newlyTagged = 0
-    local folderSet   = {}
+    local folderSet  = {}
+    local toTag      = {}   -- { instance } new objects pending confirmation
+    local toTagNames = {}   -- { string }   for display
+
+    -- Classify folder members and collect what needs tagging.
+    local session    = recorder:getSession()
+    local folderRigs  = {}   -- { [name]=true } rigs in folder not yet in recorder
+    local folderProps = {}   -- { [name]=true } props in folder not yet in recorder
 
     for _, child in ipairs(folder:GetChildren()) do
-        folderSet[child.Name] = true
-        local shouldTag = false
-        if types.rigs    and RigScanner.isAnimatableRig(child)     then shouldTag = true end
-        if types.props   and not RigScanner.isAnimatableRig(child) then
-            if child.Name ~= SIMPLE_CAMERA_NAME and getPropPart(child) then
-                shouldTag = true
-            end
-        end
-        if types.effects and EffectRunner.classify(child)          then shouldTag = true end
+        local n = child.Name
+        folderSet[n] = true
+        local isRig = RigScanner.isAnimatableRig(child)
+        local isProp = not isRig and n ~= SIMPLE_CAMERA_NAME and getPropPart(child) ~= nil
+        local isFx   = not isRig and EffectRunner.classify(child) ~= nil
+
+        local shouldTag = (types.rigs and isRig) or (types.props and isProp) or (types.effects and isFx)
         if shouldTag and not CollectionService:HasTag(child, tag) then
-            CollectionService:AddTag(child, tag)
-            newlyTagged += 1
+            table.insert(toTag, child)
+            table.insert(toTagNames, n)
+        end
+
+        -- Remap candidates: same-type folder members not yet tracked in recorder.
+        if isRig then
+            if not (session.rigs[n] and next(session.rigs[n].jointTrack or {}) ~= nil) then
+                folderRigs[n] = true
+            end
+        elseif isProp then
+            if not (session.props and session.props[n]) then
+                folderProps[n] = true
+            end
         end
     end
 
-    -- Find recorder tracks whose rig/prop is no longer in the selected folder.
-    local orphans = {}
-    local session = recorder:getSession()
+    -- Orphan detection.
+    local orphanRigs  = {}
+    local orphanProps = {}
     for rigName, rigData in pairs(session.rigs or {}) do
-        if not folderSet[rigName] then
-            if next(rigData.jointTrack or {}) ~= nil then
-                table.insert(orphans, rigName)
-            end
+        if not folderSet[rigName] and next(rigData.jointTrack or {}) ~= nil then
+            table.insert(orphanRigs, rigName)
         end
     end
     for propName in pairs(session.props or {}) do
-        if not folderSet[propName] then
-            table.insert(orphans, propName)
+        if not folderSet[propName] then table.insert(orphanProps, propName) end
+    end
+    table.sort(orphanRigs)
+    table.sort(orphanProps)
+    local allOrphans = {}
+    for _, n in ipairs(orphanRigs)  do table.insert(allOrphans, n) end
+    for _, n in ipairs(orphanProps) do table.insert(allOrphans, n) end
+
+    -- Remap entries: orphans that have at least one same-type candidate.
+    local remapEntries   = {}
+    local rigCandidates  = {}
+    local propCandidates = {}
+    for n in pairs(folderRigs)  do table.insert(rigCandidates, n)  end
+    for n in pairs(folderProps) do table.insert(propCandidates, n) end
+    table.sort(rigCandidates)
+    table.sort(propCandidates)
+    for _, name in ipairs(orphanRigs) do
+        if #rigCandidates > 0 then
+            table.insert(remapEntries, { oldName = name, candidates = rigCandidates, isRig = true })
         end
     end
-    table.sort(orphans)
+    for _, name in ipairs(orphanProps) do
+        if #propCandidates > 0 then
+            table.insert(remapEntries, { oldName = name, candidates = propCandidates, isRig = false })
+        end
+    end
 
-    print(string.format("[MultiAnimation] Refresh: %d new tag(s), %d orphaned track(s)", newlyTagged, #orphans))
-    doSimpleScan()
+    -- Finish: apply tags if confirmed, then scan and show follow-up dialogs.
+    local function finish(applyNewTags)
+        local tagged = 0
+        if applyNewTags then
+            for _, inst in ipairs(toTag) do
+                CollectionService:AddTag(inst, tag)
+                tagged += 1
+            end
+        end
+        print(string.format("[MultiAnimation] Refresh: %d new tag(s), %d orphaned track(s), %d remap candidate(s)",
+            tagged, #allOrphans, #remapEntries))
+        doSimpleScan()
 
-    if #orphans > 0 then
+        if #remapEntries > 0 then
+            panel:showNameRemapDialog(remapEntries, function(mapping)
+                local didRemap = false
+                for oldName, newName in pairs(mapping) do
+                    if newName and newName ~= "" then
+                        local wasRig = false
+                        for _, e in ipairs(remapEntries) do
+                            if e.oldName == oldName then wasRig = e.isRig break end
+                        end
+                        if wasRig then recorder:renameRig(oldName, newName)
+                        else            recorder:renameProp(oldName, newName) end
+                        print(string.format("[MultiAnimation] Remapped track: %s → %s", oldName, newName))
+                        didRemap = true
+                    end
+                end
+                if didRemap then doSimpleScan() saveNamed("_autosave") end
+            end)
+        elseif #allOrphans > 0 then
+            panel:showTagConfirm(
+                "Missing from " .. folderName,
+                "These recorded tracks have no matching instance\nin the folder and will not play:\n\n"
+                    .. table.concat(allOrphans, "\n"),
+                function() end
+            )
+        end
+    end
+
+    if #toTag > 0 then
+        table.sort(toTagNames)
+        local MAX_SHOW = 6
+        local listStr
+        if #toTagNames <= MAX_SHOW then
+            listStr = table.concat(toTagNames, "\n")
+        else
+            local shown = {}
+            for i = 1, MAX_SHOW do shown[i] = toTagNames[i] end
+            listStr = table.concat(shown, "\n") .. string.format("\n…and %d more", #toTagNames - MAX_SHOW)
+        end
         panel:showTagConfirm(
-            "Missing from " .. folderName,
-            "These recorded tracks have no matching instance\nin the folder and will not play:\n\n"
-                .. table.concat(orphans, "\n"),
-            function() end  -- informational — OK just dismisses
+            string.format("Add %d new object(s)?", #toTag),
+            "New objects found in " .. folderName .. ":\n" .. listStr,
+            function() finish(true)  end,   -- OK
+            function() finish(false) end    -- Cancel: scan without tagging
         )
+    else
+        finish(true)
     end
 end
 
