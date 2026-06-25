@@ -1071,29 +1071,139 @@ function Panel.new(widget)
     self.onClearSceneTagsRequested = eClearSceneTags.Event
     self.onRefreshTagsRequested    = eRefreshTags.Event
 
-    -- Called by init.server.lua in response to onTagFolderListRequested.
-    function self:openTagFolderDropdown(folderNames)
-        if not folderNames or #folderNames == 0 then return end
-        local absPos = tagFolderBtn.AbsolutePosition
-        local ox = self._ctxOverlay.AbsolutePosition.X
-        local oy = self._ctxOverlay.AbsolutePosition.Y
-        local items = {}
-        for _, name in ipairs(folderNames) do
-            local folderName = name
-            table.insert(items, {
-                text   = folderName,
-                action = function()
-                    self._tagFolderName  = folderName
-                    tagFolderBtn.Text = "  " .. folderName .. " ▼  "
-                    eTagAllIn:Fire(folderName, {
-                        rigs    = getRigsOn(),
-                        props   = getPropsOn(),
-                        effects = getEffectsOn(),
-                    })
-                end,
-            })
+    -- Folder picker: filter input + scrollable list.
+    do
+        local FP_W    = 220
+        local ROW_H   = 22
+        local MAX_VIS = 8   -- max visible rows before scrolling
+
+        local fpOverlay = Instance.new("TextButton")
+        fpOverlay.Size                  = UDim2.new(1, 0, 1, 0)
+        fpOverlay.BackgroundTransparency = 1
+        fpOverlay.Text                  = ""
+        fpOverlay.AutoButtonColor       = false
+        fpOverlay.ZIndex                = 44
+        fpOverlay.Visible               = false
+        fpOverlay.Parent                = widget
+
+        local fpFrame = Instance.new("Frame")
+        fpFrame.Size             = UDim2.new(0, FP_W, 0, 0)
+        fpFrame.AutomaticSize    = Enum.AutomaticSize.Y
+        fpFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        fpFrame.BorderSizePixel  = 0
+        fpFrame.ZIndex           = 45
+        fpFrame.Visible          = false
+        fpFrame.Parent           = widget
+        Instance.new("UICorner", fpFrame).CornerRadius = UDim.new(0, 4)
+        local _fpStroke = Instance.new("UIStroke")
+        _fpStroke.Color     = Color3.fromRGB(90, 90, 90)
+        _fpStroke.Thickness = 1
+        _fpStroke.Parent    = fpFrame
+        listLayout(fpFrame, Enum.FillDirection.Vertical, 0)
+
+        local fpFilter = Instance.new("TextBox")
+        fpFilter.Size               = UDim2.new(1, 0, 0, ROW_H)
+        fpFilter.BackgroundColor3   = Color3.fromRGB(35, 35, 35)
+        fpFilter.BorderSizePixel    = 0
+        fpFilter.TextColor3         = C.inputText
+        fpFilter.PlaceholderText    = "filter…"
+        fpFilter.PlaceholderColor3  = C.muted
+        fpFilter.Text               = ""
+        fpFilter.TextSize           = 11
+        fpFilter.Font               = Enum.Font.Gotham
+        fpFilter.TextXAlignment     = Enum.TextXAlignment.Left
+        fpFilter.ClearTextOnFocus   = false
+        fpFilter.ZIndex             = 46
+        fpFilter.LayoutOrder        = 1
+        fpFilter.Parent             = fpFrame
+        local _fpPad = Instance.new("UIPadding")
+        _fpPad.PaddingLeft  = UDim.new(0, 6)
+        _fpPad.PaddingRight = UDim.new(0, 4)
+        _fpPad.Parent       = fpFilter
+
+        local fpScroll = Instance.new("ScrollingFrame")
+        fpScroll.Size                 = UDim2.new(1, 0, 0, ROW_H)
+        fpScroll.CanvasSize           = UDim2.new(0, 0, 0, 0)
+        fpScroll.AutomaticCanvasSize  = Enum.AutomaticSize.Y
+        fpScroll.ScrollBarThickness   = 4
+        fpScroll.BackgroundTransparency = 1
+        fpScroll.BorderSizePixel      = 0
+        fpScroll.ZIndex               = 46
+        fpScroll.LayoutOrder          = 2
+        fpScroll.Parent               = fpFrame
+        listLayout(fpScroll, Enum.FillDirection.Vertical, 0)
+
+        local _fpAllNames = {}
+        local _fpOnSelect = nil
+
+        local function fpHide()
+            fpOverlay.Visible = false
+            fpFrame.Visible   = false
         end
-        self:_showMenu(items, absPos.X - ox, absPos.Y + tagFolderBtn.AbsoluteSize.Y + 2 - oy)
+
+        local function fpRebuild(filter)
+            for _, c in ipairs(fpScroll:GetChildren()) do
+                if c:IsA("GuiObject") then c:Destroy() end
+            end
+            local lf      = filter:lower()
+            local visible = 0
+            for _, name in ipairs(_fpAllNames) do
+                if lf == "" or name:lower():find(lf, 1, true) then
+                    visible += 1
+                    local r = Instance.new("TextButton")
+                    r.Size             = UDim2.new(1, 0, 0, ROW_H)
+                    r.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+                    r.BorderSizePixel  = 0
+                    r.TextColor3       = Color3.fromRGB(210, 210, 210)
+                    r.Text             = "  " .. name
+                    r.TextSize         = 11
+                    r.Font             = Enum.Font.Gotham
+                    r.TextXAlignment   = Enum.TextXAlignment.Left
+                    r.AutoButtonColor  = false
+                    r.ZIndex           = 47
+                    r.LayoutOrder      = visible
+                    r.Parent           = fpScroll
+                    r.MouseEnter:Connect(function() r.BackgroundColor3 = Color3.fromRGB(70, 70, 70) end)
+                    r.MouseLeave:Connect(function() r.BackgroundColor3 = Color3.fromRGB(50, 50, 50) end)
+                    local n = name
+                    r.MouseButton1Click:Connect(function()
+                        fpHide()
+                        if _fpOnSelect then _fpOnSelect(n) end
+                    end)
+                end
+            end
+            fpScroll.Size = UDim2.new(1, 0, 0, math.max(math.min(visible, MAX_VIS) * ROW_H, ROW_H))
+        end
+
+        fpFilter:GetPropertyChangedSignal("Text"):Connect(function()
+            fpRebuild(fpFilter.Text)
+        end)
+        fpOverlay.MouseButton1Click:Connect(fpHide)
+
+        function self:openTagFolderDropdown(folderNames)
+            if not folderNames or #folderNames == 0 then return end
+            _fpAllNames = folderNames
+            _fpOnSelect = function(folderName)
+                self._tagFolderName = folderName
+                tagFolderBtn.Text   = "  " .. folderName .. " ▼  "
+                eTagAllIn:Fire(folderName, {
+                    rigs    = getRigsOn(),
+                    props   = getPropsOn(),
+                    effects = getEffectsOn(),
+                })
+            end
+            fpFilter.Text = ""
+            fpRebuild("")
+
+            local absPos = tagFolderBtn.AbsolutePosition
+            local ox = self._ctxOverlay.AbsolutePosition.X
+            local oy = self._ctxOverlay.AbsolutePosition.Y
+            local px = math.min(absPos.X - ox, self._ctxOverlay.AbsoluteSize.X - FP_W - 4)
+            local py = absPos.Y + tagFolderBtn.AbsoluteSize.Y + 2 - oy
+            fpFrame.Position  = UDim2.new(0, px, 0, py)
+            fpOverlay.Visible = true
+            fpFrame.Visible   = true
+        end
     end
 
     -- Expose the current simple scene name for tagging logic.
