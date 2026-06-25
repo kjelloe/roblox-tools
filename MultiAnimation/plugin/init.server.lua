@@ -769,34 +769,42 @@ local function doRefreshTags()
     local toTagNames = {}   -- { string }   for display
 
     -- Classify folder members and collect what needs tagging.
+    -- Recurse into plain container Models/Folders so rigs/props nested inside
+    -- organizer sub-models are found at any depth.
     local session    = recorder:getSession()
     local folderRigs  = {}   -- { [name]=true } rigs in folder not yet in recorder
     local folderProps = {}   -- { [name]=true } props in folder not yet in recorder
 
-    for _, child in ipairs(folder:GetChildren()) do
-        local n = child.Name
-        folderSet[n] = true
-        local isRig = RigScanner.isAnimatableRig(child)
-        local isProp = not isRig and n ~= SIMPLE_CAMERA_NAME and getPropPart(child) ~= nil
-        local isFx   = not isRig and EffectRunner.classify(child) ~= nil
+    local function walkFolder(container)
+        for _, child in ipairs(container:GetChildren()) do
+            local n     = child.Name
+            local isRig  = RigScanner.isAnimatableRig(child)
+            local isProp = not isRig and n ~= SIMPLE_CAMERA_NAME and getPropPart(child) ~= nil
+            local isFx   = not isRig and EffectRunner.classify(child) ~= nil
 
-        local shouldTag = (types.rigs and isRig) or (types.props and isProp) or (types.effects and isFx)
-        if shouldTag and not CollectionService:HasTag(child, tag) then
-            table.insert(toTag, child)
-            table.insert(toTagNames, n)
-        end
-
-        -- Remap candidates: same-type folder members not yet tracked in recorder.
-        if isRig then
-            if not (session.rigs[n] and next(session.rigs[n].jointTrack or {}) ~= nil) then
-                folderRigs[n] = true
-            end
-        elseif isProp then
-            if not (session.props and session.props[n]) then
-                folderProps[n] = true
+            if isRig or isProp or isFx then
+                folderSet[n] = true
+                local shouldTag = (types.rigs and isRig) or (types.props and isProp) or (types.effects and isFx)
+                if shouldTag and not CollectionService:HasTag(child, tag) then
+                    table.insert(toTag, child)
+                    table.insert(toTagNames, n)
+                end
+                if isRig then
+                    if not (session.rigs[n] and next(session.rigs[n].jointTrack or {}) ~= nil) then
+                        folderRigs[n] = true
+                    end
+                elseif isProp then
+                    if not (session.props and session.props[n]) then
+                        folderProps[n] = true
+                    end
+                end
+                -- Do not recurse into rigs/props — their sub-parts are not separate trackable objects.
+            elseif child:IsA("Model") or child:IsA("Folder") then
+                walkFolder(child)
             end
         end
     end
+    walkFolder(folder)
 
     -- Orphan detection.
     local orphanRigs  = {}
