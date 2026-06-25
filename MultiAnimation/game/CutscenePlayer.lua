@@ -187,25 +187,8 @@ function CutscenePlayer.play(sceneName, rigMap, options)
     -- Override fps from sceneData if caller didn't specify.
     if not options.fps then fps = sceneData.fps or fps end
 
-    -- Build a flat map of workspace rigs we can actually find.
-    local workspaceRigs = {}
-    for rigName in pairs(sceneData.rigs) do
-        -- Use the caller's rigMap entry if provided.
-        local entry = rigMap[rigName]
-        if entry == nil then
-            if rigName == "RigPlayer" then
-                -- Implicit convention: RigPlayer → current LocalPlayer clone.
-                entry = { player = game:GetService("Players").LocalPlayer, mode = "clone" }
-            else
-                local fig = workspace:FindFirstChild("FIGURES")
-                if fig then entry = fig:FindFirstChild(rigName) end
-            end
-        end
-        if entry then workspaceRigs[rigName] = entry end
-    end
-
     -- Collect all workspace instances tagged for this scene ("MAnim:<sceneName>").
-    -- These are the original source rigs regardless of which folder they live in.
+    -- Done first so they can serve as the auto-fallback for unmapped rigs.
     local CS = game:GetService("CollectionService")
     local sceneTag = "MAnim:" .. sceneName
     local taggedSourceRigs = {}
@@ -213,6 +196,29 @@ function CutscenePlayer.play(sceneName, rigMap, options)
         if inst:IsA("Model") then
             taggedSourceRigs[inst.Name] = inst
         end
+    end
+
+    -- Build a flat map of workspace rigs we can actually find.
+    -- Fallback priority (when no explicit rigMap entry):
+    --   1. "RigPlayer" → LocalPlayer clone (implicit convention)
+    --   2. Tagged scene instance by name (works for any folder)
+    --   3. workspace.FIGURES child by name (legacy fallback)
+    local workspaceRigs = {}
+    local Players = game:GetService("Players")
+    for rigName in pairs(sceneData.rigs) do
+        local entry = rigMap[rigName]
+        if entry == nil then
+            if rigName == "RigPlayer" then
+                entry = { player = Players.LocalPlayer, mode = "clone" }
+            else
+                entry = taggedSourceRigs[rigName]
+                if not entry then
+                    local fig = workspace:FindFirstChild("FIGURES")
+                    if fig then entry = fig:FindFirstChild(rigName) end
+                end
+            end
+        end
+        if entry then workspaceRigs[rigName] = entry end
     end
 
     -- Resolve player entries → actual rig models (may clone/hide player character).
