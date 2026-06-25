@@ -62,7 +62,7 @@ python3 watch.py               # or: auto-build on every save
 ## Testing
 
 ```bash
-mcp test                 # full suite — 475 cases, ~2s
+mcp test                 # full suite — 702 cases, ~2s
 mcp test prop            # only tests matching *prop*
 mcp test ui -v           # UI integration tests, verbose
 mcp playtest             # play-mode test: deploys, presses F5, watches the
@@ -103,6 +103,22 @@ mcp deploy                           # push the local MultiAnimPlayer to ServerS
 `mcp drift` exists because "I rewrote the module but the old version is still
 deployed" has actually happened — run it whenever playback behaves like your
 changes didn't land.
+
+---
+
+## Simple Mode — Tag Folder
+
+In Simple Mode, select a workspace folder and click **Refresh Tags**: every rig,
+prop, and effect inside gets tagged `MAnim:<scene>` and the plugin rescans.
+
+- **Searchable folder picker** — clicking the folder dropdown opens a filter box;
+  start typing to narrow a long folder list.
+- **Nested models supported** — rigs and props inside sub-models or sub-folders
+  are found automatically; no need to flatten your scene hierarchy.
+- **New objects confirm** — if Refresh Tags finds untagged instances, it lists them
+  and asks before tagging (OK / Cancel).
+- **Rename remap** — if objects were renamed since the last session, a dialog lets
+  you map each orphaned track name to its new name; keyframes are preserved.
 
 ---
 
@@ -147,6 +163,19 @@ Cutscene.play("Scene_001", { Rig1 = workspace.FIGURES.Rig1, Rig2 = workspace.FIG
 -- LocalScript in StarterPlayerScripts:
 require(game.ReplicatedStorage:WaitForChild("CutsceneCamera")).start()
 ```
+
+For player-driven cutscenes, name a rig **`RigPlayer`** in the animation folder.
+`CutscenePlayer` then resolves it to the local player's character clone automatically —
+no rigMap needed at the call site:
+
+```lua
+-- LocalScript — works for any scene with a RigPlayer rig + tagged scene folder:
+local CutscenePlayer = require(game.ReplicatedStorage.CutscenePlayer)
+CutscenePlayer.play("MyScene", {}, { movieMode = true })
+```
+
+All other rigs are resolved from their CollectionService tags (`MAnim:<scene>`) so
+nothing else needs wiring up. Explicit rigMap entries still override when needed.
 
 ---
 

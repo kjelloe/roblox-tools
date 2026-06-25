@@ -87,6 +87,16 @@ architectural changes.
 | X-03 | On import, rigs/props/effects are re-linked by name; data for instances not found is preserved in the recorder for export but has no live viewport link. |
 | X-04 | On import in Simple mode with a scene name and tag folder set, the plugin re-applies `MAnim:<name>` tags and rescans rigs automatically. |
 
+### Tag folder refinements
+
+| ID | Story |
+|----|-------|
+| F-01 | As an animator, the folder picker dropdown has a live text filter so I can type the first letters of a folder name and click a row, instead of scrolling a long flat list. |
+| F-02 | As an animator, Refresh Tags recurses into sub-models and sub-folders inside the animation folder, so rigs and props nested inside organiser groups are found automatically. |
+| F-03 | As an animator, when Refresh Tags finds new untagged objects in the folder, a confirm overlay lists them and lets me choose OK (tag them) or Cancel (skip, but still rescan). |
+| F-04 | As an animator, when Refresh Tags detects that recorder track names no longer match the folder (objects were renamed), a **Renamed Objects** overlay lets me map each old name to a new same-type name from the folder. Applying the mapping renames the recorder data in-place so keyframes are preserved. |
+| F-05 | As an animator, if I click Cancel on the Renamed Objects or new-objects confirm, the scan proceeds using whatever tags already exist — no data is lost. |
+
 ### Prop tracking
 
 | ID | Story |
@@ -128,6 +138,8 @@ architectural changes.
 | G-04 | As a developer, I can call `player.stop()` to halt playback on all rigs and props at any time. |
 | G-05 | As a developer, I can pass an optional `propMap` to `player.play()` mapping prop names to their in-game Part instances; omitting it plays rigs only (backward compatible). |
 | G-06 | As a developer, prop `CFrame` is interpolated between keyframes in the same Heartbeat loop as scale tracks. |
+| G-07 | As a developer, calling `CutscenePlayer.play(sceneName)` with no rigMap plays the full scene: rigs named `"RigPlayer"` are implicitly mapped to the LocalPlayer clone; all other rigs are resolved from CollectionService-tagged instances, then `workspace.FIGURES` as a legacy fallback. |
+| G-08 | As a developer, I can still pass an explicit rigMap entry for any rig to override the implicit resolution — e.g. to use a different player or a specific workspace instance. |
 
 ---
 

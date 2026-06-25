@@ -868,6 +868,46 @@ Transfers the editable session between PCs/projects without requiring dev toolin
 - Re-linking: rigs/props/effects matched by name; missing instances produce a warning, data preserved for export.
 - Simple mode with scene+tag folder: Import triggers `doRefreshTags` so rigs are immediately available.
 
+## Tag Folder & Playback Refinements ✅
+
+Quality-of-life improvements to the tag-folder workflow and CutscenePlayer implicit rig resolution.
+
+### Implementation
+
+**Searchable folder picker (`Panel.lua` — `openTagFolderDropdown`):**
+- Replaced the flat ctxMenu dropdown with a dedicated overlay: filter TextBox + ScrollingFrame.
+- Typing filters the list in real time (case-insensitive substring). Up to 8 rows visible; scrollable beyond that.
+- Click-outside (`fpOverlay` fullscreen dismiss button) closes the picker.
+
+**Nested model scanning (`init.server.lua` — `doRefreshTags`):**
+- Replaced `folder:GetChildren()` with `walkFolder(container)` recursive walk.
+- Descends into `Model`/`Folder` containers that are not themselves rigs/props/effects.
+- Stops recursion at the first rig/prop/effect found at each level, so rig sub-parts are never tagged separately.
+
+**New objects confirm (`doRefreshTags` + `panel:showTagConfirm`):**
+- New objects are collected without tagging; shown in a confirm overlay before applying.
+- OK tags them and proceeds to scan + remap/orphan dialogs. Cancel skips tagging but still rescans.
+- `showTagConfirm` gained an optional 4th `onCancel` callback to support this.
+
+**Name remap dialog (`Panel.lua` — `showNameRemapDialog`, `Recorder.lua` — `renameRig`/`renameProp`):**
+- When orphaned recorder tracks have at least one same-type candidate in the folder, shows a **Renamed Objects** overlay.
+- Each row: old name label + cycling button stepping through same-type candidates + `(skip)`.
+- Apply calls `recorder:renameRig` / `recorder:renameProp` (moves track data + rest poses in-place), then rescans and auto-saves.
+
+**CutscenePlayer implicit rig resolution (`game/CutscenePlayer.lua`):**
+- Tagged source rigs (`CollectionService:GetTagged("MAnim:<scene>")`) collected before the workspace rig loop so they serve as the auto-fallback.
+- Fallback order for unmapped rigs: (1) `"RigPlayer"` → `LocalPlayer` clone, (2) tagged scene instance by name, (3) `workspace.FIGURES` child.
+- `CutscenePlayer.play("MyScene")` with no rigMap animates a full multi-rig scene without any explicit mapping.
+
+### Acceptance criteria
+
+- Folder picker filter box narrows list as user types; selecting a row fires tag-all.
+- Rigs/props nested inside sub-models of the animation folder are detected and tagged by Refresh Tags.
+- Refresh Tags with new untagged objects shows confirm dialog; OK tags them; Cancel skips without data loss.
+- Refresh Tags with renamed objects shows remap dialog; Apply moves recorder track data to new names; tracks survive the rename.
+- `CutscenePlayer.play("Scene")` (no rigMap) works when scene contains `RigPlayer` + any other tagged rig.
+- Explicit rigMap entries override implicit resolution.
+
 ### Backlog
 
 - Multiple named cameras + switcher track (authoring sugar over Phase 8 cuts)

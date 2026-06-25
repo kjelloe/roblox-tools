@@ -356,8 +356,23 @@ The panel has two rows at the very top of the Simple section:
 ```
 Tag: [FIGURES ▼]  [Rigs ✓]  [Props ✓]  [Effects □]  [Clear scene tags]  Manual tag: MAnim:Scene_001
 ```
-- Choose a workspace folder from the dropdown — every qualifying instance inside is
-  tagged with `MAnim:<scene>` via CollectionService. Rigs and Props are ON by default.
+- Choose a workspace folder from the dropdown. Clicking the button opens a **searchable
+  folder picker**: a small popup with a text filter box at the top and a scrollable list
+  of matching folder names below. Start typing to narrow the list; click any row to select.
+- Every qualifying instance inside the selected folder is tagged with `MAnim:<scene>` via
+  CollectionService. Rigs and Props are ON by default; Effects must be opted in.
+- **Nested models are supported.** If your animation folder contains sub-models or
+  sub-folders used as organisers (e.g. `AnimFolder/Characters/Hero`), Refresh Tags
+  recurses into them automatically. It stops at the first rig/prop/effect found at each
+  level — rig sub-parts are never tagged separately.
+- **When new untagged objects are found** in the folder, a confirm overlay lists them
+  ("Add N new object(s)?"). Click **OK** to tag them and rescan; **Cancel** to skip
+  tagging but still rescan the existing tags.
+- **When objects have been renamed** (recorder tracks exist under old names, but the
+  folder now contains same-type objects under new names), a **Renamed Objects** overlay
+  appears. Each orphaned track shows a cycle button with the available same-type
+  candidates. Click the button to step through candidates; click **Apply** to rename the
+  recorder data and rescan. Click **Cancel** to skip the remap without losing data.
 - **Clear scene tags** removes all `MAnim:<scene>` tags from tagged instances. A
   confirm overlay shows how many rigs, props, and effects are currently tagged so you
   can verify before clearing.
@@ -560,6 +575,34 @@ as one of the rigs.
        end)
    end)
    ```
+
+### Implicit rig resolution (no rigMap needed)
+
+For most scenes you can call `CutscenePlayer.play` with no rigMap at all:
+
+```lua
+CutscenePlayer.play("MyScene")
+-- or with options only:
+CutscenePlayer.play("MyScene", {}, { movieMode = true })
+```
+
+Resolution priority for every rig name in the scene when no explicit rigMap entry is given:
+
+1. **`"RigPlayer"`** — automatically mapped to `{ player = LocalPlayer, mode = "clone" }`.
+   Name a rig `RigPlayer` in the animation folder and it becomes the local player's
+   character clone in-game with zero configuration.
+2. **Tagged scene instance** — any rig tagged `MAnim:<sceneName>` whose name matches is
+   used directly, regardless of which workspace folder it lives in.
+3. **`workspace.FIGURES` child** — legacy fallback for untagged setups.
+
+Explicit rigMap entries always override this order, so you can still override `RigPlayer`
+to a different player, or point any rig at a specific instance:
+
+```lua
+CutscenePlayer.play("BossScene", {
+    RigPlayer = { player = targetPlayer, mode = "clone" },  -- override: different player
+})
+```
 
 ### Rig mapping modes
 
