@@ -21,6 +21,12 @@
 --   { player = Player,  mode = "clone" }  → clone player's character locally
 --   { player = Player,  mode = "direct" } → animate the player's real character
 --   { userId = number,  mode = ... }      → look up player by UserId first
+--
+-- Implicit convention:
+--   A rig named "RigPlayer" with no explicit rigMap entry is automatically
+--   mapped to { player = LocalPlayer, mode = "clone" }.
+--   This lets you call CutscenePlayer.play("MyScene") with no rigMap at all
+--   when the only player-dependent rig is named "RigPlayer".
 
 local CutscenePlayer = {}
 
@@ -184,11 +190,16 @@ function CutscenePlayer.play(sceneName, rigMap, options)
     -- Build a flat map of workspace rigs we can actually find.
     local workspaceRigs = {}
     for rigName in pairs(sceneData.rigs) do
-        -- Use the caller's rigMap entry if provided, otherwise try workspace.FIGURES.
+        -- Use the caller's rigMap entry if provided.
         local entry = rigMap[rigName]
         if entry == nil then
-            local fig = workspace:FindFirstChild("FIGURES")
-            if fig then entry = fig:FindFirstChild(rigName) end
+            if rigName == "RigPlayer" then
+                -- Implicit convention: RigPlayer → current LocalPlayer clone.
+                entry = { player = game:GetService("Players").LocalPlayer, mode = "clone" }
+            else
+                local fig = workspace:FindFirstChild("FIGURES")
+                if fig then entry = fig:FindFirstChild(rigName) end
+            end
         end
         if entry then workspaceRigs[rigName] = entry end
     end
