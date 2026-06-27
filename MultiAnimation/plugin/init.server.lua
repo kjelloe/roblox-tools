@@ -1813,7 +1813,13 @@ function setSimpleLookThroughOn(isOn)
         -- built-in editor controls (right-click-drag, WASD) remain active.
         -- The Heartbeat copies Camera → Part, so wherever the user flies
         -- the camera, the part tracks it.
+        -- Also update Focus to a point in front of the Part: after restoreState,
+        -- cam.Focus sits at the original pre-Look-Through focus point, which may be
+        -- behind the new camera position. Studio's camera controller re-derives
+        -- angles from CFrame + Focus and can flip 180° if Focus is behind the eye.
         CameraCapture.apply(simpleCameraPart.CFrame, simpleCameraFOV)
+        local partCF = simpleCameraPart.CFrame
+        workspace.CurrentCamera.Focus = CFrame.new(partCF.Position + partCF.LookVector * 10)
         simpleLookThroughConn = RunService.Heartbeat:Connect(function()
             if simpleCameraPart and simpleCameraPart.Parent then
                 simpleCameraPart.CFrame = workspace.CurrentCamera.CFrame
