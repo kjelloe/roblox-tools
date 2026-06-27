@@ -1368,6 +1368,8 @@ end
 
 -- ── Scan helper ───────────────────────────────────────────────────────────────
 
+local setupFiguresWatcher  -- forward declaration; defined near bottom of file
+
 local function scanAndSetup()
     allRigs = RigScanner.scan(legacyFiguresName)
     for name, model in pairs(allRigs) do
@@ -1381,6 +1383,7 @@ local function scanAndSetup()
         end
     end
     panel:setFrameDisplay(timeline:getCurrent(), timeline:getFrameCount())
+    setupFiguresWatcher()
 end
 
 -- ── SIMPLE MODE ───────────────────────────────────────────────────────────────
@@ -3036,14 +3039,20 @@ local function rebuildRigUI()
     panel:setFrameDisplay(timeline:getCurrent(), timeline:getFrameCount())
 end
 
-local figuresFolder = legacyFiguresName and workspace:FindFirstChild(legacyFiguresName)
-if figuresFolder then
-    track(figuresFolder.ChildAdded:Connect(function(child)
-        -- Defer one frame so the model is fully parented/loaded.
+-- ChildAdded/ChildRemoved watchers for the legacy figures folder.
+-- Called by scanAndSetup so the watcher reconnects whenever legacyFiguresName changes
+-- (e.g. the scanFigures test bridge sets it to "FIGURES" after startup).
+local figuresWatcherConns = {}
+setupFiguresWatcher = function()  -- assigns to the forward declaration above scanAndSetup
+    for _, c in ipairs(figuresWatcherConns) do c:Disconnect() end
+    figuresWatcherConns = {}
+    local figuresFolder = legacyFiguresName and workspace:FindFirstChild(legacyFiguresName)
+    if not figuresFolder then return end
+
+    local c1 = figuresFolder.ChildAdded:Connect(function(child)
         task.defer(function()
             if not child or not child.Parent then return end
-            if allRigs[child.Name] or allProps[child.Name] or child.Name == SIMPLE_CAMERA_NAME then return end   -- already tracked
-            -- Let RigScanner decide if it's a valid R6 rig.
+            if allRigs[child.Name] or allProps[child.Name] or child.Name == SIMPLE_CAMERA_NAME then return end
             local fresh = RigScanner.scan(legacyFiguresName)
             if fresh[child.Name] then
                 allRigs[child.Name] = child
@@ -3060,12 +3069,11 @@ if figuresFolder then
                 end
             end
         end)
-    end))
-
-    track(figuresFolder.ChildRemoved:Connect(function(child)
+    end)
+    local c2 = figuresFolder.ChildRemoved:Connect(function(child)
         if allRigs[child.Name] then
             allRigs[child.Name] = nil
-            motorStates[child.Name] = nil   -- can't reconnect a removed model
+            motorStates[child.Name] = nil
             rebuildRigUI()
             print("[MultiAnimation] Rig removed from scene: " .. child.Name)
         elseif child.Name == SIMPLE_CAMERA_NAME then
@@ -3080,7 +3088,11 @@ if figuresFolder then
             allProps[child.Name] = nil
             print("[MultiAnimation] Simple: prop removed from scene: " .. child.Name)
         end
-    end))
+    end)
+    table.insert(figuresWatcherConns, c1)
+    table.insert(figuresWatcherConns, c2)
+    track(c1)
+    track(c2)
 end
 
 -- ── Initial load ──────────────────────────────────────────────────────────────
@@ -3108,6 +3120,8 @@ local testBridge = TestBridge.start({
     scanFigures = function()
         legacyFiguresName = "FIGURES"
         mode = "advanced"
+        -- Clear the scene name so doSimpleScan uses the legacy FIGURES path, not scanByTag.
+        panel:setSimpleSceneName("")
         scanAndSetup()
         local fc = math.max(timeline:getFrameCount(), 120)
         timeline:setFrameCount(fc)
