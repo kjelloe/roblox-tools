@@ -155,6 +155,14 @@ local function divider(parent, order)
     d.Parent           = parent
 end
 
+-- Replace any character that is not alphanumeric or underscore with "_".
+-- Applied to scene names before they are stored or fired so tags, export
+-- paths, and slot keys are always safe identifiers.
+local function sanitizeSceneName(name)
+    if not name or name == "" then return name end
+    return (name:gsub("[^%w_]", "_"))
+end
+
 local function hrow(parent, order, gap)
     local f = Instance.new("Frame")
     f.Size          = UDim2.new(1, 0, 0, 0)
@@ -937,15 +945,16 @@ function Panel.new(widget)
 
     local simpleSceneRow = hrow(simpleSec, 7, 4)
     lbl(simpleSceneRow, "Scene:", 42, 1)
-    local simpleSceneBox = textBox(simpleSceneRow, "Scene_001", 80, 2)
+    local simpleSceneBox = textBox(simpleSceneRow, "Scene_001", 160, 2)
     self._simpleSceneBox = simpleSceneBox
     self._lastSceneName  = simpleSceneBox.Text
     simpleSceneBox.FocusLost:Connect(function()
-        local newName = simpleSceneBox.Text
-        if newName ~= self._lastSceneName and self._lastSceneName ~= "" then
-            eSceneRenamed:Fire(self._lastSceneName, newName)
+        local safe = sanitizeSceneName(simpleSceneBox.Text)
+        if safe ~= simpleSceneBox.Text then simpleSceneBox.Text = safe end
+        if safe ~= self._lastSceneName and self._lastSceneName ~= "" then
+            eSceneRenamed:Fire(self._lastSceneName, safe)
         end
-        self._lastSceneName = newName
+        self._lastSceneName = safe
     end)
     self.onSceneRenamed = eSceneRenamed.Event
     local simpleSaveBtn   = btn(simpleSceneRow, "💾 Save",   3)
@@ -1472,12 +1481,14 @@ function Panel.new(widget)
     local saveOvCancel = btn(saveOvRow, "Cancel", 2)
 
     local function _doSave()
-        local name = saveOvBox.Text:match("^%s*(.-)%s*$")
+        local name = sanitizeSceneName(saveOvBox.Text:match("^%s*(.-)%s*$"))
         if name ~= "" then
             self._lastSaveName = name
+            saveOvBox.Text = name
             -- keep both scene name boxes in sync with the saved name
             if self._sceneNameBox    then self._sceneNameBox.Text    = name end
             if self._simpleSceneBox  then self._simpleSceneBox.Text  = name end
+            self._lastSceneName = name
             saveOv.Visible = false
             eSave:Fire(name)
         end
@@ -1623,8 +1634,9 @@ function Panel.new(widget)
     end
 
     function self:setSimpleSceneName(name)
-        if self._simpleSceneBox then self._simpleSceneBox.Text = name end
-        self._lastSceneName = name or ""
+        local safe = sanitizeSceneName(name) or ""
+        if self._simpleSceneBox then self._simpleSceneBox.Text = safe end
+        self._lastSceneName = safe
     end
 
     function self:setTagFolder(name)
