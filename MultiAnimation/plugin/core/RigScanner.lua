@@ -57,20 +57,27 @@ RigScanner.isR6           = isR6Rig
 RigScanner.isR15          = isR15Rig
 RigScanner.isAnimatableRig = isAnimatableRig
 
--- Legacy scan: all animatable rigs in Workspace.FIGURES. Used when no scene name is set.
-function RigScanner.scan()
-    local rigs = {}
-    local figures = workspace:FindFirstChild("FIGURES")
-    if not figures then
-        warn("[MultiAnimation] Workspace.FIGURES not found — no rigs available")
-        return rigs
+-- Scans for animatable rigs. If folderName is given, scans that workspace folder's
+-- direct children. If nil, scans workspace top-level children directly.
+function RigScanner.scan(folderName)
+    local container
+    if folderName then
+        container = workspace:FindFirstChild(folderName)
+        if not container then
+            warn("[MultiAnimation] Workspace." .. folderName .. " not found — no rigs available")
+            return {}
+        end
+    else
+        container = workspace
     end
-    for _, child in ipairs(figures:GetChildren()) do
+    local rigs = {}
+    for _, child in ipairs(container:GetChildren()) do
         if isAnimatableRig(child) then rigs[child.Name] = child end
     end
     local count = 0
     for _ in pairs(rigs) do count += 1 end
-    print(string.format("[MultiAnimation] Found %d rig(s) in Workspace.FIGURES", count))
+    local loc = folderName and ("Workspace." .. folderName) or "workspace top-level"
+    print(string.format("[MultiAnimation] Found %d rig(s) in %s", count, loc))
     return rigs
 end
 

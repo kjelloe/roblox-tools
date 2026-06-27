@@ -365,11 +365,12 @@ function Panel.new(widget)
     local eSimpleAddFrame   = mkEvent("onSimpleAddFrame")
     local eSimpleInsertFrame= mkEvent("onSimpleInsertFrame")
     local eSimpleDeleteFrame= mkEvent("onSimpleDeleteFrame")
-    local eSimpleCam        = mkEvent("onSimpleCameraToggled")
-    local eSimpleFOV        = mkEvent("onSimpleFOVChanged")
-    local eSimpleLook       = mkEvent("onSimpleLookThroughToggled")
-    local eSimpleFPS        = mkEvent("onSimpleFPSChanged")
-    local eSimpleOnion      = mkEvent("onSimpleOnionToggled")
+    local eSimpleCam          = mkEvent("onSimpleCameraToggled")
+    local eSimpleFOV          = mkEvent("onSimpleFOVChanged")
+    local eSimpleLook         = mkEvent("onSimpleLookThroughToggled")
+    local eSimpleFPS          = mkEvent("onSimpleFPSChanged")
+    local eSimpleOnion        = mkEvent("onSimpleOnionToggled")
+    local eSimpleCamDeleteFrom= mkEvent("onSimpleCamDeleteFrom")
     local eTagFolderReq          = mkEvent("onTagFolderListRequested")        -- fires ()
     local eTagAllIn              = mkEvent("onTagAllInRequested")             -- fires (folder, {rigs,props,effects})
     local eClearSceneTags        = mkEvent("onClearSceneTagsRequested")       -- fires ()
@@ -893,6 +894,7 @@ function Panel.new(widget)
 
     local simpleCamRow = hrow(simpleSec, 6, 4)
     local simpleCamBtn = btn(simpleCamRow, "Camera View: OFF", 1)
+    self._simpleCamBtn = simpleCamBtn
     self._simpleCamOn = false
     simpleCamBtn.MouseButton1Click:Connect(function()
         self._simpleCamOn = not self._simpleCamOn
@@ -927,6 +929,11 @@ function Panel.new(widget)
         eSimpleOnion:Fire(self._simpleOnionOn)
     end)
     self.onSimpleOnionToggled = eSimpleOnion.Event
+    local simpleCamDelBtn = btn(simpleCamRow, "Del Cam >=Here", 6, false, true)
+    simpleCamDelBtn.MouseButton1Click:Connect(function()
+        eSimpleCamDeleteFrom:Fire()
+    end)
+    self.onSimpleCamDeleteFrom = eSimpleCamDeleteFrom.Event
 
     local simpleSceneRow = hrow(simpleSec, 7, 4)
     lbl(simpleSceneRow, "Scene:", 42, 1)
@@ -1582,7 +1589,8 @@ function Panel.new(widget)
     local _tagConfCallback       = nil
     local _tagConfCancelCallback = nil
     tagConfOk.MouseButton1Click:Connect(function()
-        tagConfOv.Visible = false
+        tagConfOv.Visible     = false
+        tagConfCancel.Visible = true
         local cb = _tagConfCallback
         _tagConfCallback       = nil
         _tagConfCancelCallback = nil
@@ -1601,6 +1609,16 @@ function Panel.new(widget)
         tagConfMsg.Text          = message
         _tagConfCallback         = onOkay
         _tagConfCancelCallback   = onCancel
+        tagConfCancel.Visible    = true
+        tagConfOv.Visible        = true
+    end
+
+    function self:showWarning(header, message)
+        tagConfHdr.Text          = header
+        tagConfMsg.Text          = message
+        _tagConfCallback         = nil
+        _tagConfCancelCallback   = nil
+        tagConfCancel.Visible    = false
         tagConfOv.Visible        = true
     end
 
@@ -2877,6 +2895,14 @@ function Panel:setCameraPreviewState(isOn)
     self._camPreviewOn = isOn
     if self._camPreviewBtn then
         self._camPreviewBtn.Text = isOn and "Cam:ON" or "Cam:OFF"
+    end
+end
+
+function Panel:setSimpleCameraState(isOn)
+    self._simpleCamOn = isOn
+    -- simpleCamBtn is a local inside Panel.new; update via the stored reference on self
+    if self._simpleCamBtn then
+        self._simpleCamBtn.Text = "Camera View: " .. (isOn and "ON" or "OFF")
     end
 end
 

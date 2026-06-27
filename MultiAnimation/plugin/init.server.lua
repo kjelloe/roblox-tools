@@ -139,7 +139,12 @@ local mode = "advanced"   -- "advanced" | "simple" | "playback"
 local simpleCameraOn = false
 local advancedFrameCount = nil   -- saved frameCount to restore when leaving Simple Mode
 
--- Simple Mode camera object: a manipulable Part in FIGURES standing in for
+-- Name of the workspace folder used for legacy (non-tag) rig scanning and Advanced Mode.
+-- nil = scan workspace top-level children directly (production default).
+-- Tests set this to "FIGURES" via the scanFigures / setFiguresFolder bridge commands.
+local legacyFiguresName = nil
+
+-- Simple Mode camera object: a manipulable Part in the animation folder standing in for
 -- the camera, posed with Studio's normal tools instead of capturing the
 -- ambient viewport. Look Through mirrors it onto workspace.CurrentCamera.
 local SIMPLE_CAMERA_NAME    = "SimpleCamera"
@@ -1061,9 +1066,15 @@ local ADDRIG_JOINT_PARENT = {
 }
 
 local function doAddRig()
-    local fig = workspace:FindFirstChild("FIGURES")
+    local folderName = (mode == "simple" and panel._tagFolderName) or legacyFiguresName
+    local fig = folderName and workspace:FindFirstChild(folderName)
     if not fig then
-        warn("[MultiAnimation] No Workspace.FIGURES folder — nothing to clone into")
+        if mode == "simple" then
+            panel:showWarning("No Animation Folder",
+                "Select an animation folder first (Tag row -> folder dropdown) before adding a rig.")
+        else
+            warn("[MultiAnimation] No rig folder configured — cannot clone rig")
+        end
         return nil
     end
 
@@ -1358,7 +1369,7 @@ end
 -- ── Scan helper ───────────────────────────────────────────────────────────────
 
 local function scanAndSetup()
-    allRigs = RigScanner.scan()
+    allRigs = RigScanner.scan(legacyFiguresName)
     for name, model in pairs(allRigs) do
         recorder:captureRestPose(name, model)
         disconnectRig(name, model)   -- disconnect AFTER capturing rest pose
@@ -1388,12 +1399,22 @@ end
 -- recorder:addCameraKeyframe/Interpolator.getCameraData path Advanced mode's
 -- camera track already uses, so the export pipeline is unaffected.
 
+-- Returns the active folder instance for Simple Mode: the configured tag folder.
+-- Returns nil when no folder has been selected.
+local function getActiveSimpleFolder()
+    local name = panel._tagFolderName
+    if name and name ~= "" then
+        return workspace:FindFirstChild(name)
+    end
+    return nil
+end
+
 local function ensureSimpleCameraPart()
-    local fig = workspace:FindFirstChild("FIGURES")
+    local fig = getActiveSimpleFolder()
     if not fig then
-        fig = Instance.new("Folder")
-        fig.Name = "FIGURES"
-        fig.Parent = workspace
+        panel:showWarning("No Animation Folder",
+            "Select an animation folder first (Tag row -> folder dropdown), then enable Camera View.")
+        return nil
     end
 
     local part = fig:FindFirstChild(SIMPLE_CAMERA_NAME)
@@ -1419,7 +1440,7 @@ local function ensureSimpleCameraPart()
         part.CFrame       = CFrame.new(spawnPos, spawnPos - Vector3.new(0, 0, 8))
         part:SetAttribute("FOV", simpleCameraFOV)
         part.Parent = fig
-        print("[MultiAnimation] Simple: created manipulable camera object 'SimpleCamera' in FIGURES")
+        print("[MultiAnimation] Simple: created SimpleCamera in Workspace." .. fig.Name)
     end
     simpleCameraPart = part
     drawSimpleCameraFrustum(part, simpleCameraFOV)
@@ -1445,12 +1466,12 @@ end
 doSimpleScan = function()
     reconnectAllRigs()
 
-    -- Rig discovery: tag-based when a scene name is set, FIGURES fallback otherwise.
+    -- Rig discovery: tag-based when a scene name is set, legacy folder fallback otherwise.
     local sceneName = panel:getSimpleSceneName()
     if sceneName and sceneName ~= "" then
         allRigs = RigScanner.scanByTag(sceneName)
     else
-        allRigs = RigScanner.scan()
+        allRigs = RigScanner.scan(legacyFiguresName)
     end
     for name, model in pairs(allRigs) do
         recorder:captureRestPose(name, model)
@@ -1471,12 +1492,12 @@ doSimpleScan = function()
                 if part then allProps[inst.Name] = part end
             end
         end
-        -- SimpleCamera is still looked up in FIGURES regardless of tag mode.
-        local fig = workspace:FindFirstChild("FIGURES")
+        -- SimpleCamera lives in the configured tag folder (same folder as the scene rigs).
+        local fig = getActiveSimpleFolder()
         simpleCameraPart = fig and fig:FindFirstChild(SIMPLE_CAMERA_NAME) or nil
     else
-        -- Legacy: props are non-rig children of FIGURES.
-        local fig = workspace:FindFirstChild("FIGURES")
+        -- Legacy: props are non-rig children of the legacy folder.
+        local fig = workspace:FindFirstChild(legacyFiguresName)
         if fig then
             for _, child in ipairs(fig:GetChildren()) do
                 if not allRigs[child.Name] and child.Name ~= SIMPLE_CAMERA_NAME then
@@ -1727,9 +1748,13 @@ local function setSimpleCameraOn(isOn)
     simpleCameraOn = isOn
     if isOn then
         ensureSimpleCameraPart()
-        if simpleCameraPart then
-            simpleCameraPart.Transparency = 0
+        if not simpleCameraPart then
+            -- Warning was shown by ensureSimpleCameraPart; revert the toggle.
+            simpleCameraOn = false
+            panel:setSimpleCameraState(false)
+            return
         end
+        simpleCameraPart.Transparency = 0
     else
         if simpleLookThroughOn then
             setSimpleLookThroughOn(false)
@@ -2133,6 +2158,23 @@ panel.onSimpleFPSChanged:Connect(function(fps)
     timeline:setFps(fps)
     recorder:setFps(fps)
 end)
+panel.onSimpleCamDeleteFrom:Connect(function()
+    local cur = timeline:getCurrent()
+    local toDelete = {}
+    for _, f in ipairs(recorder:getSortedCameraFrames()) do
+        if f >= cur then table.insert(toDelete, f) end
+    end
+    if #toDelete == 0 then return end
+    local msg = string.format("Delete %d camera keyframe%s at frame %d onwards?",
+        #toDelete, #toDelete == 1 and "" or "s", cur)
+    panel:showTagConfirm("Del Camera Track", msg, function()
+        for _, f in ipairs(toDelete) do
+            recorder:deleteCameraKeyframe(f)
+            panel:removeCameraKeyframeMarker(f)
+        end
+        scheduleAutoSave()
+    end)
+end)
 
 panel.onSubtitleEnabledChanged:Connect(function(on)
     recorder:setSubtitlesEnabled(on)
@@ -2477,10 +2519,10 @@ panel.onFrameChanged:Connect(function(newFrame)
                 doSimpleCaptureFrame(departureFrame)
                 _simpleArrivalSnap = nil
                 scheduleAutoSave()
-            elseif simpleCameraOn and simpleCameraPart and simpleCameraPart.Parent then
-                -- Camera-only capture: no rig data at this frame, but user may have
-                -- repositioned the camera part here — save it so camera KFs can exist
-                -- at frames that don't coincide with any rig keyframe.
+            elseif simpleCameraOn and not simpleLookThroughOn and simpleCameraPart and simpleCameraPart.Parent then
+                -- Camera-only capture: user explicitly positioned the camera Part at
+                -- this frame; save it. Skipped in Look Through mode because the Part
+                -- tracks the viewport (not an intentional pose).
                 recorder:addCameraKeyframe(departureFrame, simpleCameraPart.CFrame, simpleCameraFOV, "move", simpleCurrentEasing)
                 panel:addCameraKeyframeMarker(departureFrame, "move")
                 scheduleAutoSave()
@@ -2523,7 +2565,7 @@ panel.onScrubBegan:Connect(function()
                 doSimpleCaptureFrame(frame)
                 _simpleArrivalSnap = nil
                 scheduleAutoSave()
-            elseif simpleCameraOn and simpleCameraPart and simpleCameraPart.Parent then
+            elseif simpleCameraOn and not simpleLookThroughOn and simpleCameraPart and simpleCameraPart.Parent then
                 recorder:addCameraKeyframe(frame, simpleCameraPart.CFrame, simpleCameraFOV, "move", simpleCurrentEasing)
                 panel:addCameraKeyframeMarker(frame, "move")
                 scheduleAutoSave()
@@ -2986,7 +3028,7 @@ local function rebuildRigUI()
     panel:setFrameDisplay(timeline:getCurrent(), timeline:getFrameCount())
 end
 
-local figuresFolder = workspace:FindFirstChild("FIGURES")
+local figuresFolder = legacyFiguresName and workspace:FindFirstChild(legacyFiguresName)
 if figuresFolder then
     track(figuresFolder.ChildAdded:Connect(function(child)
         -- Defer one frame so the model is fully parented/loaded.
@@ -2994,7 +3036,7 @@ if figuresFolder then
             if not child or not child.Parent then return end
             if allRigs[child.Name] or allProps[child.Name] or child.Name == SIMPLE_CAMERA_NAME then return end   -- already tracked
             -- Let RigScanner decide if it's a valid R6 rig.
-            local fresh = RigScanner.scan()
+            local fresh = RigScanner.scan(legacyFiguresName)
             if fresh[child.Name] then
                 allRigs[child.Name] = child
                 recorder:captureRestPose(child.Name, child)
@@ -3045,9 +3087,18 @@ local TestBridge = require(script.core.TestBridge)
 local testBridge = TestBridge.start({
     ping = function() return "pong" end,
 
+    -- Override the folder used for non-tag-mode scanning (tests only).
+    -- Pass nil to reset to production default (scan workspace top-level).
+    setFiguresFolder = function(a)
+        legacyFiguresName = a.name or nil
+        return legacyFiguresName
+    end,
+
     -- Force-rescan workspace.FIGURES; use at the start of tests that need known rigs.
+    -- Sets legacyFiguresName = "FIGURES" so RigScanner.scan() targets that folder.
     -- Also normalises frameCount to 120 so parking-frame arithmetic always has room.
     scanFigures = function()
+        legacyFiguresName = "FIGURES"
         mode = "advanced"
         scanAndSetup()
         local fc = math.max(timeline:getFrameCount(), 120)
@@ -3512,7 +3563,7 @@ local testBridge = TestBridge.start({
                     doSimpleCaptureFrame(departureFrame)
                     _simpleArrivalSnap = nil
                     scheduleAutoSave()
-                elseif simpleCameraOn and simpleCameraPart and simpleCameraPart.Parent then
+                elseif simpleCameraOn and not simpleLookThroughOn and simpleCameraPart and simpleCameraPart.Parent then
                     recorder:addCameraKeyframe(departureFrame, simpleCameraPart.CFrame, simpleCameraFOV, "move", simpleCurrentEasing)
                     panel:addCameraKeyframeMarker(departureFrame, "move")
                     scheduleAutoSave()
