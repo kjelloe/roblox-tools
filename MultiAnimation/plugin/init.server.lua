@@ -1704,10 +1704,13 @@ end
 local function doSimpleInsertFrame()
     if isPlaying then return end
     local frame = timeline:setCurrent(timeline:getCurrent())  -- clamp
-    -- Capture current frame before shifting, so the duplicate is accurate
-    if simpleFrameHasData(frame) then
-        doSimpleCaptureFrame(frame)
+    if not simpleFrameHasData(frame) then
+        panel:showSimpleNotice("No keyframe here — click a frame icon first")
+        return
     end
+    panel:setFrameDisplay(frame, timeline:getFrameCount())
+    -- Capture current frame before shifting, so the duplicate is accurate
+    doSimpleCaptureFrame(frame)
     recorder:shiftFrames(frame + 1, 1)
     local newCount = timeline:getFrameCount() + 1
     timeline:setFrameCount(newCount)
@@ -1727,8 +1730,13 @@ end
 local function doSimpleDeleteFrame()
     if isPlaying then return end
     local frame = timeline:getCurrent()
+    if not simpleFrameHasData(frame) then
+        panel:showSimpleNotice("No keyframe here — click a frame icon first")
+        return
+    end
+    panel:setFrameDisplay(frame, timeline:getFrameCount())
     local oldCount = timeline:getFrameCount()
-    if oldCount <= 1 then return end   -- keep at least one frame
+    if oldCount <= 1 then return end
     recorder:deleteFrameAt(frame)
     recorder:shiftFrames(frame + 1, -1)
     local newCount = oldCount - 1

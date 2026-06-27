@@ -817,11 +817,34 @@ function Panel.new(widget)
 
     -- Frame icon strip: one clickable chip per keyframed frame, above the scrubber.
     -- Width is driven by setSimpleIconWidth(); starts at 1 slot.
+    -- Inline notice bar: shown briefly when an action is blocked (e.g. no frame selected).
+    -- Amber background, auto-hides after 2.5s via showSimpleNotice().
+    local noticeBar = Instance.new("Frame")
+    noticeBar.Name               = "SimpleNoticeBar"
+    noticeBar.Size               = UDim2.new(1, 0, 0, 20)
+    noticeBar.BackgroundColor3   = Color3.fromRGB(255, 200, 50)
+    noticeBar.BorderSizePixel    = 0
+    noticeBar.LayoutOrder        = 3
+    noticeBar.Visible            = false
+    noticeBar.Parent             = simpleSec
+    local noticeLbl = Instance.new("TextLabel")
+    noticeLbl.Size               = UDim2.new(1, -8, 1, 0)
+    noticeLbl.Position           = UDim2.new(0, 4, 0, 0)
+    noticeLbl.BackgroundTransparency = 1
+    noticeLbl.TextColor3         = Color3.fromRGB(40, 25, 0)
+    noticeLbl.Font               = Enum.Font.GothamMedium
+    noticeLbl.TextSize           = 11
+    noticeLbl.TextXAlignment     = Enum.TextXAlignment.Left
+    noticeLbl.Text               = ""
+    noticeLbl.Parent             = noticeBar
+    self._noticeBar  = noticeBar
+    self._noticeLbl  = noticeLbl
+
     local simpleIconRow = Instance.new("Frame")
     simpleIconRow.Name             = "SimpleIconRow"
     simpleIconRow.Size             = UDim2.new(0, SIMPLE_ICON_W, 0, SIMPLE_ICON_H)
     simpleIconRow.BackgroundTransparency = 1
-    simpleIconRow.LayoutOrder      = 3
+    simpleIconRow.LayoutOrder      = 4
     simpleIconRow.Parent           = simpleSec
     self._simpleIconRow = simpleIconRow
     self._simpleIcons   = {}   -- [frame] = TextButton
@@ -831,7 +854,7 @@ function Panel.new(widget)
     simpleScrubRow.Size             = UDim2.new(0, SIMPLE_ICON_W, 0, 0)
     simpleScrubRow.AutomaticSize    = Enum.AutomaticSize.Y
     simpleScrubRow.BackgroundTransparency = 1
-    simpleScrubRow.LayoutOrder      = 4
+    simpleScrubRow.LayoutOrder      = 5
     simpleScrubRow.Parent           = simpleSec
     self._simpleScrubRow = simpleScrubRow
 
@@ -852,7 +875,7 @@ function Panel.new(widget)
     self._simpleScrubber.onDragBegan:Connect(function() eScrubBgn:Fire() end)
     self._simpleScrubber.onDragEnded:Connect(function() eScrubEnd:Fire() end)
 
-    local simpleNavRow = hrow(simpleSec, 5, 4)
+    local simpleNavRow = hrow(simpleSec, 6, 4)
     local simplePrevKFBtn = smallBtn(simpleNavRow, "|◄", 1)
     local simplePrevBtn   = smallBtn(simpleNavRow, "◄",  2)
     lbl(simpleNavRow, "Frame:", 38, 3)
@@ -900,7 +923,7 @@ function Panel.new(widget)
         end
     end)
 
-    local simpleCamRow = hrow(simpleSec, 6, 4)
+    local simpleCamRow = hrow(simpleSec, 7, 4)
     local simpleCamBtn = btn(simpleCamRow, "Camera View: OFF", 1)
     self._simpleCamBtn = simpleCamBtn
     self._simpleCamOn = false
@@ -943,7 +966,7 @@ function Panel.new(widget)
     end)
     self.onSimpleCamDeleteFrom = eSimpleCamDeleteFrom.Event
 
-    local simpleSceneRow = hrow(simpleSec, 7, 4)
+    local simpleSceneRow = hrow(simpleSec, 8, 4)
     lbl(simpleSceneRow, "Scene:", 42, 1)
     local simpleSceneBox = textBox(simpleSceneRow, "Scene_001", 160, 2)
     self._simpleSceneBox = simpleSceneBox
@@ -2908,6 +2931,20 @@ function Panel:setCameraPreviewState(isOn)
     if self._camPreviewBtn then
         self._camPreviewBtn.Text = isOn and "Cam:ON" or "Cam:OFF"
     end
+end
+
+-- Shows an amber inline notification bar for 2.5 seconds. Non-blocking.
+function Panel:showSimpleNotice(msg)
+    if not self._noticeBar then return end
+    self._noticeLbl.Text     = msg
+    self._noticeBar.Visible  = true
+    self._noticeToken        = (self._noticeToken or 0) + 1
+    local tok = self._noticeToken
+    task.delay(2.5, function()
+        if self._noticeToken == tok and self._noticeBar then
+            self._noticeBar.Visible = false
+        end
+    end)
 end
 
 function Panel:setSimpleCameraState(isOn)
