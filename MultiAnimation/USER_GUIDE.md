@@ -17,15 +17,12 @@ This guide is for the person *using* the plugin. For developer tooling
 After installing, restart Studio. The plugin appears in the **Plugins toolbar**
 (not in "Manage Plugins" — that's marketplace-only).
 
-**Scene setup:** put your rigs in a folder called `FIGURES` in Workspace (or use
-tag-based scenes — see Simple Mode below):
+**Scene setup — Simple Mode (recommended):** put your rigs in any workspace folder
+(e.g. `MyScene`) and select it via the Tag row folder dropdown. No specific folder
+name is required.
 
-```
-Workspace
-└── FIGURES
-    ├── Rig1   (R6: Humanoid + Torso + Motor6Ds, or R15: Humanoid + UpperTorso)
-    └── Rig2
-```
+**Scene setup — Advanced Mode:** rigs are discovered by scanning the top-level
+children of the workspace; any R6/R15 model found there is tracked automatically.
 
 **Open the panel:** click the MultiAnimation toolbar button. The panel docks at
 the bottom. Rigs are detected automatically — including rigs you add or remove
@@ -66,9 +63,9 @@ section — see §11, Simple Mode.
 5. **Watch it** — **▶ Preview** plays the timeline live in the viewport;
    **■ Stop** halts and leaves you at the current frame.
 
-**Adding rigs:** click **`+ Rig`** to clone Rig1 into FIGURES as the next free
-`RigN`, placed beside the existing rigs. It's detected and ready to animate
-immediately. (Dropping any R6 model into FIGURES by hand works too.)
+**Adding rigs:** click **`+ Rig`** to clone the first rig into the configured folder
+as the next free `RigN`, placed beside the existing rigs. It's detected and ready
+to animate immediately. (Dropping any R6 model into the folder by hand works too.)
 
 **Copying poses between rigs and frames:** the **Copy KF / Paste KF / Paste
 Mirrored** row at the bottom of CONTROLS is a keyframe clipboard:
@@ -256,9 +253,10 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 | **Simple mode** `Duplicate` | Click | Capture current frame, duplicate it into a new frame immediately after, and move cursor there |
 | **Simple mode** `▶ Play` / `■ Stop` | Click | Play from the current frame to the end, or stop mid-playback |
 | **Simple mode** `Del Frame` | Click | Delete the current frame's data, shift all subsequent frames left by 1, shrink the timeline |
-| **Simple mode** `Camera View` | Click | ON: create/show the manipulable `SimpleCamera` part and arm camera capture on `+ Add Frame`. OFF: hide the part (kept in FIGURES for next toggle-on). |
+| **Simple mode** `Camera View` | Click | ON: create/show the manipulable `SimpleCamera` part in the animation folder and arm camera capture on `+ Add Frame`. OFF: hide the part (kept in the folder for next toggle-on). Requires an animation folder to be selected first — shows a warning if none is set. |
 | **Simple mode** FOV box | Type + Tab/Enter | Set the `SimpleCamera`'s field of view (clamped 1–120) |
-| **Simple mode** `Look Through` | Click | Slave the viewport to the `SimpleCamera`'s view, then fly freely with Studio's normal edit-camera controls; toggle off to restore your original viewport exactly |
+| **Simple mode** `Look Through` | Click | Slave the viewport to the `SimpleCamera`'s view, then fly freely with Studio's normal edit-camera controls; toggle off to restore your original viewport exactly. Auto-capture on navigation is skipped while Look Through is active. |
+| **Simple mode** `Del Cam >=Here` | Click | Opens a confirm dialog then deletes all camera keyframes at the current frame and onwards — useful for extending a fixed frame-1 camera without accumulating stale keyframes. |
 | `SimpleCamera` part (viewport) | Move / rotate | Pose the camera like any rig or prop — captured the same way on step-forward; shows a wireframe FOV-frustum outline |
 | **Simple mode** `Onion Skin: OFF/ON` | Click | Toggle ghost poses: semi-transparent red = previous keyframe, blue = next keyframe; ghosts refresh on every frame change |
 | **Simple mode** FPS box (nav row) | Type + Tab/Enter | Set playback speed (1–999 fps, default 30). Affects `▶ Play` speed; saved with the session. |
@@ -316,7 +314,7 @@ are deployed alongside automatically.
 
 ```lua
 local player = require(game.ServerStorage.MultiAnimationData.MultiAnimPlayer)
-player.play("Scene_001", { Rig1 = workspace.FIGURES.Rig1, Rig2 = workspace.FIGURES.Rig2 })
+player.play("Scene_001", { Rig1 = workspace.MyScene.Rig1, Rig2 = workspace.MyScene.Rig2 })
 player.onFinished(function(name) print(name .. " done") end)
 ```
 
@@ -325,7 +323,7 @@ player.onFinished(function(name) print(name .. " done") end)
 ```lua
 -- Server Script:
 local Cutscene = require(game.ServerStorage.MultiAnimationData.CutsceneServer)
-Cutscene.play("Scene_001", { Rig1 = workspace.FIGURES.Rig1, Rig2 = workspace.FIGURES.Rig2 })
+Cutscene.play("Scene_001", { Rig1 = workspace.MyScene.Rig1, Rig2 = workspace.MyScene.Rig2 })
 
 -- LocalScript in StarterPlayerScripts:
 require(game.ReplicatedStorage:WaitForChild("CutsceneCamera")).start()
@@ -354,7 +352,7 @@ The panel has two rows at the very top of the Simple section:
 
 **Tag row** (first row):
 ```
-Tag: [FIGURES ▼]  [Rigs ✓]  [Props ✓]  [Effects □]  [Clear scene tags]  Manual tag: MAnim:Scene_001
+Tag: [MyScene ▼]  [Rigs ✓]  [Props ✓]  [Effects □]  [Clear scene tags]  Manual tag: MAnim:Scene_001
 ```
 - Choose a workspace folder from the dropdown. Clicking the button opens a **searchable
   folder picker**: a small popup with a text filter box at the top and a scrollable list
@@ -380,19 +378,26 @@ Tag: [FIGURES ▼]  [Rigs ✓]  [Props ✓]  [Effects □]  [Clear scene tags]  
   copy it to apply tags yourself via Studio's Tag Editor (useful for instances
   scattered across many folders).
 - Once tagged, the scene name drives the rig scan: non-empty scene name →
-  `scanByTag` (anywhere in workspace); empty → legacy FIGURES scan.
+  `scanByTag` (anywhere in workspace); empty → `scan(nil)` (workspace top-level
+  children, no specific folder required).
 
-**Scene row** (last row): `Scene:` box · `💾 Save` · `⬆ Export` · `Save As` · `Load` · `New` · `Delete` (red)
+**Scene row** (last row): `Scene:` box (160 px wide) · `💾 Save` · `⬆ Export` · `Save As` · `Load` · `New` · `Delete` (red)
+
+> **Scene name sanitization:** when you press Tab/Enter after typing a name, any character that is not alphanumeric or `_` (including spaces) is automatically replaced with `_`. This keeps the name safe for export paths, CollectionService tags, and slot keys without any manual effort. The box shows the sanitized form immediately.
 
 > **Renaming a scene:** type a new name in the `Scene:` box and press Tab/Enter. All `MAnim:<oldName>` CollectionService tags on tracked instances are automatically renamed to `MAnim:<newName>` — the scene binding survives the rename.
 
 Then: scrubber + frame counter, nav row (**Del Frame** · **+ Insert** · **▶ Play/Stop**
 · **+ Add Frame** · **FPS box**), **Camera View** + **FOV** + **Look Through**, **Onion Skin**.
 
-**Everything in `Workspace.FIGURES` is tracked automatically** when no scene name is
-set — R6 and R15 rigs the same way Advanced mode tracks them, and any other part/model
-gets its world-space CFrame tracked like an Advanced-mode prop. With a scene name set,
-only tagged instances are tracked. There's no "Track Part" or "+ Rig" step.
+**Everything in the selected animation folder is tracked automatically** when no scene
+name is set — R6 and R15 rigs the same way Advanced mode tracks them, and any other
+part/model gets its world-space CFrame tracked like an Advanced-mode prop. With a scene
+name set, only tagged instances are tracked. There's no "Track Part" or "+ Rig" step.
+
+> **New users:** no folder structure is assumed. Select any workspace folder from the
+> Tag row dropdown to get started. Camera View and Add Rig require a folder to be
+> selected first; a warning overlay appears if none is configured.
 
 **The core workflow:**
 
@@ -427,28 +432,38 @@ viewport settles on whatever frame playback stopped at. The **FPS box** (right
 of the nav row, default 30) controls playback speed; type a number and press
 Tab or Enter to apply. The setting is saved with the session.
 
-**Camera View:** toggling it on creates (or reuses) a **`SimpleCamera`**
-part in `FIGURES` — a real, manipulable object you pose with Studio's normal
-move/rotate tools, exactly like a rig or prop. When created for the first
-time in a scene, it spawns near the average position of the tagged rigs
-(offset 2 units up, 8 units back) so it frames them immediately. A wireframe outline on the
-part shows its field of view and aim direction at a glance (an apex plus a
-far rectangle sized from the FOV — not a solid shape, so it won't block
-your view of anything behind it). When Camera View is on, pressing **+ Add
-Frame** captures the camera part's CFrame and FOV alongside all rig/prop
-poses. Set the camera's field of view with the **FOV** box next to the
-toggle (1–120); the wireframe redraws to match. Toggling Camera View **off**
-hides the `SimpleCamera` part and its FOV outline — the part stays in FIGURES
-so it reappears in the same position when you turn Camera View back on.
+**Camera View:** requires an animation folder to be selected (Tag row → folder
+dropdown). If none is configured, a warning overlay asks you to select one first and
+the toggle reverts to OFF. Once a folder is set, toggling Camera View on creates (or
+reuses) a **`SimpleCamera`** part inside that folder — a real, manipulable object you
+pose with Studio's normal move/rotate tools, exactly like a rig or prop. When created
+for the first time in a scene, it spawns near the average position of the tagged rigs
+(offset 2 units up, 8 units back) so it frames them immediately. A wireframe outline on
+the part shows its field of view and aim direction at a glance (an apex plus a far
+rectangle sized from the FOV — not a solid shape, so it won't block your view of
+anything behind it). The wireframe is visible only while Look Through is OFF — in Look
+Through mode the gizmo is hidden so it doesn't obstruct navigation. When Camera View
+is on, pressing **+ Add Frame** captures the camera part's CFrame and FOV alongside all
+rig/prop poses. Set the camera's field of view with the **FOV** box next to the toggle
+(1–120); the wireframe redraws to match. Toggling Camera View **off** hides the
+`SimpleCamera` part and its FOV outline — the part stays in the animation folder so it
+reappears in the same position when you turn Camera View back on.
+
+**Del Cam >=Here:** opens a confirm overlay listing how many camera keyframes will be
+removed (current frame and all later frames), then deletes them. Use this when you want
+a fixed camera pose at frame 1 to persist without later keyframes overriding it — pose
+once, then delete everything from frame 2 onwards.
 
 **Look Through:** with Camera View on, toggle **Look Through** to slave your
 edit-mode viewport to the `SimpleCamera` part's current view. Once it's on,
 fly around with Studio's normal edit-camera controls (right-drag to look,
 WASD/QE to move, scroll to zoom) — the camera part follows your viewport
-live, so the gizmo doesn't fight your navigation. Toggle Look Through off to
-restore your own viewport exactly where it was *before* you turned it on
-(not wherever you flew to). Look Through is rejected (no-op) if Camera View
-isn't on yet.
+live. The FOV wireframe is hidden during Look Through so it doesn't obstruct
+navigation. Toggle Look Through off to restore your own viewport exactly where
+it was *before* you turned it on (not wherever you flew to). Look Through is
+rejected (no-op) if Camera View isn't on yet. **Auto-capture on navigation is
+skipped while Look Through is active** — viewport changes while flying are not
+recorded as camera keyframes.
 
 **Onion Skin:** click **Onion Skin: OFF** in the camera row to toggle ghost
 rendering. When on, the previous and next keyframed frames are shown as
@@ -533,7 +548,7 @@ as one of the rigs.
    local handle = CutscenePlayer.play(
        "MyScene",
        {
-           Rig1 = workspace.FIGURES.Rig1,
+           Rig1 = workspace.MyScene.Rig1,
            Rig2 = { player = game.Players.LocalPlayer, mode = "clone" },
        },
        { loop = true, movieMode = true }
@@ -593,7 +608,7 @@ Resolution priority for every rig name in the scene when no explicit rigMap entr
    character clone in-game with zero configuration.
 2. **Tagged scene instance** — any rig tagged `MAnim:<sceneName>` whose name matches is
    used directly, regardless of which workspace folder it lives in.
-3. **`workspace.FIGURES` child** — legacy fallback for untagged setups.
+3. **Workspace top-level child** — scanned directly when no tag folder is configured (no specific folder name required).
 
 Explicit rigMap entries always override this order, so you can still override `RigPlayer`
 to a different player, or point any rig at a specific instance:
@@ -647,5 +662,6 @@ are automatically removed when playback finishes or `handle.stop()` is called.
 | Exported playback ignores my latest edits | Re-export, or run `mcp drift` / `mcp deploy` from a terminal. |
 | In-game cutscene camera slightly ahead of rig motion | Known v1 caveat (~50–100 ms replication lag). |
 | Undo behaves oddly during preview | Preview suspends the undo history while playing; it resumes on Stop. |
-| Simple Mode shows no rigs after setting a scene name | Nothing is tagged yet — use the Tag row folder dropdown to tag your FIGURES folder, or apply `MAnim:<scene>` tags manually in Studio's Tag Editor. |
+| Simple Mode shows no rigs after setting a scene name | Nothing is tagged yet — use the Tag row folder dropdown to select and tag your animation folder, or apply `MAnim:<scene>` tags manually in Studio's Tag Editor. |
+| Camera View button shows "No Animation Folder" warning | Select a folder first via the Tag row dropdown — Camera View requires an animation folder to create the `SimpleCamera` part in. |
 | Toggle buttons (Rigs/Props/Effects) look stuck | They reset to defaults (Rigs ON, Props ON, Effects OFF) whenever you press **New**. Current state is always shown by the button's highlight colour. |

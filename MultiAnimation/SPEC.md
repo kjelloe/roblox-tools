@@ -96,6 +96,8 @@ architectural changes.
 | F-03 | As an animator, when Refresh Tags finds new untagged objects in the folder, a confirm overlay lists them and lets me choose OK (tag them) or Cancel (skip, but still rescan). |
 | F-04 | As an animator, when Refresh Tags detects that recorder track names no longer match the folder (objects were renamed), a **Renamed Objects** overlay lets me map each old name to a new same-type name from the folder. Applying the mapping renames the recorder data in-place so keyframes are preserved. |
 | F-05 | As an animator, if I click Cancel on the Renamed Objects or new-objects confirm, the scan proceeds using whatever tags already exist — no data is lost. |
+| F-06 | As an animator, when I turn Camera View on without an animation folder selected, a warning overlay tells me to select one first, and the Camera View toggle reverts to OFF — no broken state. |
+| F-07 | As an animator, the scene name box auto-sanitizes its value on Tab/Enter: any character that is not alphanumeric or `_` (including spaces) is replaced with `_`, so the stored name is always safe for tags, export paths, and slot keys. |
 
 ### Prop tracking
 
@@ -127,6 +129,7 @@ architectural changes.
 | C-08 | As an animator, exporting a scene writes a `CameraTrack` ModuleScript alongside the animation data (omitted when no camera keyframes exist). |
 | C-09 | As a developer, calling `CutsceneServer.play(scene, rigMap)` plays the animation and synchronizes every connected player's camera to the camera track via a shared server timestamp. |
 | C-10 | As a player, my camera is restored to normal when the cutscene ends or is stopped. |
+| C-11 | As an animator in Simple Mode, I can click **Del Cam >=Here** to delete all camera keyframes from the current frame onwards (with a confirm overlay), leaving keyframes before the current frame intact. |
 
 ### In-game playback
 

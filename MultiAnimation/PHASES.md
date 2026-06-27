@@ -915,3 +915,54 @@ Quality-of-life improvements to the tag-folder workflow and CutscenePlayer impli
 - Upload to Roblox asset catalogue
 - Prop property animation (emitter rate, transparency, colour)
 - SpawnedEffects list panel (browse/select all scene effects without clicking gizmos)
+
+---
+
+## Simple Mode Camera & Scene Name Refinements ✅
+
+Bug-fixes and UX additions for the Simple Mode camera workflow, no-folder safety, and scene name handling.
+
+### Implementation
+
+**Camera erratic fix (`init.server.lua`):**
+- Three auto-capture-on-navigation sites (`onFrameChanged`, `onScrubBegan`, `simpleNavigate` bridge)
+  now guarded with `not simpleLookThroughOn`. While Look Through is active the viewport drives
+  the `SimpleCamera` part — those movements are intentional flying, not poses — so skipping the
+  capture prevents random viewport positions becoming camera keyframes.
+
+**`Del Cam >=Here` button (`Panel.lua` + `init.server.lua`):**
+- New `Del Cam >=Here` button added to the Simple Mode camera row (after Onion Skin).
+- Fires `onSimpleCamDeleteFrom`. Handler collects all camera keyframes ≥ current frame, shows
+  a confirm overlay (count + frame number), then calls `recorder:deleteCameraKeyframe(f)` +
+  `panel:removeCameraKeyframeMarker(f)` for each.
+- Implements C-11: a fixed frame-1 camera pose can persist without later keyframes overriding it.
+
+**No-folder warning + Camera View state revert (`Panel.lua` + `init.server.lua`):**
+- New `panel:showWarning(header, message)` method reuses the existing `tagConfOv` overlay with
+  Cancel button hidden and no callback — pure notification.
+- `ensureSimpleCameraPart()` calls `showWarning("No Animation Folder", ...)` and returns `nil`
+  when `getActiveSimpleFolder()` returns nil. `setSimpleCameraOn(true)` reverts
+  `simpleCameraOn = false` and calls `panel:setSimpleCameraState(false)` when `simpleCameraPart`
+  is still nil after the call, so the toggle never shows "Camera View: ON" without a working part.
+- Same pattern applied in `doAddRig`: shows a warning if no folder is configured in Simple Mode.
+- `showTagConfirm` and the OK-button handler now explicitly restore `tagConfCancel.Visible = true`
+  so Cancel always reappears after a warning (which hides it).
+
+**No FIGURES fallback — production default (`init.server.lua` + `RigScanner.lua`):**
+- `legacyFiguresName` module variable declared as `nil` (no default folder name assumed).
+- `RigScanner.scan(nil)` scans `workspace:GetChildren()` directly (workspace top-level), no folder
+  required.
+- `getActiveSimpleFolder()` helper returns the configured tag-folder instance or `nil` — never falls
+  back to FIGURES.
+- `doAddRig`, `doSimpleScan`, and the `ChildAdded` watcher all guard with `legacyFiguresName and ...`
+  before calling `workspace:FindFirstChild`.
+- Test bridge `scanFigures` still sets `legacyFiguresName = "FIGURES"` (all existing tests unaffected);
+  `setFiguresFolder` bridge updated to write `legacyFiguresName` instead of a local variable.
+
+**Scene name sanitization (`Panel.lua`):**
+- New `sanitizeSceneName(name)`: `name:gsub("[^%w_]", "_")` — replaces any non-alphanumeric /
+  non-underscore character (spaces included) with `_`.
+- Applied at three entry points: `simpleSceneBox.FocusLost`, Save As `_doSave`, and
+  `self:setSimpleSceneName(name)`. Call sites in `init.server.lua` need no changes; the stored
+  value is always sanitized.
+- Scene name textbox width doubled from 80 px to 160 px for longer names.

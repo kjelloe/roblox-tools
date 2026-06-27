@@ -4,7 +4,7 @@
 -- R15 criterion: Model with Humanoid + BasePart "UpperTorso".
 -- Animatable rig: R6 or R15 (any rig with at least one qualifying Motor6D).
 --
--- scan()               — legacy: all animatable rigs in Workspace.FIGURES
+-- scan(folderName?)    — scans a named workspace folder, or workspace top-level if nil
 -- scanByTag(scene)     — tag-based: rigs tagged "MAnim:<scene>" anywhere in workspace
 -- isR6(instance)       — R6 predicate (public, used by tagging logic)
 -- isR15(instance)      — R15 predicate (public)

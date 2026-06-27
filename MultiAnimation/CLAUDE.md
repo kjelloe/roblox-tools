@@ -63,7 +63,7 @@ MultiAnimation/
 ## Roblox Context
 
 - **Place file:** `../MultiAnimation.rbxl` (same directory as this folder, one level up)
-- **Target rigs:** `Workspace.FIGURES.Rig1` and `Workspace.FIGURES.Rig2` — both R6
+- **Test rigs:** `Workspace.FIGURES.Rig1` and `Workspace.FIGURES.Rig2` — both R6 (used only by the test suite via `scanFigures` bridge; production code does not assume any specific folder name)
 - **R6 joints:** `RootJoint`, `Neck`, `Right Shoulder`, `Left Shoulder`, `Right Hip`, `Left Hip`
 - **R6 parts:** `Head`, `Torso`, `Left Arm`, `Right Arm`, `Left Leg`, `Right Leg`, `HumanoidRootPart`
 - **Plugin output path:** `%LOCALAPPDATA%\Roblox\Plugins\MultiAnimation.rbxmx`
@@ -223,7 +223,7 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 | `test_effect_core.lua` | EffectRunner: classify, cycleAction, live fire, crossing-pointer playback (24 cases) |
 | `test_effect_exporter.lua` | EffectTracks source builder; loadstring round-trip; omit-if-empty (13 cases) |
 | `test_ui_effects.lua` | Effect track bridge integration: track, cycle, add/delete events, fire, untrack (18 cases) |
-| `test_ui_simple.lua` | Simple Mode bridge integration: mode toggle, Add/Insert/Delete Frame management, Camera View capture-on-add, Play/Stop toggle, manipulable camera object (FOV, frustum gizmo, Look Through guard/snap/free-fly-mirrors-to-gizmo/restore, capture-from-gizmo), FIGURES auto-track/untrack, FPS box round-trip, auto-capture-on-navigate, onion skin toggle, frameCount round-trip regression, save/load slot round-trip regression (71 cases) |
+| `test_ui_simple.lua` | Simple Mode bridge integration: mode toggle, Add/Insert/Delete Frame management, Camera View capture-on-add (folder required), Play/Stop toggle, manipulable camera object (FOV, frustum gizmo, Look Through guard/snap/free-fly-mirrors-to-gizmo/restore, capture-from-gizmo, no-capture while Look Through active), folder auto-track/untrack, FPS box round-trip, auto-capture-on-navigate, onion skin toggle, frameCount round-trip regression, save/load slot round-trip regression (71 cases) |
 | `test_tag_scene.lua` | Tag-based scene organisation: getWorkspaceFolders, tagFolder rigs-only, getSceneTagged, scanByTag via doSimpleScan, clearSceneTags, empty-scene FIGURES fallback, AddTag idempotency; New-button name increment, getTagCounts, confirm overlay flow (20 cases) |
 | `test_player_rig_proxy.lua` | PlayerRigProxy: fixed pass-through, R6/R15 detection, clone/direct/teardown round-trips, R15 accepted, resolveAll mix, anchor CFs, camera subject set/restore, HRP unanchor (55 cases) |
 | `test_ui_playback.lua` | Playback tab bridge integration: mode switch, scene list, rig modes (all 5), FPS/Loop/MovieMode clamping + round-trip, snippet generation (scene name, CutscenePlayer, mode strings, params), multi-rig snippet, partial param update, frameCount round-trip regression (52 cases) |
@@ -234,7 +234,7 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 
 Suite total: **673 cases** across 27 files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive). Note: `test_ui_playback` test 19 now asserts fps is absent from snippet; `test_ui_simple` insert-frame tests now assert Duplicate (cursor to frame+1, frame+1 has data).
 
-**Test isolation:** UI test files that need deterministic rig availability call `scanFigures` at their start (bridge command on `__MultiAnimTestBridge`). This rescans `Workspace.FIGURES`, normalises `frameCount` to ≥120, and sets `mode = "advanced"`. Required because Simple Mode resets `frameCount` to 1 for empty sessions — without this, parking-frame arithmetic (`PARK = frameCount - N`) goes negative and all subsequent frame operations clamp to frame 1. `test_ui_easing.lua` was also rewritten from the old bridge protocol (`MultiAnimTestBridge`, plain-Lua returns) to the current one (`__MultiAnimTestBridge`, JSON `{ok,result}`).
+**Test isolation:** UI test files that need deterministic rig availability call `scanFigures` at their start (bridge command on `__MultiAnimTestBridge`). This sets `legacyFiguresName = "FIGURES"`, rescans `Workspace.FIGURES`, normalises `frameCount` to ≥120, and sets `mode = "advanced"`. Required because Simple Mode resets `frameCount` to 1 for empty sessions — without this, parking-frame arithmetic (`PARK = frameCount - N`) goes negative and all subsequent frame operations clamp to frame 1. `test_ui_easing.lua` was also rewritten from the old bridge protocol (`MultiAnimTestBridge`, plain-Lua returns) to the current one (`__MultiAnimTestBridge`, JSON `{ok,result}`).
 
 All tests inline their module logic (no `require()` to plugin modules) and return a PASS/FAIL string for `execute_luau`. Run with:
 
