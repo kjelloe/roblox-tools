@@ -1430,17 +1430,29 @@ local function ensureSimpleCameraPart()
         part.CastShadow   = false
         part.Material     = Enum.Material.Neon
         part.Color        = Color3.fromRGB(80, 200, 255)
-        -- Spawn near average HRP position of tracked rigs
+        -- Spawn near average HRP position, at the angle the Studio viewport camera
+        -- is currently using, so the SimpleCamera faces the rigs from the start.
         local rigPosSum = Vector3.new(0, 0, 0)
         local rigCount  = 0
         for _, rig in pairs(allRigs) do
             local hrp = rig:FindFirstChild("HumanoidRootPart")
             if hrp then rigPosSum = rigPosSum + hrp.Position; rigCount += 1 end
         end
-        local spawnPos = rigCount > 0
-            and (rigPosSum / rigCount + Vector3.new(0, 2, 8))
-            or  workspace.CurrentCamera.CFrame.Position
-        part.CFrame       = CFrame.new(spawnPos, spawnPos - Vector3.new(0, 0, 8))
+        local viewCF = workspace.CurrentCamera.CFrame
+        local camCF
+        if rigCount > 0 then
+            local avgPos    = rigPosSum / rigCount
+            local toView    = viewCF.Position - avgPos
+            local flatDir   = Vector3.new(toView.X, 0, toView.Z)
+            local dir = flatDir.Magnitude > 0.1 and flatDir.Unit or Vector3.new(0, 0, 1)
+            local spawnPos  = avgPos + dir * 8 + Vector3.new(0, 2, 0)
+            camCF = CFrame.lookAt(spawnPos, avgPos + Vector3.new(0, 1, 0))
+        else
+            -- No rigs known yet — place the camera 8 studs in front of the Studio view.
+            local spawnPos = viewCF.Position + viewCF.LookVector * 8
+            camCF = CFrame.lookAt(spawnPos, spawnPos + viewCF.LookVector)
+        end
+        part.CFrame       = camCF
         part:SetAttribute("FOV", simpleCameraFOV)
         part.Parent = fig
         print("[MultiAnimation] Simple: created SimpleCamera in Workspace." .. fig.Name)
