@@ -5,9 +5,10 @@
 -- Covers: mode toggle, Add/Insert/Delete Frame frame-management (capture +
 -- grow, insert-blank + shift, delete + shrink), Camera View capture-on-add,
 -- FIGURES auto-track/untrack of non-rig props while in Simple mode, the
--- Play/Stop toggle, and the manipulable camera object (creation, FOV, frustum
--- gizmo, Look Through guard/snap/free-fly-mirrors-to-gizmo/restore,
--- capture-from-gizmo).
+-- Play/Stop toggle, and the manipulable camera object (creation, spawn
+-- position, FOV, frustum gizmo, Look Through guard/snap/free-fly-mirrors-to-
+-- gizmo/restore/cycle-no-flip, capture-from-gizmo), frame selection guard
+-- (Delete+Duplicate no-op at empty frames).
 --
 -- Mutates the session only at parking frames far from real data, which are
 -- deleted again before exiting. Restores mode, frame, active rig, and
@@ -297,6 +298,17 @@ do
     local camPart = fig and fig:FindFirstChild("SimpleCamera")
     ok("SimpleCamera part exists in FIGURES", camPart ~= nil)
 
+    -- Spawn position: first creation should place the Part at the Studio
+    -- viewer's angle relative to the rigs, not at world origin.
+    -- Only testable when this run created the Part for the first time.
+    if not preexistingSimpleCam and camPart then
+        ok("SimpleCamera spawns away from world origin on first creation",
+            camPart.Position.Magnitude > 1)
+        local lv = camPart.CFrame.LookVector
+        ok("SimpleCamera LookVector is non-degenerate on spawn (not pointing straight up/down)",
+            math.abs(lv.Y) < 0.99)
+    end
+
     r = call("setSimpleCameraFOV", { fov = 55 })
     ok("setSimpleCameraFOV sets fov", r.ok and r.result == 55, r.err)
     r = call("getSimpleCameraInfo")
@@ -382,7 +394,60 @@ do
         table.insert(out, "SKIP  camera-object capture test (frame 1 already holds user data)")
     end
 
+    -- Look-Through OFF/ON cycle: after Camera View off→on, re-enabling Look
+    -- Through must snap the viewport to the gizmo's CFrame, not 180° opposite.
+    -- Regression: cam.Focus was left at the pre-Look-Through focus point by
+    -- restoreState; Studio's camera controller re-derived angles from
+    -- CFrame+Focus and flipped 180° when Focus was behind the eye.
+    -- Fix: setSimpleLookThroughOn now also updates cam.Focus 10 studs ahead.
+    if cam and camPart then
+        local cycleCF = CFrame.lookAt(Vector3.new(8, 4, 8), Vector3.new(0, 2, 0))
+        camPart.CFrame = cycleCF
+        call("setSimpleLookThrough", { on = true })
+        call("setSimpleLookThrough", { on = false })
+        call("setSimpleCamera",      { on = false })
+        call("setSimpleCamera",      { on = true })
+        call("setSimpleLookThrough", { on = true })
+        local dot = cam.CFrame.LookVector:Dot(camPart.CFrame.LookVector)
+        ok("Look-Through ON after Camera View cycle: viewport faces same direction as gizmo (not 180° flipped)",
+            dot > 0.5, string.format("dot=%.3f", dot))
+        local focusOffset = cam.Focus.Position - cam.CFrame.Position
+        local focusDir    = focusOffset.Magnitude > 0.001
+            and focusOffset.Unit or Vector3.new(0, 0, -1)
+        ok("Look-Through ON after cycle: cam.Focus is in front of the eye",
+            cam.CFrame.LookVector:Dot(focusDir) > 0,
+            string.format("dot=%.3f", cam.CFrame.LookVector:Dot(focusDir)))
+        call("setSimpleLookThrough", { on = false })
+        if lensCF then camPart.CFrame = lensCF end
+    end
+
     call("setSimpleCamera", { on = false })
+end
+
+-- ── Frame selection guard ────────────────────────────────────────────────────
+-- Delete and Duplicate must be no-ops when the current frame has no keyframe
+-- data.  Regression guard: without this guard any empty frame could be
+-- deleted or duplicated, corrupting slot count and frame numbering.
+
+do
+    local GUARD_FRAME = 115   -- within the ≥120-frame fresh session; unused by other tests
+    call("setFrame", { frame = GUARD_FRAME })
+    local hasData = call("simpleFrameHasData", { frame = GUARD_FRAME })
+    if hasData.ok and not hasData.result then
+        local fc0 = (call("getFrameCount").ok and call("getFrameCount").result) or 1
+
+        call("simpleDeleteFrame")
+        local fcAfterDel = (call("getFrameCount").ok and call("getFrameCount").result) or 1
+        ok("Delete at empty frame is a no-op: frame count unchanged",
+            fcAfterDel == fc0, "before=" .. tostring(fc0) .. " after=" .. tostring(fcAfterDel))
+
+        call("simpleInsertFrame")
+        local fcAfterDup = (call("getFrameCount").ok and call("getFrameCount").result) or 1
+        ok("Duplicate at empty frame is a no-op: frame count unchanged",
+            fcAfterDup == fc0, "before=" .. tostring(fc0) .. " after=" .. tostring(fcAfterDup))
+    else
+        table.insert(out, "SKIP  frame selection guard (frame " .. GUARD_FRAME .. " unexpectedly has data)")
+    end
 end
 
 -- ── FIGURES auto-track / untrack of non-rig props in Simple mode ───────────────
