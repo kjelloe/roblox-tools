@@ -966,3 +966,26 @@ Bug-fixes and UX additions for the Simple Mode camera workflow, no-folder safety
   `self:setSimpleSceneName(name)`. Call sites in `init.server.lua` need no changes; the stored
   value is always sanitized.
 - Scene name textbox width doubled from 80 px to 160 px for longer names.
+
+- ✅ **SimpleCamera spawn & Look-Through bug fixes:**
+
+**Camera spawns facing rigs from viewer's angle (`init.server.lua` — `ensureSimpleCameraPart`):**
+- Old: `spawnPos = avgPos + Vector3.new(0, 2, 8)` (world +Z offset regardless of rig orientation),
+  looked at `spawnPos - Vector3.new(0, 0, 8)` (wrong look direction when rigs aren't at Z=0);
+  fallback used `CurrentCamera.CFrame.Position` (placed camera ON the viewer, not in scene).
+- New: computes `dir` = vector from `avgPos` toward `viewCF.Position`, flattened to XZ plane;
+  `spawnPos = avgPos + dir * 8 + Vector3.new(0, 2, 0)`; orientation via `CFrame.lookAt(spawnPos,
+  avgPos + Vector3.new(0, 1, 0))` — gizmo faces rig chest height on creation. Fallback: no rigs →
+  spawn 8 studs in front of the Studio viewport camera (not on top of it), using
+  `viewCF.Position + viewCF.LookVector * 8` and `CFrame.lookAt(spawnPos, spawnPos + viewCF.LookVector)`.
+
+**Look-Through 180° flip fix (`init.server.lua` — `setSimpleLookThroughOn`):**
+- Root cause: `CameraCapture.restoreState` (called when Look Through turns OFF) restores
+  `cam.Focus` to the original pre-Look-Through focus point. On the second Look Through activation,
+  `CameraCapture.apply(simpleCameraPart.CFrame, fov)` sets `cam.CFrame` correctly but leaves
+  `cam.Focus` at the old restored point. If that focus was behind the new camera position, Studio's
+  camera controller re-derived camera angles from CFrame + Focus and flipped the view 180°.
+- Fix: after `CameraCapture.apply`, also set
+  `workspace.CurrentCamera.Focus = CFrame.new(partCF.Position + partCF.LookVector * 10)` —
+  places Focus 10 studs in front of the gizmo's look direction, so Studio's angle computation
+  always produces the same orientation as the Part's CFrame.

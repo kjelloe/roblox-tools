@@ -98,6 +98,8 @@ architectural changes.
 | F-05 | As an animator, if I click Cancel on the Renamed Objects or new-objects confirm, the scan proceeds using whatever tags already exist — no data is lost. |
 | F-06 | As an animator, when I turn Camera View on without an animation folder selected, a warning overlay tells me to select one first, and the Camera View toggle reverts to OFF — no broken state. |
 | F-07 | As an animator, the scene name box auto-sanitizes its value on Tab/Enter: any character that is not alphanumeric or `_` (including spaces) is replaced with `_`, so the stored name is always safe for tags, export paths, and slot keys. |
+| F-08 | As an animator, when the SimpleCamera part is created for the first time, it spawns at the current Studio viewport camera's angle relative to the tagged rigs (not at world origin), already facing toward them, so the first Camera View is immediately useful. |
+| F-09 | As an animator, toggling Look Through OFF and back ON shows the same view the camera was aimed at when Look Through was last active — it never flips 180° opposite because the studio re-interprets the focus point. |
 
 ### Prop tracking
 
