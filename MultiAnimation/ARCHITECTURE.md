@@ -55,7 +55,7 @@
 | `core/RigScanner` | Core | Detects R6/R15/custom rigs; `scan()` scans Workspace.FIGURES (legacy); `scanByTag(scene)` scans by CollectionService tag; `isR6()`, `isR15()`, `isAnimatableRig()` public predicates; `getWorkspaceFolders()` for tag-UI dropdown |
 | `core/Recorder` | Core | Session data storage; addKeyframe captures joints+scale+rootCFrame+props; deleteRigKeyframe/deletePropKeyframe |
 | `core/JointCapture` | Core | Dynamic Motor6D discovery (`discoverMotors`) works for R6, R15, and custom rigs; topological apply order; validate() checks joint health; computeWorldCFrames() for onion skin FK |
-| `core/ScaleCapture` | Core | Reads/writes Part.Size |
+| `core/ScaleCapture` | Core | Reads/writes Part.Size for all direct-child BaseParts (dynamic — R6/R15/custom) |
 | `core/PropCapture` | Core | Reads/writes BasePart.CFrame (world space) |
 | `core/TestBridge` | Core | CoreGui BindableFunction — lets execute_luau drive the live panel (UI tests) |
 | `core/CameraCapture` | Core | Reads/writes the Studio viewport camera (capture keyframes, Camera Preview) |
@@ -119,7 +119,8 @@ init.server.lua
     │                         (pure FK; does NOT modify any rig BaseParts — used for onion skin)
     │                       Returns: { [motorName] = CFrame }
     │
-    ├── ScaleCapture.lua    Reads Part.Size for all 7 R6 body parts
+    ├── ScaleCapture.lua    Reads Part.Size for every direct-child BasePart of the
+    │                       rig Model (dynamic — R6, R15, custom rigs)
     │                       Returns: { [partName] = Vector3 }
     │
     ├── PropCapture.lua     Reads/writes BasePart.CFrame (world space)
@@ -375,14 +376,20 @@ updated and relative joint positions never change — making pose data unrecorda
 while motors are connected.
 
 **Fix — permanent motor disconnect:**  
-`JointCapture.disconnectAll(rig)` sets `motor.Part0 = nil` for all 6 joints at
-session start.  While disconnected:
+`JointCapture.disconnectAll(rig)` sets `motor.Part0 = nil` for all discovered
+joints at session start.  While disconnected:
 - Individual parts can be freely moved/rotated in the viewport (no weld cascade).
 - `capture()` computes `Transform = C0:Inv * Part0.CFrame:Inv * Part1.CFrame * C1`
   from actual positions — correct and non-identity for posed limbs.
 - `apply()` sets each `Part.CFrame` via forward kinematics with no interference.
 
 `reconnectAll()` restores `Part0` on plugin unload, leaving the rig in a clean state.
+
+**Undo protection:** the `Part0 = nil` writes ride along with the next recorded
+ChangeHistory waypoint, so a user Ctrl+Z could re-weld the rigs mid-session.
+`ChangeHistoryService.OnUndo`/`OnRedo` listeners in `init.server.lua` re-assert
+the disconnection for all tracked rigs after every undo/redo; the pose changes
+themselves stay undone/redone as the user intended.
 
 ### Motor6D Disconnect Survives Into Play Mode
 

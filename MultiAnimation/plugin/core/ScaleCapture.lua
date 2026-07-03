@@ -1,28 +1,20 @@
--- ScaleCapture — reads Part.Size for all seven R6 body parts.
+-- ScaleCapture — reads Part.Size for every BasePart that is a direct child
+-- of the rig Model (mirrors the dynamic Motor6D discovery filter, so it works
+-- for R6, R15, and custom rigs without a hardcoded part list).
 --
 -- Scale data is stored separately from joints because KeyframeSequence
--- does not support part scaling. It is replayed in-game via TweenService.
+-- does not support part scaling. It is replayed in-game by MultiAnimPlayer's
+-- Heartbeat loop.
 --
 -- Returns { [partName] = Vector3 } for every part found.
 
 local ScaleCapture = {}
 
-local R6_PARTS = {
-    "Head",
-    "Torso",
-    "Left Arm",
-    "Right Arm",
-    "Left Leg",
-    "Right Leg",
-    "HumanoidRootPart",
-}
-
 function ScaleCapture.capture(rig)
     local result = {}
-    for _, name in ipairs(R6_PARTS) do
-        local part = rig:FindFirstChild(name)
-        if part and part:IsA("BasePart") then
-            result[name] = part.Size
+    for _, child in ipairs(rig:GetChildren()) do
+        if child:IsA("BasePart") then
+            result[child.Name] = child.Size
         end
     end
     return result

@@ -415,6 +415,13 @@ name set, only tagged instances are tracked. There's no "Track Part" or "+ Rig" 
   frames left by 1 (so frame numbers stay contiguous), and shrinks the
   timeline by 1. The cursor lands on min(current, newEnd).
 
+Both **Duplicate** and **Del Frame** move *everything* recorded at the shifted
+frames: rig poses, prop positions, camera keyframes, effect events, spawned
+effects (explosions/smoke/sounds), and subtitles all stay in sync. A frame
+that holds only a spawned effect or subtitle counts as having data — you can
+delete or duplicate it like any other frame (deleting removes the effect or
+subtitle event at that frame).
+
 **Made a mistake?** Press **Del Frame**. The frame is deleted and subsequent
 data shifts to close the gap — re-pose at the current cursor position and
 press **+ Add Frame** again.
@@ -662,6 +669,7 @@ are automatically removed when playback finishes or `handle.stop()` is called.
 | Exported playback ignores my latest edits | Re-export, or run `mcp drift` / `mcp deploy` from a terminal. |
 | In-game cutscene camera slightly ahead of rig motion | Known v1 caveat (~50–100 ms replication lag). |
 | Undo behaves oddly during preview | Preview suspends the undo history while playing; it resumes on Stop. |
+| Ctrl+Z while posing | Safe — the pose change is undone, and the plugin automatically keeps the rig joints disconnected so limbs stay individually posable. |
 | Simple Mode shows no rigs after setting a scene name | Nothing is tagged yet — use the Tag row folder dropdown to select and tag your animation folder, or apply `MAnim:<scene>` tags manually in Studio's Tag Editor. |
 | Camera View button shows "No Animation Folder" warning | Select a folder first via the Tag row dropdown — Camera View requires an animation folder to create the `SimpleCamera` part in. |
 | Toggle buttons (Rigs/Props/Effects) look stuck | They reset to defaults (Rigs ON, Props ON, Effects OFF) whenever you press **New**. Current state is always shown by the button's highlight colour. |

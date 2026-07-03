@@ -134,14 +134,6 @@ function Recorder:setFrameCount(n)
     self._session.frameCount = n
 end
 
--- Remove all data for a specific frame across all rigs.
-function Recorder:deleteKeyframe(frame)
-    for _, rig in pairs(self._session.rigs) do
-        rig.jointTrack[frame] = nil
-        rig.scaleTrack[frame] = nil
-    end
-end
-
 -- Remove the keyframe at `frame` for a single rig only.
 function Recorder:deleteRigKeyframe(rigName, frame)
     local rig = self._session.rigs[rigName]

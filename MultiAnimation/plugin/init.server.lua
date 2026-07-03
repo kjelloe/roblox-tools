@@ -275,6 +275,22 @@ local function reconnectAllRigs()
     end
 end
 
+-- Studio undo can revert the Part0=nil disconnection (it rides along with the
+-- next recorded waypoint), silently re-welding rigs mid-session so posing moves
+-- whole assemblies again. Re-assert the disconnection after every undo/redo;
+-- the pose changes themselves stay undone/redone as the user intended.
+local function reassertDisconnection()
+    for _, state in pairs(motorStates) do
+        for _, entry in ipairs(state) do
+            if entry.motor and entry.motor.Parent and entry.motor.Part0 ~= nil then
+                entry.motor.Part0 = nil
+            end
+        end
+    end
+end
+track(ChangeHistoryService.OnUndo:Connect(reassertDisconnection))
+track(ChangeHistoryService.OnRedo:Connect(reassertDisconnection))
+
 -- Reconnect motors the moment play mode starts so rigs don't fall apart in-game.
 -- The workspace is shared between plugin and game contexts in Studio.
 do
@@ -1594,6 +1610,9 @@ doSimpleScan = function()
     panel:setSimpleFPSDisplay(timeline:getFps())
 end
 
+-- Keyframe-track data only (rigs/props/camera). Used by the auto-capture-on-
+-- navigate paths, which must not stamp rig keyframes onto frames that hold
+-- only a spawned effect or subtitle.
 local function simpleFrameHasData(frame)
     for rigName in pairs(allRigs) do
         if recorder:hasKeyframe(rigName, frame) then return true end
@@ -1602,6 +1621,17 @@ local function simpleFrameHasData(frame)
         if recorder:getPropData(propName, frame) ~= nil then return true end
     end
     if recorder:getCameraData(frame) ~= nil then return true end
+    return false
+end
+
+-- Wider check for the Insert/Delete Frame guards: spawned-effect-only and
+-- subtitle-only frames are real data the user may want to duplicate or delete.
+local function simpleFrameHasAnyData(frame)
+    if simpleFrameHasData(frame) then return true end
+    for _, sfx in ipairs(recorder:getSpawnedEffects()) do
+        if sfx.frame == frame then return true end
+    end
+    if recorder:getSubtitleEventAt(frame) ~= nil then return true end
     return false
 end
 
@@ -1726,7 +1756,7 @@ end
 local function doSimpleInsertFrame()
     if isPlaying then return end
     local frame = timeline:setCurrent(timeline:getCurrent())  -- clamp
-    if not simpleFrameHasData(frame) then
+    if not simpleFrameHasAnyData(frame) then
         panel:showSimpleNotice("No keyframe here — click a frame icon first")
         return
     end
@@ -1752,7 +1782,7 @@ end
 local function doSimpleDeleteFrame()
     if isPlaying then return end
     local frame = timeline:getCurrent()
-    if not simpleFrameHasData(frame) then
+    if not simpleFrameHasAnyData(frame) then
         panel:showSimpleNotice("No keyframe here — click a frame icon first")
         return
     end
@@ -3444,6 +3474,10 @@ local testBridge = TestBridge.start({
 
     simpleFrameHasData = function(a)
         return simpleFrameHasData(a.frame)
+    end,
+
+    simpleFrameHasAnyData = function(a)
+        return simpleFrameHasAnyData(a.frame)
     end,
 
     getSimpleProps = function()

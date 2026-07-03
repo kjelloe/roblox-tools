@@ -160,6 +160,13 @@ mcp test prop          # tests matching *prop*
 mcp test exporter -v   # verbose output
 ```
 
+**Test output contract:** every test file must end its returned string with a
+`=== N passed, M failed ===` line (plus `ALL TESTS PASSED` or
+`FAILURES DETECTED`). `run_tests.py` regex-parses that summary for the counts —
+a file that returns any other format still shows PASS/FAIL status but reports
+**0/0 cases**, silently vanishing from the suite total (this hid
+`test_easing_core`'s 20 cases for a long time).
+
 **Implementation** — add to `_COMMANDS` in `mcp.py`:
 ```python
 def cmd_test(argv: list[str]):

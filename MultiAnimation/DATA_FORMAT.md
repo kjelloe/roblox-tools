@@ -25,13 +25,14 @@ session = {
                 [24] = { ... },
             },
             scaleTrack = {
+                -- one entry per BasePart that is a direct child of the rig
+                -- Model (all 7 R6 parts, all 16 R15 parts, or whatever a
+                -- custom rig has — captured dynamically, no hardcoded list)
                 [1] = {
                     Head            = Vector3,
                     Torso           = Vector3,
                     ["Left Arm"]    = Vector3,
-                    ["Right Arm"]   = Vector3,
-                    ["Left Leg"]    = Vector3,
-                    ["Right Leg"]   = Vector3,
+                    -- … remaining direct-child parts …
                     HumanoidRootPart = Vector3,
                 },
                 [12] = { ... },
@@ -64,8 +65,39 @@ session = {
             [40] = { cf = CFrame, fov = 35, mode = "cut",  easing = "EaseInOut" },
         },
     },
+    effects = {                 -- named effect instances with one-shot events
+        ["Sparkles"] = {
+            kind   = "ParticleEmitter",  -- classified instance type
+            action = "emit",             -- default action for new events
+            path   = "Workspace.FIGURES.Rig1.Head.Sparkles",
+            track  = {
+                -- key = frame number
+                [10] = { action = "emit", count = 20 },
+            },
+        },
+    },
+    spawnedEffects = {          -- array (not frame-keyed); ids are stable
+        { id = 1, frame = 12, effectType = "Explosion",  -- or "Smoke"
+          posX = 0, posY = 5, posZ = 0,
+          size = 3, colorR = 255, colorG = 80, colorB = 0,
+          count = 50, duration = 0.6, speed = 20, lifetime = 1.0 },
+        { id = 2, frame = 30, effectType = "Sound",
+          posX = 0, posY = 5, posZ = 0,
+          soundId = "rbxassetid://…", volume = 1, maxDistance = 80 },
+    },
+    subtitlesEnabled = false,   -- master toggle for the subtitle track
+    subtitleStyle    = { … },   -- font/colour/stroke/background/offset fields
+    subtitles = {               -- sorted array of stepped text events;
+        { frame = 1,  text = "Hello" },   -- text shows from its frame until
+        { frame = 40, text = "" },        -- the next event ("" clears)
+    },
 }
 ```
+
+`spawnedEffects` and `subtitles` store their frame *inside* each entry rather
+than as a table key — frame-shift operations (`Recorder:shiftFrames`,
+`deleteFrameAt`) must rewrite `entry.frame` for these two tracks in addition
+to re-keying the frame-keyed tracks.
 
 `camera.track` keyframes: `cf` is the world-space viewport-camera CFrame, `fov`
 the FieldOfView, `mode` either `"move"` (interpolate from the previous keyframe)
@@ -115,7 +147,20 @@ CFrames and Vector3s are not JSON-native. They are serialised as arrays:
   "camera": {
     "1":  { "cf": [...], "fov": 70, "mode": "move", "easing": "Linear"   },
     "40": { "cf": [...], "fov": 35, "mode": "cut",  "easing": "EaseInOut" }
-  }
+  },
+  "effects": {
+    "Sparkles": { "kind": "ParticleEmitter", "action": "emit",
+                  "path": "Workspace.FIGURES.Rig1.Head.Sparkles",
+                  "track": { "10": { "action": "emit", "count": 20 } } }
+  },
+  "spawnedEffects": [
+    { "id": 1, "frame": 12, "effectType": "Explosion", "posX": 0, "posY": 5, "posZ": 0,
+      "size": 3, "colorR": 255, "colorG": 80, "colorB": 0,
+      "count": 50, "duration": 0.6, "speed": 20, "lifetime": 1.0 }
+  ],
+  "subtitlesEnabled": true,
+  "subtitleStyle": { "size": 28, "yOffset": 0.85 },
+  "subtitles": [ { "frame": 1, "text": "Hello" } ]
 }
 ```
 
@@ -266,7 +311,10 @@ ServerStorage
     │   ├── ScaleTracks   (ModuleScript)
     │   ├── RootTracks    (ModuleScript — absent if no whole-model movement)
     │   ├── PropTracks    (ModuleScript — absent if no props in scene)
-    │   └── CameraTrack   (ModuleScript — absent if no camera keyframes)
+    │   ├── CameraTrack   (ModuleScript — absent if no camera keyframes)
+    │   ├── EffectTracks  (ModuleScript — absent if no effect events)
+    │   ├── SpawnedEffects (ModuleScript — absent if no spawned effects)
+    │   └── SubtitleTrack (ModuleScript — absent unless subtitles enabled + events exist)
     ├── Scene_002
     │   └── ...
     ├── MultiAnimPlayer   (ModuleScript — game playback API)

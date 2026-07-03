@@ -185,7 +185,10 @@ ensuring correct FK chain regardless of rig type.
 
 ## Body Parts Scaled
 
-`Head`, `Torso`, `Left Arm`, `Right Arm`, `Left Leg`, `Right Leg`, `HumanoidRootPart`
+Every `BasePart` that is a direct child of the rig Model — discovered
+dynamically, mirroring the Motor6D filter. For R6 that is `Head`, `Torso`,
+`Left Arm`, `Right Arm`, `Left Leg`, `Right Leg`, `HumanoidRootPart`; for R15
+all 16 body parts; custom rigs get whatever direct-child parts they have.
 
 ---
 
@@ -219,7 +222,6 @@ ensuring correct FK chain regardless of rig type.
 ## Out of Scope (v1)
 
 - Auto-capture on transform change (future Phase 6)
-- R15 rig support
 - Easing curve editor per keyframe (all interpolation is linear in v1)
 - Audio sync
 - Uploading animations to Roblox asset catalogue

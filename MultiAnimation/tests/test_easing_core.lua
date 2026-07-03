@@ -216,9 +216,9 @@ r3:setEasing("Rig2", 5, "EaseOut")
 check("per-rig easing independent", r3:getEasing("Rig1", 5) ~= r3:getEasing("Rig2", 5))
 
 -- Result
-local total = pass + fail
+local summary = string.format("=== %d passed, %d failed ===", pass, fail)
 if fail == 0 then
-    return string.format("ALL TESTS PASSED (%d/%d)", pass, total)
+    return summary .. "\nALL TESTS PASSED"
 else
-    return string.format("FAILED %d/%d\n%d passed", fail, total, pass)
+    return summary .. "\nFAILURES DETECTED"
 end

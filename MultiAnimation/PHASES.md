@@ -989,3 +989,39 @@ Bug-fixes and UX additions for the Simple Mode camera workflow, no-folder safety
   `workspace.CurrentCamera.Focus = CFrame.new(partCF.Position + partCF.LookVector * 10)` —
   places Focus 10 studs in front of the gizmo's look direction, so Studio's angle computation
   always produces the same orientation as the Part's CFrame.
+
+- ✅ **Recording-integrity review fixes (2026-07-03):**
+
+**Frame shift desync (`Recorder.lua` — `shiftFrames` / `deleteFrameAt`):**
+- Both skipped the `spawnedEffects` and `subtitles` tracks (which store their frame
+  inside each entry, not as a table key), so Simple Mode Insert/Delete Frame silently
+  desynced explosions/sounds/subtitles from the rig/prop/camera data.
+- `shiftFrames` now rewrites `entry.frame` for both; `deleteFrameAt` removes spawned
+  effects and the subtitle event at the deleted frame. `doSimpleDeleteFrame` destroys
+  gizmos of spawned effects it removes.
+
+**Prop pose loss on Simple Mode navigation (`init.server.lua`):**
+- `snapshotRigParts`/`simpleIsDirty` compared only rig part CFrames; moving only a
+  tracked prop at an empty frame was silently discarded on navigate. The arrival
+  snapshot now includes prop CFrames.
+
+**Guard visibility (`init.server.lua` — `simpleFrameHasAnyData`):**
+- New wider predicate used by the Insert/Delete Frame guards so spawned-effect-only and
+  subtitle-only frames count as data. The narrow `simpleFrameHasData` is retained for
+  the auto-capture-on-navigate paths, which must NOT stamp rig keyframes onto such
+  frames. Exposed on the TestBridge as `simpleFrameHasAnyData`.
+
+**Undo re-weld protection (`init.server.lua`):**
+- Studio Ctrl+Z could revert the `Motor6D.Part0 = nil` disconnection (it rides along
+  with the next recorded waypoint), re-welding rigs mid-session. `OnUndo`/`OnRedo`
+  listeners now re-assert the disconnection for all tracked rigs; pose changes stay
+  undone/redone as the user intended.
+
+**Dynamic scale capture (`ScaleCapture.lua`):**
+- Replaced the hardcoded 7-part R6 list with all direct-child BaseParts of the rig
+  Model (mirrors the Motor6D discovery filter) — R15 and custom rigs now get full
+  scale tracks.
+
+**Cleanup:** removed dead `Recorder:deleteKeyframe` (unused; missed rootTrack/easingTrack).
+`test_easing_core.lua` now emits the standard `=== N passed, M failed ===` summary so
+`run_tests.py` counts its 20 cases (previously reported 0/0).
