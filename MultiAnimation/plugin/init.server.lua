@@ -1606,13 +1606,16 @@ local function simpleFrameHasData(frame)
 end
 
 local function snapshotRigParts()
-    local snap = {}
+    local snap = { rigs = {}, props = {} }
     for rigName, rig in pairs(allRigs) do
         local parts = {}
         for _, child in ipairs(rig:GetChildren()) do
             if child:IsA("BasePart") then parts[child.Name] = child.CFrame end
         end
-        snap[rigName] = parts
+        snap.rigs[rigName] = parts
+    end
+    for propName, part in pairs(allProps) do
+        if part.Parent then snap.props[propName] = part.CFrame end
     end
     return snap
 end
@@ -1620,7 +1623,7 @@ end
 local function simpleIsDirty()
     if _simpleArrivalSnap == nil then return false end
     for rigName, rig in pairs(allRigs) do
-        local partSnap = _simpleArrivalSnap[rigName]
+        local partSnap = _simpleArrivalSnap.rigs[rigName]
         if partSnap then
             for _, child in ipairs(rig:GetChildren()) do
                 if child:IsA("BasePart") and partSnap[child.Name] then
@@ -1628,6 +1631,10 @@ local function simpleIsDirty()
                 end
             end
         end
+    end
+    for propName, part in pairs(allProps) do
+        local cf = _simpleArrivalSnap.props[propName]
+        if cf and part.Parent and part.CFrame ~= cf then return true end
     end
     return false
 end
@@ -1752,6 +1759,9 @@ local function doSimpleDeleteFrame()
     panel:setFrameDisplay(frame, timeline:getFrameCount())
     local oldCount = timeline:getFrameCount()
     if oldCount <= 1 then return end
+    for _, sfx in ipairs(recorder:getSpawnedEffects()) do
+        if sfx.frame == frame then destroyEffectGizmo(sfx.id) end
+    end
     recorder:deleteFrameAt(frame)
     recorder:shiftFrames(frame + 1, -1)
     local newCount = oldCount - 1

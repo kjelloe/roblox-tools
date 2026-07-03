@@ -8,7 +8,8 @@
 -- Play/Stop toggle, and the manipulable camera object (creation, spawn
 -- position, FOV, frustum gizmo, Look Through guard/snap/free-fly-mirrors-to-
 -- gizmo/restore/cycle-no-flip, capture-from-gizmo), frame selection guard
--- (Delete+Duplicate no-op at empty frames).
+-- (Delete+Duplicate no-op at empty frames), subtitle-event shift on
+-- Insert/Delete Frame (shiftFrames regression).
 --
 -- Mutates the session only at parking frames far from real data, which are
 -- deleted again before exiting. Restores mode, frame, active rig, and
@@ -171,6 +172,55 @@ do
         -- Cleanup: delete frame 2 (duplicate), then frame 1 (original).
         call("setFrame", { frame = 2 })
         call("simpleDeleteFrame")
+        call("setFrame", { frame = 1 })
+        call("simpleDeleteFrame")
+    end
+end
+
+-- ── Insert/Delete Frame shift subtitle events ─────────────────────────────────
+-- Regression: shiftFrames used to skip the subtitles and spawnedEffects tracks,
+-- so Insert/Delete Frame silently desynced them from the rig/prop/camera data.
+-- Probed here via a subtitle event (spawned effects have no bridge commands;
+-- both live in the same shiftFrames path, unit-covered in
+-- test_spawned_effects_core).
+
+do
+    local PROBE_FRAME = 40
+    local PROBE_TEXT  = "__shift_probe__"
+
+    local function probeFrame()
+        local r2 = call("getSubtitleEvents")
+        if not r2.ok then return nil end
+        for _, ev in ipairs(r2.result or {}) do
+            if ev.text == PROBE_TEXT then return ev.frame end
+        end
+        return nil
+    end
+
+    local slotTaken = false
+    local evs = call("getSubtitleEvents")
+    for _, ev in ipairs((evs.ok and evs.result) or {}) do
+        if ev.frame == PROBE_FRAME then slotTaken = true end
+    end
+    if frameOccupied(1) or slotTaken then
+        table.insert(out, "SKIP  subtitle shift tests (frame 1 or subtitle slot occupied)")
+    else
+        call("setFrame", { frame = 1 })
+        call("simpleAddFrame")   -- frame 1 gets data so Insert/Delete are allowed there
+        call("setSubtitleEvent", { frame = PROBE_FRAME, text = PROBE_TEXT })
+
+        call("setFrame", { frame = 1 })
+        call("simpleInsertFrame")   -- shifts all data >= 2 right by 1
+        ok("Insert Frame shifts subtitle event right", probeFrame() == PROBE_FRAME + 1,
+            "at=" .. tostring(probeFrame()))
+
+        call("setFrame", { frame = 2 })
+        call("simpleDeleteFrame")   -- shifts all data > 2 left by 1
+        ok("Delete Frame shifts subtitle event back", probeFrame() == PROBE_FRAME,
+            "at=" .. tostring(probeFrame()))
+
+        -- Cleanup: remove probe first — deleting frame 1 below shifts it again.
+        call("setSubtitleEvent", { frame = PROBE_FRAME, show = false })
         call("setFrame", { frame = 1 })
         call("simpleDeleteFrame")
     end

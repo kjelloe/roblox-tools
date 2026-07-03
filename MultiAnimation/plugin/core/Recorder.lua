@@ -453,6 +453,12 @@ function Recorder:shiftFrames(fromFrame, delta)
     for _, fx in pairs(self._session.effects or {}) do
         shiftTrack(fx.track)
     end
+    for _, sfx in ipairs(self._session.spawnedEffects or {}) do
+        if sfx.frame >= fromFrame then sfx.frame = sfx.frame + delta end
+    end
+    for _, ev in ipairs(self._session.subtitles or {}) do
+        if ev.frame >= fromFrame then ev.frame = ev.frame + delta end
+    end
 end
 
 -- Delete all track data at exactly `frame` across every track type.
@@ -472,6 +478,11 @@ function Recorder:deleteFrameAt(frame)
     for _, fx in pairs(self._session.effects or {}) do
         if fx.track then fx.track[frame] = nil end
     end
+    local spawned = self._session.spawnedEffects or {}
+    for i = #spawned, 1, -1 do
+        if spawned[i].frame == frame then table.remove(spawned, i) end
+    end
+    self:removeSubtitleEvent(frame)
 end
 
 function Recorder:destroy()

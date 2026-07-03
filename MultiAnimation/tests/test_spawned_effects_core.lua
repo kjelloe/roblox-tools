@@ -46,7 +46,7 @@ end
 
 local function newRecorder()
     local r = {
-        _session = { spawnedEffects = {} },
+        _session = { spawnedEffects = {}, subtitles = {} },
         _nextId  = 1,
     }
     function r:addSpawnedEffect(data)
@@ -87,6 +87,26 @@ local function newRecorder()
     function r:clearSession()
         self._session.spawnedEffects = {}
         self._nextId = 1
+    end
+    function r:shiftFrames(fromFrame, delta)
+        for _, sfx in ipairs(self._session.spawnedEffects or {}) do
+            if sfx.frame >= fromFrame then sfx.frame = sfx.frame + delta end
+        end
+        for _, ev in ipairs(self._session.subtitles or {}) do
+            if ev.frame >= fromFrame then ev.frame = ev.frame + delta end
+        end
+    end
+    function r:deleteFrameAt(frame)
+        local spawned = self._session.spawnedEffects or {}
+        for i = #spawned, 1, -1 do
+            if spawned[i].frame == frame then table.remove(spawned, i) end
+        end
+        for i, ev in ipairs(self._session.subtitles) do
+            if ev.frame == frame then
+                table.remove(self._session.subtitles, i)
+                return
+            end
+        end
     end
     return r
 end
@@ -216,6 +236,28 @@ local updS = recS:getSpawnedEffectById(fxS.id)
 ok("Sound update soundId",          updS and updS.soundId == "rbxassetid://77")
 ok("Sound update volume",           updS and math.abs(updS.volume - 0.5) < 0.001)
 ok("Sound update effectType kept",  updS and updS.effectType == "Sound")
+
+-- ── 9. shiftFrames / deleteFrameAt include spawnedEffects + subtitles ────────
+
+local recSh = newRecorder()
+recSh:addSpawnedEffect({ frame=3,  effectType="Explosion", posX=0, posY=0, posZ=0 })
+local fxAt10 = recSh:addSpawnedEffect({ frame=10, effectType="Smoke", posX=0, posY=0, posZ=0 })
+recSh._session.subtitles = { { frame=3, text="early" }, { frame=10, text="late" } }
+
+recSh:shiftFrames(5, 1)
+ok("shiftFrames leaves fx below fromFrame",   recSh:getSpawnedEffects()[1].frame == 3)
+ok("shiftFrames moves fx at/after fromFrame", recSh:getSpawnedEffectById(fxAt10.id).frame == 11)
+ok("shiftFrames leaves subtitle below",       recSh._session.subtitles[1].frame == 3)
+ok("shiftFrames moves subtitle at/after",     recSh._session.subtitles[2].frame == 11)
+
+recSh:shiftFrames(5, -1)
+ok("shiftFrames negative delta restores fx",  recSh:getSpawnedEffectById(fxAt10.id).frame == 10)
+
+recSh:deleteFrameAt(10)
+ok("deleteFrameAt removes fx at frame",       recSh:getSpawnedEffectById(fxAt10.id) == nil)
+ok("deleteFrameAt keeps other fx",            #recSh:getSpawnedEffects() == 1)
+ok("deleteFrameAt removes subtitle at frame", #recSh._session.subtitles == 1)
+ok("deleteFrameAt keeps other subtitle",      recSh._session.subtitles[1].frame == 3)
 
 -- ── Result ───────────────────────────────────────────────────────────────────
 
