@@ -81,7 +81,19 @@ import threading
 import queue
 import time
 
-MCP_CMD = ["cmd.exe", "/c", r"C:\Users\kjell\AppData\Local\Roblox\mcp.bat"]
+# Resolve StudioMCP.exe from the newest installed Roblox version. mcp.bat
+# hardcodes a version path that goes stale on every Roblox update (its registry
+# fallback is broken cmd syntax), so prefer the exe directly; keep the bat as
+# a last resort.
+def _find_studio_mcp():
+    import glob
+    candidates = glob.glob(
+        "/mnt/c/Users/kjell/AppData/Local/Roblox/Versions/version-*/StudioMCP.exe")
+    return max(candidates, key=os.path.getmtime) if candidates else None
+
+_studio_mcp = _find_studio_mcp()
+MCP_CMD = ([_studio_mcp] if _studio_mcp
+           else ["cmd.exe", "/c", r"C:\Users\kjell\AppData\Local\Roblox\mcp.bat"])
 
 _INIT = json.dumps({
     "jsonrpc": "2.0",

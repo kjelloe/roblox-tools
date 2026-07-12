@@ -11,7 +11,7 @@ The `Roblox_Studio` server is stored **project-scoped** in `~/.claude.json` (add
 Command: cmd.exe /c %LOCALAPPDATA%\Roblox\mcp.bat
 ```
 
-`%LOCALAPPDATA%` expands correctly in `cmd.exe` — this survives Roblox version updates without requiring any manual changes. `~/.claude/.mcp.json` is intentionally empty (a previous `roblox-studio` entry there caused two competing `StudioMCP.exe` processes that prevented Studio from connecting).
+`%LOCALAPPDATA%` expands correctly in `cmd.exe`. `~/.claude/.mcp.json` is intentionally empty (a previous `roblox-studio` entry there caused two competing `StudioMCP.exe` processes that prevented Studio from connecting).
 
 **Session start ritual — do this every session before using Studio tools:**
 1. Open Roblox Studio and load the place (MCP plugin must be active in Studio's Plugins tab)
@@ -20,7 +20,7 @@ Command: cmd.exe /c %LOCALAPPDATA%\Roblox\mcp.bat
 
 The studio ID changes every Studio restart, so steps 2–3 are required each session.
 
-**About `mcp.bat`:** Roblox auto-generates `%LOCALAPPDATA%\Roblox\mcp.bat`. It checks a versioned path first, then falls back to a registry query for `StudioMCP.exe`. Both are handled automatically — never run it manually. Claude Code starts it as a subprocess when the MCP server is activated.
+**About `mcp.bat`:** Roblox auto-generates `%LOCALAPPDATA%\Roblox\mcp.bat`. It hardcodes the StudioMCP.exe path of the Roblox version installed when it was generated, so **it breaks on every Roblox update** — its registry-query fallback is malformed cmd syntax (`else` on its own line) and silently launches nothing. Symptom: `proxy init handshake timed out` on every mcp.py call. Fixes: re-add the MCP server from Studio (regenerates the bat with the current path), or rely on `mcp.py`, which since 2026-07-12 resolves `StudioMCP.exe` directly from the newest `%LOCALAPPDATA%\Roblox\Versions\version-*` folder and uses the bat only as a fallback. Never run the bat manually — Claude Code starts it as a subprocess when the MCP server is activated.
 
 ## Quick Reference — MCP Tools
 
