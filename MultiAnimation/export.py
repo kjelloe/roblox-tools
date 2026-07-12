@@ -100,6 +100,7 @@ def build_server_rbxm() -> None:
         ("MultiAnimDataServer",  "MultiAnimDataServer.lua"),
         ("MultiAnimPlayer",      "MultiAnimPlayer.lua"),
         ("CutsceneServer",       "CutsceneServer.lua"),
+        ("CutsceneCamera",       "CutsceneCamera.lua"),
         ("SpawnedEffectRunner",  "SpawnedEffectRunner.lua"),
     ]
     children = "\n".join(
@@ -116,10 +117,12 @@ def build_server_rbxm() -> None:
 def build_client_rbxm() -> None:
     """ReplicatedStorage — client-side ModuleScripts."""
     scripts = [
-        ("CutscenePlayer",  "CutscenePlayer.lua"),
-        ("CutsceneCamera",  "CutsceneCamera.lua"),
-        ("LetterboxGui",    "LetterboxGui.lua"),
-        ("PlayerRigProxy",  "PlayerRigProxy.lua"),
+        ("CutscenePlayer",       "CutscenePlayer.lua"),
+        ("CutsceneCamera",       "CutsceneCamera.lua"),
+        ("LetterboxGui",         "LetterboxGui.lua"),
+        ("PlayerRigProxy",       "PlayerRigProxy.lua"),
+        ("SpawnedEffectRunner",  "SpawnedEffectRunner.lua"),
+        ("SubtitleGui",          "SubtitleGui.lua"),
     ]
     items = "\n".join(
         module_item(name, game(fname), indent=1)
@@ -171,7 +174,8 @@ These steps let your game actually play back cutscenes created with the plugin.
 
 1. Right-click `ReplicatedStorage` → Insert from File.
 2. Select `ReplicatedStorage.rbxm`.
-3. Four ModuleScripts appear: `CutscenePlayer`, `CutsceneCamera`, `LetterboxGui`, `PlayerRigProxy`.
+3. Six ModuleScripts appear: `CutscenePlayer`, `CutsceneCamera`, `LetterboxGui`,
+   `PlayerRigProxy`, `SpawnedEffectRunner`, `SubtitleGui`.
 
 ---
 
@@ -226,6 +230,7 @@ ServerStorage/
     MultiAnimDataServer   ← runtime bridge (from rbxm)
     MultiAnimPlayer       ← animation engine (from rbxm)
     CutsceneServer        ← server sync (from rbxm)
+    CutsceneCamera        ← camera track source for CutsceneServer (from rbxm)
     SpawnedEffectRunner   ← particle effects (from rbxm)
     <SceneName>/          ← exported by the plugin (one folder per scene)
 
@@ -234,6 +239,8 @@ ReplicatedStorage/
   CutsceneCamera          ← client camera driver (from rbxm)
   LetterboxGui            ← cinematic black bars (from rbxm)
   PlayerRigProxy          ← player character resolver (from rbxm)
+  SpawnedEffectRunner     ← spawned effect firing (from rbxm)
+  SubtitleGui             ← subtitle display (from rbxm)
 
 ServerScriptService/
   SetupScript             ← your Script calling .setup()

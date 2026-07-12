@@ -326,6 +326,40 @@ ServerStorage
 `MultiAnimPlayer` is placed here so any `Script` or `LocalScript` in the game
 can `require` it without a plugin dependency.
 
+## Client Scene Payload (`MultiAnimGetScene`)
+
+`MultiAnimDataServer.getSceneData()` converts the ServerStorage scene into a plain
+table that survives the RemoteFunction boundary, consumed by `CutscenePlayer`:
+
+```lua
+{
+    fps  = 24,
+    rigs = {
+        [rigName] = {
+            jointKFs = { {time, poses = {[motorName]=CFrame}, easing = "EaseOut"}, ... },
+            scaleKFs = { {time, data = {[partName]=Vector3}, easing}, ... },
+            rootKFs  = { {time, data = CFrame, easing}, ... },
+        },
+    },
+    props  = { [propName] = { {time, data = CFrame, easing}, ... } },
+    camera = { {time, data = {cf = CFrame, fov, cut, easing}}, ... },
+    effects = {
+        [effectName] = {
+            target = "game.Workspace.FX.Emitter",   -- full path, resolved client-side
+            kfs    = { {time, data = {action = "emit", count = 15}}, ... },
+        },
+    },
+    spawnedEffects = { {id, frame, effectType, posX, posY, posZ, ...}, ... },
+    subtitles      = { {frame, text}, ... },        -- only when SubtitleTrack exists
+    subtitleStyle  = { fontAsset, size, ... },      -- only when SubtitleTrack exists
+}
+```
+
+Every keyframe entry carries the `easing` string governing the segment toward the
+next entry (joint easing recovered from Pose `EasingStyle`/`EasingDirection`; the
+others from the exported `easings` tables). Entries lacking `easing` (pre-easing
+exports) are treated as `"Linear"` by the client.
+
 ## Cutscene API (Phase 8)
 
 ```lua

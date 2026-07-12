@@ -75,7 +75,7 @@
 | `game/LetterboxGui` | Game | Cinematic black bars (top/bottom 10%) in PlayerGui ScreenGui (Phase 10) |
 | `game/PlayerRigProxy` | Game | Resolves player entries into R6 or R15 rig models; clone/direct modes (Phase 10) |
 | `game/MultiAnimDataServer` | Game | Server-side `MultiAnimGetScene` RemoteFunction — parses scene from ServerStorage (Phase 10) |
-| `game/CutscenePlayer` | Game | Client LocalScript orchestrator — Heartbeat loop for joints, root, scale, camera (Phase 10) |
+| `game/CutscenePlayer` | Game | Client LocalScript orchestrator — Heartbeat loop for joints, root, scale, props, camera, effect tracks, spawned effects, subtitles; applies per-keyframe easing (Phase 10) |
 
 ---
 
@@ -954,6 +954,22 @@ lastSfxTime = t
 
 `lastSfxTime` resets to `-1` on loop so effects re-fire. `SpawnedEffectRunner` is
 required from `selfModule.Parent` (ReplicatedStorage siblings, deployed by Exporter).
+
+Effect-track one-shots (`sceneData.effects`) are fired the same way: targets are
+resolved from their exported full path at play() time, events are flattened to a
+sorted `{time, inst, action, count}` list, and each event fires once when the
+crossing window `(lastSfxTime, t]` passes its time.
+
+**Easing:** `MultiAnimDataServer` serializes an `easing` string per keyframe entry
+(joint easing read back from Pose `EasingStyle`/`EasingDirection`; scale/root/prop
+easing from the parallel `easings` tables; camera easing from `CameraTrack`).
+`CutscenePlayer` applies `easedAlpha` — the same pure-math curve set as
+`MultiAnimPlayer` and `CutsceneCamera` — in all sample functions. Missing easing
+fields (old exports) fall back to linear.
+
+**Camera cuts:** a keyframe with `cut = true` is jumped to, never interpolated
+toward — the previous shot holds until the cut lands (checked on the *next*
+keyframe `b`, matching CutsceneCamera and the editor preview).
 
 ### Session persistence
 

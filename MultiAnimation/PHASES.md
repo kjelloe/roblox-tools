@@ -1025,3 +1025,45 @@ Bug-fixes and UX additions for the Simple Mode camera workflow, no-folder safety
 **Cleanup:** removed dead `Recorder:deleteKeyframe` (unused; missed rootTrack/easingTrack).
 `test_easing_core.lua` now emits the standard `=== N passed, M failed ===` summary so
 `run_tests.py` counts its 20 cases (previously reported 0/0).
+
+---
+
+## In-game playback pipeline review fixes (2026-07-12)
+
+End-to-end review of author → export (Studio + file bundle) → in-game playback.
+
+**File-export bundle was incomplete (`export.py`):**
+- `ReplicatedStorage.rbxm` omitted `SpawnedEffectRunner` and `SubtitleGui` —
+  `CutscenePlayer.play()` errored immediately (`require(nil)`) on any game
+  installed from the bundle. `ServerStorage_MultiAnimationData.rbxm` omitted
+  `CutsceneCamera`, silently breaking `CutsceneServer`'s camera publish.
+  Both lists now match `Exporter`'s deploy lists exactly; `how-to-use.md`
+  regenerated (six client modules, updated folder tree).
+
+**CutscenePlayer never fired EffectTracks events (`game/CutscenePlayer.lua`):**
+- `MultiAnimDataServer` sent `sceneData.effects` but the client ignored it —
+  tracked particle/sound/light one-shots played in the editor and via server-side
+  `MultiAnimPlayer` but not in the primary client path. Now resolved from the
+  exported target path and fired via the crossing-window pattern.
+
+**Easing dropped in the client path:**
+- `MultiAnimDataServer` did not serialize easing (joints, scale, root, props,
+  camera) and `CutscenePlayer` lerped linearly, so all authored easing played
+  back linear in-game. Every keyframe entry now carries an `easing` string and
+  `CutscenePlayer` applies the shared `easedAlpha` curve set. Old exports
+  without easing fields fall back to linear.
+
+**Camera cut semantics inverted (`game/CutscenePlayer.lua`):**
+- The cut flag was checked on the *previous* keyframe, so the segment toward a
+  cut interpolated (should hold) and the segment after a cut held (should
+  interpolate). Now checks the next keyframe, matching `CutsceneCamera` and the
+  editor preview.
+
+**Playback duration truncated event-only tails (`game/CutscenePlayer.lua`):**
+- `duration` ignored spawned effects, effect events, and subtitles, so anything
+  scheduled after the last rig/prop/camera keyframe was cut off. All event
+  tracks now extend the duration.
+
+**New test:** `tests/test_cutscene_client_core.lua` (20 cases) — eased sampling,
+Constant/missing-easing fallbacks, camera cut-hold/jump/resume, effect-event
+flattening + crossing-window single-fire, duration tail coverage.

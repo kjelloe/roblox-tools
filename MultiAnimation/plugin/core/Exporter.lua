@@ -544,7 +544,7 @@ function Exporter.export(session, sceneName)
     print(string.format(
         "[Exporter] Scene '%s' exported — %d rig(s)\n" ..
         "  Server: ServerStorage.MultiAnimationData (MultiAnimPlayer, CutsceneServer, CutsceneCamera, MultiAnimDataServer, SpawnedEffectRunner)\n" ..
-        "  Client: ReplicatedStorage (CutscenePlayer, CutsceneCamera, PlayerRigProxy, LetterboxGui, SpawnedEffectRunner)\n" ..
+        "  Client: ReplicatedStorage (CutscenePlayer, CutsceneCamera, PlayerRigProxy, LetterboxGui, SpawnedEffectRunner, SubtitleGui)\n" ..
         "  Server prerequisite: require(game.ServerStorage.MultiAnimationData.MultiAnimDataServer).setup()",
         sceneName, kfsCount
     ))

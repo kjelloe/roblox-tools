@@ -20,6 +20,23 @@ local LEGACY_POSE_TO_JOINT = {
     ["Left Leg"]  = "Left Hip",
 }
 
+local POSE_EASING_TO_STR = {}
+POSE_EASING_TO_STR[Enum.PoseEasingStyle.Linear]   = { default = "Linear" }
+POSE_EASING_TO_STR[Enum.PoseEasingStyle.Constant] = { default = "Constant" }
+POSE_EASING_TO_STR[Enum.PoseEasingStyle.Bounce]   = { default = "Bounce" }
+POSE_EASING_TO_STR[Enum.PoseEasingStyle.Cubic]    = {
+    [Enum.PoseEasingDirection.In]    = "EaseIn",
+    [Enum.PoseEasingDirection.Out]   = "EaseOut",
+    [Enum.PoseEasingDirection.InOut] = "EaseInOut",
+    default = "EaseOut",
+}
+
+local function poseEasingToStr(style, dir)
+    local m = POSE_EASING_TO_STR[style]
+    if not m then return "Linear" end
+    return m[dir] or m.default or "Linear"
+end
+
 -- Parse a KeyframeSequence into a serializable list.
 -- Handles both the legacy R6 hierarchy format (Torso child under HumanoidRootPart)
 -- and the current flat format (motor names as direct children of HumanoidRootPart).
@@ -28,11 +45,13 @@ local function parseKFS(kfs)
     for _, kf in ipairs(kfs:GetKeyframes()) do
         local hrpPose = kf:FindFirstChild("HumanoidRootPart")
         if not hrpPose then continue end
-        local poses = {}
+        local poses  = {}
+        local easing = "Linear"
         local torsoPose = hrpPose:FindFirstChild("Torso")
         if torsoPose then
             -- Legacy R6 hierarchy format
             poses["RootJoint"] = torsoPose.CFrame
+            easing = poseEasingToStr(torsoPose.EasingStyle, torsoPose.EasingDirection)
             for _, child in ipairs(torsoPose:GetChildren()) do
                 local jName = LEGACY_POSE_TO_JOINT[child.Name]
                 if jName then poses[jName] = child.CFrame end
@@ -42,9 +61,13 @@ local function parseKFS(kfs)
             for _, child in ipairs(hrpPose:GetChildren()) do
                 poses[child.Name] = child.CFrame
             end
+            local first = hrpPose:GetChildren()[1]
+            if first then
+                easing = poseEasingToStr(first.EasingStyle, first.EasingDirection)
+            end
         end
         if next(poses) then
-            table.insert(out, { time = kf.Time, poses = poses })
+            table.insert(out, { time = kf.Time, poses = poses, easing = easing })
         end
     end
     table.sort(out, function(a, b) return a.time < b.time end)
@@ -52,11 +75,13 @@ local function parseKFS(kfs)
 end
 
 -- Convert a {[frame]=rawData} table to a sorted time-keyed list.
-local function toSortedKFs(frameTable, fps, buildFn)
+-- easingsTable is an optional parallel {[frame]=easingString} table.
+local function toSortedKFs(frameTable, fps, buildFn, easingsTable)
     local out = {}
     for frame, raw in pairs(frameTable) do
         local t = (tonumber(frame) - 1) / fps
-        table.insert(out, { time = t, data = buildFn(raw) })
+        local easing = (easingsTable and easingsTable[frame]) or "Linear"
+        table.insert(out, { time = t, data = buildFn(raw), easing = easing })
     end
     table.sort(out, function(a, b) return a.time < b.time end)
     return out
@@ -141,7 +166,7 @@ local function getSceneData(sceneName)
                     parts[pName] = Vector3.new(arr[1], arr[2], arr[3])
                 end
                 return parts
-            end)
+            end, scaleTracks.easings and scaleTracks.easings[rigName])
         end
     end
 
@@ -151,7 +176,7 @@ local function getSceneData(sceneName)
             if not out.rigs[rigName] then out.rigs[rigName] = {} end
             out.rigs[rigName].rootKFs = toSortedKFs(data, fps, function(arr)
                 return cfFromArr(arr)
-            end)
+            end, rootTracks.easings and rootTracks.easings[rigName])
         end
     end
 
@@ -160,7 +185,7 @@ local function getSceneData(sceneName)
         for propName, data in pairs(propTracks.props) do
             out.props[propName] = toSortedKFs(data, fps, function(arr)
                 return cfFromArr(arr)
-            end)
+            end, propTracks.easings and propTracks.easings[propName])
         end
     end
 
@@ -168,9 +193,10 @@ local function getSceneData(sceneName)
     if camTrack and camTrack.frames then
         out.camera = toSortedKFs(camTrack.frames, fps, function(raw)
             return {
-                cf  = cfFromArr(raw.cf),
-                fov = raw.fov,
-                cut = raw.cut or false,
+                cf     = cfFromArr(raw.cf),
+                fov    = raw.fov,
+                cut    = raw.cut or false,
+                easing = raw.easing or "Linear",
             }
         end)
     end

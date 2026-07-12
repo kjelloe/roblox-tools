@@ -124,7 +124,7 @@ python3 devsync.py uninstall   # back to build.py + manual reload
 ### Other dev scripts
 
 ```bash
-python3 run_tests.py [pattern] [-v]   # full suite (~789 cases, 29 files), or `mcp test`
+python3 run_tests.py [pattern] [-v]   # full suite (~809 cases, 30 files), or `mcp test`
 python3 export.py                     # package plugin + game scripts for distribution → export/
 python3 watch.py                      # auto-build on save (when not using devsync)
 python3 hotpatch.py game/MultiAnimPlayer.lua   # push one game/ module, or `mcp deploy`
@@ -233,8 +233,9 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 | `test_spawned_effects_exporter.lua` | buildSpawnedEffectsSource: empty, single Explosion, Smoke, multi-entry; loadstring round-trip preserving all fields; default field fallbacks; Sound entry round-trip; mixed Explosion+Sound (61 cases, headless) |
 | `test_subtitle_core.lua` | Subtitle Recorder CRUD, style management, getActiveSubtitleAt stepped lookup (39 cases, headless) |
 | `test_subtitle_exporter.lua` | buildSubtitleTrackSource output structure and round-trip (32 cases, headless) |
+| `test_cutscene_client_core.lua` | CutscenePlayer client sampling: eased keyframe interpolation, Constant/missing-easing fallback, camera cut hold/jump/resume, effect-event flattening + crossing-window single-fire, duration includes event-only tails (20 cases, headless) |
 
-Suite total: **~789 cases** across 29 runnable files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive; exact total varies with session-state-conditional blocks). Note: `test_ui_playback` test 19 now asserts fps is absent from snippet; `test_ui_simple` insert-frame tests now assert Duplicate (cursor to frame+1, frame+1 has data). Test files must end with the standard `=== N passed, M failed ===` summary line — `run_tests.py` parses it for the counts (a file missing it reports 0/0).
+Suite total: **~809 cases** across 30 runnable files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive; exact total varies with session-state-conditional blocks). Note: `test_ui_playback` test 19 now asserts fps is absent from snippet; `test_ui_simple` insert-frame tests now assert Duplicate (cursor to frame+1, frame+1 has data). Test files must end with the standard `=== N passed, M failed ===` summary line — `run_tests.py` parses it for the counts (a file missing it reports 0/0).
 
 **Test isolation:** UI test files that need deterministic rig availability call `scanFigures` at their start (bridge command on `__MultiAnimTestBridge`). This sets `legacyFiguresName = "FIGURES"`, rescans `Workspace.FIGURES`, normalises `frameCount` to ≥120, and sets `mode = "advanced"`. Required because Simple Mode resets `frameCount` to 1 for empty sessions — without this, parking-frame arithmetic (`PARK = frameCount - N`) goes negative and all subsequent frame operations clamp to frame 1. `test_ui_easing.lua` was also rewritten from the old bridge protocol (`MultiAnimTestBridge`, plain-Lua returns) to the current one (`__MultiAnimTestBridge`, JSON `{ok,result}`).
 

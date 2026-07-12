@@ -167,9 +167,10 @@ Trigger one-shot effects — particle bursts, sound cues, light flashes — exac
 6. **Untrack:** click `×` on the purple chip. The live link is removed but all
    events are preserved in the session (re-tracking the same effect restores them).
 7. **Export** works as normal — if any effect has events, an `EffectTracks`
-   `ModuleScript` is written alongside the scene.  `MultiAnimPlayer` loads it and
-   fires events in its Heartbeat loop using a crossing-pointer so each event fires
-   exactly once per playback.
+   `ModuleScript` is written alongside the scene.  Both `MultiAnimPlayer` (server
+   playback) and `CutscenePlayer` (client playback) load it and fire events in
+   their Heartbeat loop using a crossing-pointer so each event fires exactly
+   once per playback.
 
 > **Tip:** effects are always one-shot — there is no interpolation between event
 > dots. To toggle a light on at frame 10 and off at frame 30, place an `on` event
@@ -306,9 +307,14 @@ Type a scene name (default `Scene_001`) and press **⬆ Export**. This writes to
 | `PropTracks` | Prop CFrames (if props were tracked) |
 | `CameraTrack` | Camera CFrames + FOV + cut flags (if camera keyframes exist) |
 | `EffectTracks` | One-shot effect events: instance path + action + frame (if effects have events) |
+| `SpawnedEffects` | World-position one-shots: Explosion / Smoke / Sound (if any were added) |
+| `SubtitleTrack` | Subtitle style + timed text events (if subtitles are enabled and exist) |
 
-The playback modules (`MultiAnimPlayer`, `CutsceneServer`, `CutsceneCamera`)
-are deployed alongside automatically.
+The playback modules are deployed alongside automatically — server side
+(`MultiAnimPlayer`, `CutsceneServer`, `CutsceneCamera`, `MultiAnimDataServer`,
+`SpawnedEffectRunner`) into `ServerStorage.MultiAnimationData`, client side
+(`CutscenePlayer`, `CutsceneCamera`, `PlayerRigProxy`, `LetterboxGui`,
+`SpawnedEffectRunner`, `SubtitleGui`) into `ReplicatedStorage`.
 
 **Animation only** (server Script):
 
@@ -545,8 +551,9 @@ as one of the rigs.
    `mcp deploy` or manual paste). This creates the `MultiAnimGetScene`
    RemoteFunction that clients call to fetch scene data.
 
-2. **Client side** — deploy `CutscenePlayer.lua`, `PlayerRigProxy.lua`,
-   `LetterboxGui.lua`, and `SpawnedEffectRunner.lua` to `ReplicatedStorage`.
+2. **Client side** — deploy `CutscenePlayer.lua`, `CutsceneCamera.lua`,
+   `PlayerRigProxy.lua`, `LetterboxGui.lua`, `SpawnedEffectRunner.lua`, and
+   `SubtitleGui.lua` to `ReplicatedStorage`.
    Pressing **Export** in the plugin does all of this automatically.
 
 3. **Paste the snippet** from the Playback tab into a `LocalScript`. Example:

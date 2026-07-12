@@ -49,6 +49,31 @@ local function lerpV3(a, b, t)
     return a:Lerp(b, t)
 end
 
+-- Same curve set as MultiAnimPlayer / CutsceneCamera; keyframe easing governs
+-- the segment from that keyframe toward the next one.
+local function easedAlpha(t, easing)
+    if easing == "Constant" then return 0 end
+    if easing == "EaseIn"   then return t * t * t end
+    if easing == "EaseOut"  then local u = 1 - t; return 1 - u * u * u end
+    if easing == "EaseInOut" then
+        if t < 0.5 then return 4 * t * t * t end
+        local u = -2 * t + 2; return 1 - u * u * u / 2
+    end
+    if easing == "Bounce" then
+        local n1, d1 = 7.5625, 2.75
+        if t < 1/d1 then
+            return n1 * t * t
+        elseif t < 2/d1 then
+            t = t - 1.5/d1; return n1 * t * t + 0.75
+        elseif t < 2.5/d1 then
+            t = t - 2.25/d1; return n1 * t * t + 0.9375
+        else
+            t = t - 2.625/d1; return n1 * t * t + 0.984375
+        end
+    end
+    return t
+end
+
 -- Binary-search for the last keyframe at or before `time`.
 local function findKF(kfs, time)
     if #kfs == 0 then return nil, nil end
@@ -66,7 +91,7 @@ local function sampleCFrame(kfs, time)
     local a, b = findKF(kfs, time)
     if not a then return CFrame.identity end
     if not b then return a.data end
-    local t = (time - a.time) / (b.time - a.time)
+    local t = easedAlpha((time - a.time) / (b.time - a.time), a.easing)
     return lerpCFrame(a.data, b.data, t)
 end
 
@@ -74,7 +99,7 @@ local function sampleJointPoses(kfs, time)
     local a, b = findKF(kfs, time)
     if not a then return {} end
     if not b then return a.poses end
-    local t   = (time - a.time) / (b.time - a.time)
+    local t   = easedAlpha((time - a.time) / (b.time - a.time), a.easing)
     local out = {}
     for jointName, cfA in pairs(a.poses) do
         local cfB = b.poses[jointName]
@@ -87,7 +112,7 @@ local function sampleScaleParts(kfs, time)
     local a, b = findKF(kfs, time)
     if not a then return {} end
     if not b then return a.data end
-    local t   = (time - a.time) / (b.time - a.time)
+    local t   = easedAlpha((time - a.time) / (b.time - a.time), a.easing)
     local out = {}
     for pName, v3A in pairs(a.data) do
         local v3B = b.data[pName]
@@ -284,6 +309,47 @@ function CutscenePlayer.play(sceneName, rigMap, options)
     end
     table.sort(spawnedFxEvents, function(a, b) return a.time < b.time end)
 
+    -- Effect track events (one-shots on existing instances): resolve each
+    -- target from its exported full path, flatten to a sorted event list.
+    local effectEvents = {}
+    for fxName, fx in pairs(sceneData.effects or {}) do
+        local inst = game
+        for seg in string.gmatch(fx.target or "", "[^.]+") do
+            if inst == game and seg == "game" then continue end
+            inst = inst and inst:FindFirstChild(seg)
+        end
+        if inst and inst ~= game then
+            for _, ev in ipairs(fx.kfs or {}) do
+                table.insert(effectEvents, {
+                    time   = ev.time,
+                    inst   = inst,
+                    action = ev.data.action,
+                    count  = ev.data.count,
+                })
+            end
+        else
+            warn("[CutscenePlayer] Effect target not found: " .. tostring(fx.target)
+                .. " ('" .. fxName .. "')")
+        end
+    end
+    table.sort(effectEvents, function(a, b) return a.time < b.time end)
+
+    local function fireEffect(ev)
+        local inst = ev.inst
+        if not (inst and inst.Parent) then return end
+        if ev.action == "emit" and inst:IsA("ParticleEmitter") then
+            inst:Emit(ev.count or 15)
+        elseif ev.action == "play" and inst:IsA("Sound") then
+            inst:Play()
+        elseif ev.action == "stop" and inst:IsA("Sound") then
+            inst:Stop()
+        elseif ev.action == "on" then
+            inst.Enabled = true
+        elseif ev.action == "off" then
+            inst.Enabled = false
+        end
+    end
+
     -- Subtitle track: sorted events + style (nil when scene has no SubtitleTrack)
     local subtitleEvents = sceneData.subtitles or {}
     local subtitleStyle  = sceneData.subtitleStyle or {}
@@ -314,6 +380,15 @@ function CutscenePlayer.play(sceneName, rigMap, options)
     end
     if #sceneData.camera > 0 then
         duration = math.max(duration, sceneData.camera[#sceneData.camera].time)
+    end
+    if #spawnedFxEvents > 0 then
+        duration = math.max(duration, spawnedFxEvents[#spawnedFxEvents].time)
+    end
+    if #effectEvents > 0 then
+        duration = math.max(duration, effectEvents[#effectEvents].time)
+    end
+    for _, ev in ipairs(subtitleEvents) do
+        duration = math.max(duration, (ev.frame - 1) / fps)
     end
     if duration == 0 then duration = 1 end
 
@@ -431,12 +506,14 @@ function CutscenePlayer.play(sceneName, rigMap, options)
                 end
             end
 
-            -- Camera track
+            -- Camera track. A keyframe with cut = true is jumped to, not
+            -- interpolated toward — the previous shot holds until the cut lands
+            -- (same semantics as the editor preview and CutsceneCamera).
             if #sceneData.camera > 0 then
                 local a, b = findKF(sceneData.camera, t)
                 if a then
-                    if b and not (a.data.cut) then
-                        local frac = (t - a.time) / (b.time - a.time)
+                    if b and not b.data.cut then
+                        local frac = easedAlpha((t - a.time) / (b.time - a.time), a.data.easing)
                         camera.CFrame      = lerpCFrame(a.data.cf, b.data.cf, frac)
                         camera.FieldOfView = lerp(a.data.fov or 70, b.data.fov or 70, frac)
                     else
@@ -455,6 +532,12 @@ function CutscenePlayer.play(sceneName, rigMap, options)
                         ev.sfx.effectType,
                         ev.sfx
                     )
+                end
+            end
+            -- Effect track events (same crossing window)
+            for _, ev in ipairs(effectEvents) do
+                if ev.time > lastSfxTime and ev.time <= t then
+                    fireEffect(ev)
                 end
             end
             lastSfxTime = t
