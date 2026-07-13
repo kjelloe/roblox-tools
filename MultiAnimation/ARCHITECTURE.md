@@ -70,8 +70,8 @@
 | `ui/KeyframeMarker` | UI | Individual dot on a TrackLane; left-click jumps, right-click opens easing/delete context menu |
 | `ui/Scrubber` | UI | Horizontal drag slider for frame position |
 | `game/MultiAnimPlayer` | Game | In-game simultaneous playback — direct Motor6D.Transform Heartbeat loop |
-| `game/CutsceneServer` | Game | Synchronized cutscene start: plays anims, broadcasts camera + subtitle tracks + timestamp; signals clients on stop/natural end |
-| `game/CutsceneCamera` | Game | Client camera + subtitle driver: Scriptable camera follows CameraTrack, SubtitleGui stepped display, both on a shared clock |
+| `game/CutsceneServer` | Game | Synchronized cutscene start: plays anims (server effects suppressed), broadcasts camera + subtitle + effect data + timestamp; signals clients on stop/natural end |
+| `game/CutsceneCamera` | Game | Client camera + subtitle + effect driver: Scriptable camera follows CameraTrack, SubtitleGui stepped display, effect/spawned-effect one-shots — all on a shared clock |
 | `game/LetterboxGui` | Game | Cinematic black bars (top/bottom 10%) in PlayerGui ScreenGui (Phase 10) |
 | `game/PlayerRigProxy` | Game | Resolves player entries into R6 or R15 rig models; clone/direct modes (Phase 10) |
 | `game/MultiAnimDataServer` | Game | Server-side `MultiAnimGetScene` RemoteFunction — parses scene from ServerStorage (Phase 10) |
@@ -708,6 +708,13 @@ with the place. The Hinge stud on the front face marks the look direction.
 Clicking a gizmo jumps the timeline to its frame (Selection handler); dragging
 it with Studio tools rewrites that keyframe's CFrame (guarded against the
 programmatic-update feedback loop with a `gizmoSyncing` flag).
+
+**Gizmo distance scaling:** a plugin Heartbeat keeps camera and spawned-effect
+gizmos a roughly constant apparent size — natural at ~20 studs from the
+viewport camera, `clamp(distance × 0.05, 0.5, 3.0)` × base size. `Size` is
+written only on >5 % change (quiet undo stack), the currently-selected gizmo is
+skipped so scaling never fights the dragger, and Size writes don't trigger the
+CFrame-changed re-aim handler. Skipped while play mode runs.
 
 **Synchronized playback:** `CutsceneServer.play` fires a RemoteEvent carrying
 the scene name, a `GetServerTimeNow()+0.35s` start timestamp, and the

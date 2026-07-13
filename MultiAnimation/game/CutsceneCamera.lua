@@ -9,7 +9,8 @@
 -- RenderStepped — perfectly aligned across clients because everyone uses
 -- workspace:GetServerTimeNow() against the same start time.
 -- Also displays the scene's subtitle track (if any) on the same clock, via
--- the SubtitleGui sibling module in ReplicatedStorage.
+-- the SubtitleGui sibling module in ReplicatedStorage, and fires effect-track
+-- and spawned-effect one-shots locally (the server suppresses its own copies).
 --
 -- Cut semantics match the editor: a keyframe with cut = true is jumped to,
 -- not interpolated toward — the previous shot holds until the cut frame.
@@ -50,10 +51,12 @@ local function easedAlpha(t, easing)
 end
 
 local function cameraKeyframes(cameraData)
-    -- {fps, frames = {[n] = {cf={12}, fov, cut, easing?}}} → sorted {time, cf, fov, cut, easing}
+    -- frames arrives as an array of {frame, cf={12}, fov, cut, easing?} (new
+    -- servers reshape it for remote safety) or a legacy frame-keyed dictionary.
     local fps = cameraData.fps or 24
     local list = {}
-    for frame, kf in pairs(cameraData.frames or {}) do
+    for k, kf in pairs(cameraData.frames or {}) do
+        local frame = kf.frame or k
         table.insert(list, {
             time   = (frame - 1) / fps,
             cf     = CFrame.new(
@@ -112,6 +115,98 @@ local function stopSubtitles()
         subConn = nil
     end
     if _subtitleGui then pcall(_subtitleGui.hide) end
+end
+
+local fxConn = nil
+local _spawnedRunner = nil
+
+local function stopEffects()
+    if fxConn then
+        fxConn:Disconnect()
+        fxConn = nil
+    end
+end
+
+local function fireTargetEffect(ev)
+    local inst = ev.inst
+    if not (inst and inst.Parent) then return end
+    if ev.action == "emit" and inst:IsA("ParticleEmitter") then
+        inst:Emit(ev.count or 15)
+    elseif ev.action == "play" and inst:IsA("Sound") then
+        inst:Play()
+    elseif ev.action == "stop" and inst:IsA("Sound") then
+        inst:Stop()
+    elseif ev.action == "on" then
+        inst.Enabled = true
+    elseif ev.action == "off" then
+        inst.Enabled = false
+    end
+end
+
+-- Client-side one-shot effects on the shared clock. The server suppresses its
+-- own copies (MultiAnimPlayer skipEffects) so nothing fires twice; server-side
+-- ParticleEmitter:Emit would not replicate to clients anyway.
+local function playEffects(effectData, startTime)
+    stopEffects()
+    local fps = effectData.fps or 24
+    local events = {}
+
+    for _, fx in ipairs(effectData.effects or {}) do
+        local inst = game
+        for seg in string.gmatch(fx.target or "", "[^.]+") do
+            if inst == game and seg == "game" then continue end
+            inst = inst and inst:FindFirstChild(seg)
+        end
+        if inst and inst ~= game then
+            for _, ev in ipairs(fx.events or {}) do
+                table.insert(events, {
+                    time   = (ev.frame - 1) / fps,
+                    inst   = inst,
+                    action = ev.action,
+                    count  = ev.count,
+                })
+            end
+        else
+            warn("[CutsceneCamera] Effect target not found: " .. tostring(fx.target)
+                .. " ('" .. tostring(fx.name) .. "')")
+        end
+    end
+
+    local spawned = effectData.spawnedEffects or {}
+    if #spawned > 0 then
+        if not _spawnedRunner then
+            local mod = script.Parent:FindFirstChild("SpawnedEffectRunner")
+            _spawnedRunner = mod and require(mod) or nil
+        end
+        if _spawnedRunner then
+            for _, sfx in ipairs(spawned) do
+                table.insert(events, { time = (sfx.frame - 1) / fps, spawned = sfx })
+            end
+        else
+            warn("[CutsceneCamera] SpawnedEffectRunner not found in ReplicatedStorage")
+        end
+    end
+
+    if #events == 0 then return end
+    table.sort(events, function(a, b) return a.time < b.time end)
+
+    local nextIdx = 1
+    fxConn = RunService.RenderStepped:Connect(function()
+        local elapsed = workspace:GetServerTimeNow() - startTime
+        if elapsed < 0 then return end
+        while nextIdx <= #events and events[nextIdx].time <= elapsed do
+            local ev = events[nextIdx]
+            if ev.spawned then
+                pcall(_spawnedRunner.fire,
+                    Vector3.new(ev.spawned.posX, ev.spawned.posY, ev.spawned.posZ),
+                    ev.spawned.effectType, ev.spawned)
+            else
+                pcall(fireTargetEffect, ev)
+            end
+            nextIdx += 1
+        end
+        if nextIdx > #events then stopEffects() end
+    end)
 end
 
 -- Stepped subtitle display on the shared clock; text stays up until the next
@@ -178,13 +273,15 @@ function CutsceneCamera.start()
         warn("[CutsceneCamera] RemoteEvent not found — is CutsceneServer in use?")
         return
     end
-    remote.OnClientEvent:Connect(function(sceneName, startTime, cameraData, subtitleData)
+    remote.OnClientEvent:Connect(function(sceneName, startTime, cameraData, subtitleData, effectData)
         if sceneName == "__stop" then
             stopPlayback()
             stopSubtitles()
+            stopEffects()
         else
             if cameraData   then playCamera(cameraData, startTime) end
             if subtitleData then playSubtitles(subtitleData, startTime) end
+            if effectData   then playEffects(effectData, startTime) end
         end
     end)
 end
@@ -192,6 +289,7 @@ end
 function CutsceneCamera.stop()
     stopPlayback()
     stopSubtitles()
+    stopEffects()
 end
 
 return CutsceneCamera

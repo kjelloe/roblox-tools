@@ -53,27 +53,68 @@ local function loadCameraData(sceneName)
     local scene = mad and mad:FindFirstChild(sceneName)
     local camModule = scene and scene:FindFirstChild("CameraTrack")
     if not camModule then return nil end
-    -- Plain table of numbers/bools — safe to send through a RemoteEvent.
-    return require(camModule)
+    local cam = require(camModule)
+    -- Reshape the frame-keyed dictionary to an array: sparse numeric keys are
+    -- silently dropped by RemoteEvent serialization (dense Simple-Mode captures
+    -- only survived because 1..N dictionaries happen to be arrays).
+    local frames = {}
+    for frame, kf in pairs(cam.frames or {}) do
+        table.insert(frames, {
+            frame = frame, cf = kf.cf, fov = kf.fov, cut = kf.cut, easing = kf.easing,
+        })
+    end
+    return { fps = cam.fps, frames = frames }
+end
+
+local function findScene(sceneName)
+    local mad = game:GetService("ServerStorage"):FindFirstChild("MultiAnimationData")
+    return mad and mad:FindFirstChild(sceneName)
+end
+
+local function sceneFps(scene)
+    for _, modName in ipairs({ "ScaleTracks", "PropTracks", "RootTracks", "CameraTrack", "EffectTracks" }) do
+        local m = scene:FindFirstChild(modName)
+        if m then
+            local t = require(m)
+            if t.fps then return t.fps end
+        end
+    end
+    return 24
 end
 
 -- Subtitle track + the scene's fps (subtitles are frame-timed; the client
 -- needs fps to convert). Nil when the scene has no SubtitleTrack.
 local function loadSubtitleData(sceneName)
-    local mad = game:GetService("ServerStorage"):FindFirstChild("MultiAnimationData")
-    local scene = mad and mad:FindFirstChild(sceneName)
+    local scene = findScene(sceneName)
     local subModule = scene and scene:FindFirstChild("SubtitleTrack")
     if not subModule then return nil end
     local sub = require(subModule)
-    local fps = 24
-    for _, modName in ipairs({ "ScaleTracks", "PropTracks", "RootTracks", "CameraTrack" }) do
-        local m = scene:FindFirstChild(modName)
-        if m then
-            local t = require(m)
-            if t.fps then fps = t.fps break end
+    return { fps = sceneFps(scene), style = sub.style, events = sub.events }
+end
+
+-- Effect tracks + spawned effects, reshaped for the RemoteEvent (frame-keyed
+-- dictionaries would be dropped by remote serialization — arrays only).
+-- Nil when the scene has neither, so clients skip the scheduler entirely.
+local function loadEffectData(sceneName)
+    local scene = findScene(sceneName)
+    if not scene then return nil end
+    local out = { fps = sceneFps(scene), effects = {}, spawnedEffects = {} }
+    local fxModule = scene:FindFirstChild("EffectTracks")
+    if fxModule then
+        for name, fx in pairs(require(fxModule).effects or {}) do
+            local events = {}
+            for frame, ev in pairs(fx.events or {}) do
+                table.insert(events, { frame = frame, action = ev.action, count = ev.count })
+            end
+            table.insert(out.effects, { name = name, target = fx.target, events = events })
         end
     end
-    return { fps = fps, style = sub.style, events = sub.events }
+    local sfxModule = scene:FindFirstChild("SpawnedEffects")
+    if sfxModule then
+        out.spawnedEffects = require(sfxModule).effects or {}
+    end
+    if #out.effects == 0 and #out.spawnedEffects == 0 then return nil end
+    return out
 end
 
 local _userFinished = nil
@@ -84,6 +125,7 @@ function CutsceneServer.play(sceneName, rigMap, propMap)
 
     local cameraData   = loadCameraData(sceneName)
     local subtitleData = loadSubtitleData(sceneName)
+    local effectData   = loadEffectData(sceneName)
     local startTime    = workspace:GetServerTimeNow() + START_LEAD
 
     -- Signal clients on natural completion so camera/subtitles stop in sync.
@@ -94,11 +136,13 @@ function CutsceneServer.play(sceneName, rigMap, propMap)
         if _userFinished then _userFinished(sn) end
     end)
 
-    getRemote():FireAllClients(sceneName, startTime, cameraData, subtitleData)
+    getRemote():FireAllClients(sceneName, startTime, cameraData, subtitleData, effectData)
 
     -- Start the animation on the same clock the clients use for the camera.
+    -- When clients received effectData they fire effects locally (server-side
+    -- ParticleEmitter:Emit does not replicate) — suppress the server copies.
     task.delay(math.max(0, startTime - workspace:GetServerTimeNow()), function()
-        player.play(sceneName, rigMap, propMap)
+        player.play(sceneName, rigMap, propMap, { skipEffects = effectData ~= nil })
     end)
 
     return startTime

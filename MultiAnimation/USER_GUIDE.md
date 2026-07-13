@@ -131,6 +131,8 @@ FOV is captured per keyframe and interpolates on moves — capture two keyframes
 with different zoom levels for dolly-zoom style shots.
 
 Gizmos are never saved into your place file and vanish when the plugin unloads.
+They also keep a roughly constant apparent size — shrinking up close and growing
+at a distance — so a nearby shot marker never fills your viewport.
 
 > **Tip:** capture a camera keyframe *before* turning Cam Preview on — while
 > preview is on, the viewport shows the track, so capturing would just re-record
@@ -337,10 +339,9 @@ require(game.ReplicatedStorage:WaitForChild("CutsceneCamera")).start()
 ```
 
 Every client's camera follows the camera track on a shared clock and is
-restored when the cutscene ends. Subtitles (if the scene has them) are shown
-on the same shared clock. Note: in this server-driven path, particle-burst
-effects fire on the server and may not be visible to clients in a live
-multiplayer game — use the `CutscenePlayer` path when effects matter.
+restored when the cutscene ends. Subtitles, effect-track events, and spawned
+effects (if the scene has them) fire on every client on the same shared clock —
+multiplayer cutscenes get the full effect set.
 
 **Version-control your animations:** from a terminal, `mcp scene pull Scene_001`
 saves the exported scene as diffable text under `MultiAnimation/scenes/` —

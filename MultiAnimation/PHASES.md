@@ -1150,6 +1150,41 @@ translation/rotation with frozen offset, detach, guards). Suite: ~822 / 33 files
 motors + unanchored parts + edit-mode physics). Motors reconnected, rest pose
 re-applied, HumanoidRootParts now anchored so it cannot recur.
 
+---
+
+## Gizmo scaling + multiplayer client-fired effects (2026-07-14)
+
+**Gizmo distance scaling (`init.server.lua`):** camera and spawned-effect
+gizmos keep a roughly constant apparent size — `clamp(dist × 0.05, 0.5, 3.0)` ×
+base size in a plugin Heartbeat (natural size at ~20 studs). Size written only
+on >5 % change; the selected gizmo is skipped so scaling never fights the
+dragger; Size writes don't trip the CFrame re-aim handler. From E2E finding #8.
+`tests/test_gizmo_scale.lua` (8 cases, live).
+
+**CutsceneServer path client-fired effects (`CutsceneServer.lua`,
+`MultiAnimPlayer.lua`, `CutsceneCamera.lua`):** retires the multiplayer caveat.
+`CutsceneServer.play` now loads EffectTracks + SpawnedEffects, reshapes them to
+**arrays** (frame-keyed dictionaries are silently dropped by RemoteEvent
+serialization) and broadcasts them as a fifth argument; it passes
+`{skipEffects = true}` to `MultiAnimPlayer.play` so the server copies never
+double-fire (server `ParticleEmitter:Emit()` wouldn't replicate anyway).
+`CutsceneCamera` gained an effect scheduler: sorted events fired crossing-window
+on the shared clock via its own RenderStepped connection (works in scenes with
+no camera track), targets resolved client-side, spawned effects through the
+ReplicatedStorage `SpawnedEffectRunner`; `"__stop"` cancels pending events.
+`MultiAnimPlayer` duration still counts skipped-effect tails so the natural-end
+`"__stop"` doesn't cut client effects short. Deploy server + client modules
+together (⬆ Export does both). `tests/test_cutscene_effects_core.lua`
+(15 cases, headless).
+
+**Latent camera bug fixed en route:** the CameraTrack broadcast sent `frames`
+as a frame-keyed dictionary — sparse Advanced-mode camera keyframes (e.g.
+frames 1 and 25 only) would be silently dropped by remote serialization; dense
+Simple-Mode captures (1..N) only survived because they happen to be arrays.
+`loadCameraData` now reshapes to an array of `{frame, cf, fov, cut, easing}`;
+`cameraKeyframes` on the client accepts both the new array and the legacy
+dictionary shape.
+
 **Notable behavior observations (no code change):** prop tracking is tag-based
 and parent-agnostic (a tagged prop keeps tracking inside a rig Model); edit-mode
 WeldConstraints co-move welded parts on script CFrame writes even when anchored

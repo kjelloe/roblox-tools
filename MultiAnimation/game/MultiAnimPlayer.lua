@@ -4,10 +4,14 @@
 -- No AnimationClipProvider dependency — works server-side and client-side.
 --
 -- API:
---   player.play(sceneName, rigMap, propMap?)
+--   player.play(sceneName, rigMap, propMap?, opts?)
 --       sceneName  string         — matches the scene name used at export time
 --       rigMap     {[name]=Model} — keys match rig names from the plugin session
 --       propMap    {[name]=BasePart}? — optional; keys match tracked prop names
+--       opts       { resetOnEnd?, skipEffects? } — skipEffects suppresses
+--                  effect-track and spawned-effect firing (used by
+--                  CutsceneServer when clients fire them locally instead);
+--                  playback duration still includes their tail times
 --
 --   player.stop()
 --       Stops all active playback immediately and fires onFinished.
@@ -409,6 +413,7 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap, opts)
     local done = false
     local nextEffectIdx = 1
     local nextSpawnedFxIdx = 1
+    local skipEffects = opts and opts.skipEffects
 
     _heartbeat = RunService.Heartbeat:Connect(function()
         if done then return end
@@ -417,14 +422,14 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap, opts)
         -- Fire effect events whose time we have crossed.
         while nextEffectIdx <= #effectEvents
               and effectEvents[nextEffectIdx].time <= elapsed do
-            fireEffect(effectEvents[nextEffectIdx])
+            if not skipEffects then fireEffect(effectEvents[nextEffectIdx]) end
             nextEffectIdx += 1
         end
 
         -- Fire spawned effect events whose time we have crossed.
         while nextSpawnedFxIdx <= #spawnedFxEvents
               and spawnedFxEvents[nextSpawnedFxIdx].time <= elapsed do
-            fireSpawnedFx(spawnedFxEvents[nextSpawnedFxIdx])
+            if not skipEffects then fireSpawnedFx(spawnedFxEvents[nextSpawnedFxIdx]) end
             nextSpawnedFxIdx += 1
         end
 

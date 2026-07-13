@@ -1104,6 +1104,34 @@ destroyAllEffectGizmos = function()
     if f then f:Destroy() end
 end
 
+-- ── GIZMO DISTANCE SCALING ────────────────────────────────────────────────────
+-- Keeps camera/effect gizmos a roughly constant apparent size: natural size at
+-- ~20 studs from the viewport camera, clamped to 0.5×–3×. Size is written only
+-- on >5% change so the undo stack and property churn stay quiet; a gizmo that
+-- is currently selected is skipped so scaling never fights the dragger.
+
+local CAM_GIZMO_BASE_SIZE = Vector3.new(0.7, 0.7, 1.4)
+local FX_GIZMO_BASE_SIZE  = Vector3.new(0.7, 0.7, 0.7)
+
+track(RunService.Heartbeat:Connect(function()
+    if RunService:IsRunning() then return end
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+    local camPos = cam.CFrame.Position
+    local selected = {}
+    for _, inst in ipairs(Selection:Get()) do selected[inst] = true end
+    local function rescale(gizmo, base)
+        if not gizmo.Parent or selected[gizmo] then return end
+        local scale   = math.clamp((gizmo.Position - camPos).Magnitude * 0.05, 0.5, 3.0)
+        local current = gizmo.Size.X / base.X
+        if math.abs(scale - current) > 0.05 * current then
+            gizmo.Size = base * scale
+        end
+    end
+    for _, gizmo in pairs(camGizmos) do rescale(gizmo, CAM_GIZMO_BASE_SIZE) end
+    for _, gizmo in pairs(effectGizmos) do rescale(gizmo, FX_GIZMO_BASE_SIZE) end
+end))
+
 -- ── ADD RIG (Phase 9) ─────────────────────────────────────────────────────────
 -- Clones Rig1 (or the first tracked rig) into FIGURES under the next free
 -- RigN name, offset sideways so it doesn't overlap. The clone gets canonical
