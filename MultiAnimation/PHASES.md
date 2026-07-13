@@ -1134,6 +1134,22 @@ exported and verified in-game via CutscenePlayer. Fixes that came out of it:
   hardcodes a stale path after every Roblox update; its registry fallback is
   broken cmd syntax).
 
+**Prop attachment feature (follow-up, same day):** the test's top finding —
+manually keyframing a carried prop against a moving hand — became a feature.
+Simple Mode **Attach** button: select tracked prop + target part → the prop
+follows the part via a plugin Heartbeat loop (grip offset frozen at attach
+time; skips while play mode runs); select only the prop → detach. Ephemeral
+authoring aid: no session/export data, state dies with the plugin, stale
+entries self-clean when either part disappears. Chosen over a WeldConstraint
+mechanism because welds left in the workspace would freeze rigs in play mode
+and double-move parts during preview. Bridge cmds `attachProp` / `detachProp` /
+`getPropAttachments`; `tests/test_prop_attach.lua` (11 cases, live — follow
+translation/rotation with frozen offset, detach, guards). Suite: ~822 / 33 files.
+
+**FIGURES fixtures repaired:** Rig1/Rig2/Rig3 had collapsed (disconnected
+motors + unanchored parts + edit-mode physics). Motors reconnected, rest pose
+re-applied, HumanoidRootParts now anchored so it cannot recur.
+
 **Notable behavior observations (no code change):** prop tracking is tag-based
 and parent-agnostic (a tagged prop keeps tracking inside a rig Model); edit-mode
 WeldConstraints co-move welded parts on script CFrame writes even when anchored

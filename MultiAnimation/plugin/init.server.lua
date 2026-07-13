@@ -304,6 +304,41 @@ do
     end)
 end
 
+-- ── Prop attachments (authoring aid) ──────────────────────────────────────────
+-- While attached, a tracked prop follows a target part (offset frozen at attach
+-- time) via a Heartbeat loop — pose the hand, the prop rides along, capture as
+-- usual. Purely ephemeral: not saved, not exported, cleared on detach/teardown.
+
+local propAttachments = {}   -- { [propName] = { part = BasePart, offset = CFrame } }
+
+local function attachProp(propName, targetPart)
+    local propPart = allProps[propName]
+    if not propPart or not targetPart or targetPart == propPart then return false end
+    propAttachments[propName] = {
+        part   = targetPart,
+        offset = targetPart.CFrame:Inverse() * propPart.CFrame,
+    }
+    return true
+end
+
+local function detachProp(propName)
+    if not propAttachments[propName] then return false end
+    propAttachments[propName] = nil
+    return true
+end
+
+track(RunService.Heartbeat:Connect(function()
+    if RunService:IsRunning() then return end
+    for propName, att in pairs(propAttachments) do
+        local propPart = allProps[propName]
+        if propPart and propPart.Parent and att.part and att.part.Parent then
+            propPart.CFrame = att.part.CFrame * att.offset
+        else
+            propAttachments[propName] = nil
+        end
+    end
+end))
+
 -- ── Helpers ───────────────────────────────────────────────────────────────────
 
 local function applyPosesAt(queryFrame, immediate)
@@ -2245,6 +2280,51 @@ panel.onSimpleCamDeleteFrom:Connect(function()
     end)
 end)
 
+-- Attach button: select a tracked prop + a target part (Ctrl+click) → attach;
+-- select only the attached prop → detach.
+panel.onSimplePropAttach:Connect(function()
+    local parts = {}
+    for _, inst in ipairs(Selection:Get()) do
+        if inst:IsA("BasePart") then table.insert(parts, inst) end
+    end
+    local function propNameOf(part)
+        for name, p in pairs(allProps) do
+            if p == part then return name end
+        end
+        return nil
+    end
+    if #parts == 1 then
+        local name = propNameOf(parts[1])
+        if name and propAttachments[name] then
+            detachProp(name)
+            panel:showSimpleNotice("Detached '" .. name .. "'")
+        elseif name then
+            panel:showSimpleNotice("Also select a target part (Ctrl+click) to attach '" .. name .. "'")
+        else
+            panel:showSimpleNotice("'" .. parts[1].Name .. "' is not a tracked prop")
+        end
+        return
+    end
+    if #parts ~= 2 then
+        panel:showSimpleNotice("Select a tracked prop + a target part, then Attach")
+        return
+    end
+    local nameA, nameB = propNameOf(parts[1]), propNameOf(parts[2])
+    local propName, target
+    if nameA and not nameB then
+        propName, target = nameA, parts[2]
+    elseif nameB and not nameA then
+        propName, target = nameB, parts[1]
+    else
+        panel:showSimpleNotice("Exactly one selected part must be a tracked prop")
+        return
+    end
+    if attachProp(propName, target) then
+        panel:showSimpleNotice("'" .. propName .. "' attached to " .. target.Name
+            .. " — select only the prop and press Attach to detach")
+    end
+end)
+
 panel.onSubtitleEnabledChanged:Connect(function(on)
     recorder:setSubtitlesEnabled(on)
 end)
@@ -3689,6 +3769,27 @@ local testBridge = TestBridge.start({
         -- Same path as the Export button (panel.onExportRequested handler).
         local okE, res = Exporter.export(recorder:getSession(), (a and a.name) or panel:getSimpleSceneName())
         return { exported = okE, scene = res }
+    end,
+
+    attachProp = function(a)
+        local inst = game
+        for seg in string.gmatch(a.part, "[^.]+") do
+            inst = inst:FindFirstChild(seg) or (inst == game and game:GetService(seg))
+            if not inst then return false end
+        end
+        return attachProp(a.prop, inst)
+    end,
+
+    detachProp = function(a)
+        return detachProp(a.prop)
+    end,
+
+    getPropAttachments = function()
+        local out = {}
+        for name, att in pairs(propAttachments) do
+            table.insert(out, { prop = name, part = att.part:GetFullName() })
+        end
+        return out
     end,
 
     tagFolder = function(a)

@@ -373,6 +373,7 @@ function Panel.new(widget)
     local eSimpleAddFrame   = mkEvent("onSimpleAddFrame")
     local eSimpleInsertFrame= mkEvent("onSimpleInsertFrame")
     local eSimpleDeleteFrame= mkEvent("onSimpleDeleteFrame")
+    local eSimpleAttach     = mkEvent("onSimplePropAttach")
     local eSimpleCam          = mkEvent("onSimpleCameraToggled")
     local eSimpleFOV          = mkEvent("onSimpleFOVChanged")
     local eSimpleLook         = mkEvent("onSimpleLookThroughToggled")
@@ -796,6 +797,10 @@ function Panel.new(widget)
     simpleEffectsBtn.MouseButton1Click:Connect(function()
         if self._isPlaying then return end
         self:showSpawnedFxOverlay(self._currentFrame, nil)
+    end)
+    local simpleAttachBtn = btn(simpleActionRow, "Attach", 7)
+    simpleAttachBtn.MouseButton1Click:Connect(function()
+        if not self._isPlaying then eSimpleAttach:Fire() end
     end)
     simpleEaseBtn.MouseButton1Click:Connect(function()
         if self._isPlaying then return end

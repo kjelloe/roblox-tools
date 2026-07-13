@@ -254,6 +254,7 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 | **Simple mode** `Duplicate` | Click | Capture current frame, duplicate it into a new frame immediately after, and move cursor there |
 | **Simple mode** `▶ Play` / `■ Stop` | Click | Play from the current frame to the end, or stop mid-playback |
 | **Simple mode** `Del Frame` | Click | Delete the current frame's data, shift all subsequent frames left by 1, shrink the timeline |
+| **Simple mode** `Attach` | Click | With a tracked prop + target part selected: attach the prop so it follows the part while you pose (grip offset frozen). With only an attached prop selected: detach. Authoring aid — never saved or exported. |
 | **Simple mode** `Camera View` | Click | ON: create/show the manipulable `SimpleCamera` part in the animation folder and arm camera capture on `+ Add Frame`. OFF: hide the part (kept in the folder for next toggle-on). Requires an animation folder to be selected first — shows a warning if none is set. |
 | **Simple mode** FOV box | Type + Tab/Enter | Set the `SimpleCamera`'s field of view (clamped 1–120) |
 | **Simple mode** `Look Through` | Click | Slave the viewport to the `SimpleCamera`'s view, then fly freely with Studio's normal edit-camera controls; toggle off to restore your original viewport exactly. Auto-capture on navigation is skipped while Look Through is active. |
@@ -436,6 +437,21 @@ effects (explosions/smoke/sounds), and subtitles all stay in sync. A frame
 that holds only a spawned effect or subtitle counts as having data — you can
 delete or duplicate it like any other frame (deleting removes the effect or
 subtitle event at that frame).
+
+**Attach — make a prop follow a hand (or any part):**
+
+1. Select the tracked prop, then Ctrl+click the part it should follow
+   (e.g. a rig's `Right Arm`).
+2. Click **Attach**. The prop now rides that part — pose the arm and the prop
+   moves with it, keeping the exact grip offset it had at attach time. Capture
+   frames as usual; the prop's CFrame is recorded per frame like any prop.
+3. At the release frame (throw, drop, hand-over), select **only the prop** and
+   click **Attach** again to detach — from there the prop is keyframed freely.
+
+Attachments are an *authoring aid*: they are never saved with the session or
+exported — the recorded per-frame CFrames are what plays back. While attached,
+the prop follows the target even during scrub and Preview, so detach before
+reviewing frames where the prop should fly free.
 
 **Made a mistake?** Press **Del Frame**. The frame is deleted and subsequent
 data shifts to close the gap — re-pose at the current cursor position and

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MultiAnimation — Human Work Items</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; max-width: 900px;
+         margin: 2rem auto; padding: 0 1rem; color: #222; line-height: 1.5; }
+  h1 { border-bottom: 2px solid #444; padding-bottom: .3rem; }
+  .item { border: 1px solid #ddd; border-radius: 8px; padding: 1rem 1.2rem; margin: 1rem 0; }
+  .item h2 { margin: 0 0 .4rem; font-size: 1.05rem; }
+  .meta { font-size: .85rem; color: #666; margin-bottom: .5rem; }
+  .must { border-left: 5px solid #c0392b; }
+  .should { border-left: 5px solid #e67e22; }
+  .optional { border-left: 5px solid #7f8c8d; }
+  code { background: #f4f4f4; padding: .1rem .35rem; border-radius: 4px; font-size: .9em; }
+  pre { background: #f4f4f4; padding: .7rem; border-radius: 6px; overflow-x: auto; font-size: .85em; }
+  .tag { display: inline-block; font-size: .75rem; font-weight: 600; padding: .1rem .5rem;
+         border-radius: 10px; color: #fff; }
+  .tag.must { background: #c0392b; } .tag.should { background: #e67e22; } .tag.optional { background: #7f8c8d; }
+</style>
+</head>
+<body>
+<h1>MultiAnimation — Human Work Items</h1>
+<p>Generated 2026-07-13 after the Part Handoff E2E test, playback-pipeline fixes,
+and the new prop <strong>Attach</strong> feature. Suite state: <strong>822/822 PASS</strong> (33 files).</p>
+
+<div class="item must">
+  <h2>1. Commit the staged changes</h2>
+  <div class="meta"><span class="tag must">must</span> &nbsp; ~2 min</div>
+  <p>Staged and ready: the prop Attach feature (Panel.lua, init.server.lua, test_prop_attach.lua),
+  subtitle clear-marker fix (Recorder, CutscenePlayer, CutsceneCamera, test_subtitle_core),
+  build/devsync guard (build.py, export.py), new bridge commands, mcp.py capture/exe-resolution fixes,
+  and all doc updates (USER_GUIDE, DATA_FORMAT, PHASES, DEV_TOOLS, CLAUDE.md).
+  <code>git status</code> from <code>/mnt/c/GIT/Roblox</code>, then commit as usual.</p>
+</div>
+
+<div class="item must">
+  <h2>2. Hand-test the new Attach feature</h2>
+  <div class="meta"><span class="tag must">must</span> &nbsp; ~5 min &nbsp; (bridge-side is test-covered; the real click flow is not)</div>
+  <ol>
+    <li>Open the plugin in Simple Mode with a scene that has a tracked prop (e.g. the Handoff scene: folder <code>HandoffTest</code>, scene <code>Handoff_001</code>).</li>
+    <li>Click the prop (<code>Crate</code>), Ctrl+click a rig arm, press <strong>Attach</strong> — amber notice should confirm.</li>
+    <li>Rotate the arm with Studio's rotate tool — the crate should ride along with the grip offset intact.</li>
+    <li>Press <strong>+ Add Frame</strong> a few times, then select only the crate and press <strong>Attach</strong> again to detach.</li>
+    <li>Check the amber notice messages make sense for the error cases (nothing selected, two non-props, etc.).</li>
+  </ol>
+</div>
+
+<div class="item must">
+  <h2>3. Save the place file</h2>
+  <div class="meta"><span class="tag must">must</span> &nbsp; ~1 min</div>
+  <p>This session repaired the collapsed FIGURES rigs (Rig1/Rig2/Rig3 — motors reconnected,
+  rest pose restored, HumanoidRootParts now <strong>anchored</strong> so they cannot collapse again)
+  and left the Handoff test content in the place. Save (Ctrl+S) to persist the repair —
+  otherwise the rigs are piles again after the next Studio restart, and tests still pass
+  but the workspace looks broken.</p>
+</div>
+
+<div class="item should">
+  <h2>4. Bundle install test on a clean place</h2>
+  <div class="meta"><span class="tag should">should</span> &nbsp; ~10 min &nbsp; (the one pipeline path never exercised end-to-end)</div>
+  <ol>
+    <li>Open a fresh Baseplate in Studio.</li>
+    <li>Follow <code>MultiAnimation/export/how-to-use.md</code>: insert the two <code>.rbxm</code> files into ServerStorage / ReplicatedStorage, add the setup Script.</li>
+    <li>Install <code>export/MultiAnimation.rbxmx</code> as a plugin (note: it is currently written as <code>.rbxmx.disabled</code> in your Plugins folder because devsync is active — copy the one from <code>MultiAnimation/export/</code> instead).</li>
+    <li>Author a trivial 3-frame scene, export, add the LocalScript snippet, press F5.</li>
+  </ol>
+  <p>Everything in the bundle was regenerated after the fixes, so this should just work — but nobody has done a cold install since the missing-modules bug was found.</p>
+</div>
+
+<div class="item should">
+  <h2>5. Decide: keep or delete the Handoff test artifacts</h2>
+  <div class="meta"><span class="tag should">should</span> &nbsp; ~2 min</div>
+  <p>Left in the place for inspection (also useful as an Attach-feature demo scene):</p>
+  <ul>
+    <li><code>Workspace.HandoffTest</code> (RigGiver, RigReceiver, Crate + Sparkle emitter, SimpleCamera)</li>
+    <li>Saved session slot <code>Handoff_001</code> (plugin Load list)</li>
+    <li><code>ServerStorage.MultiAnimationData.Handoff_001</code> (exported scene)</li>
+  </ul>
+  <p>Delete each when you no longer want them; nothing else references them.</p>
+</div>
+
+<div class="item should">
+  <h2>6. Undo spot-check (if not already done)</h2>
+  <div class="meta"><span class="tag should">should</span> &nbsp; ~2 min</div>
+  <p>From the earlier undo-protection fix: pose a rig limb, press Ctrl+Z a few times,
+  and confirm limbs remain individually posable (no re-welding). This was implemented and
+  reviewed but never hand-verified — automating a real Studio undo from the suite would
+  revert your own work.</p>
+</div>
+
+<div class="item optional">
+  <h2>7. Decide: camera gizmo size</h2>
+  <div class="meta"><span class="tag optional">optional</span> &nbsp; decision only</div>
+  <p>Camera keyframe gizmos have a fixed world size and dominate the viewport at close
+  range (E2E finding #8, cosmetic). Options: scale with camera distance, add a
+  "hide gizmos" toggle, or leave as is. Tell Claude which and it gets implemented.</p>
+</div>
+
+<div class="item optional">
+  <h2>8. Decide: multiplayer effects in the CutsceneServer path</h2>
+  <div class="meta"><span class="tag optional">optional</span> &nbsp; decision only — matters only for real multiplayer servers</div>
+  <p>In the synchronized <code>CutsceneServer</code> path, effect bursts fire server-side;
+  <code>ParticleEmitter:Emit()</code> does not replicate, so clients in a live server may not
+  see them (fine in Studio play-solo; subtitles and camera are already client-side).
+  If you plan multiplayer cutscenes with particle effects, ask Claude to move effect
+  firing client-side in that path; otherwise ignore — the documented caveat covers it.</p>
+</div>
+
+<div class="item optional">
+  <h2>9. Workflow reminder: after every Studio restart</h2>
+  <div class="meta"><span class="tag optional">optional</span> &nbsp; recurring habit, not a task</div>
+  <p>The DevLoader waits for a push after each Studio restart (dev source lives in CoreGui):</p>
+  <pre>cd /mnt/c/GIT/Roblox/MultiAnimation
+python3 devsync.py push</pre>
+  <p>A reload also resets the plugin session — save to a named slot before pushing mid-authoring, load it back after.</p>
+</div>
+
+</body>
+</html>
