@@ -47,13 +47,11 @@ end
 
 local root = CoreGui:FindFirstChild(SRC_NAME)
 if not root then
-    -- devsync.py creates the folder on first push; wait for it.
+    -- devsync.py creates the folder on first push; wait for it indefinitely —
+    -- a timeout here permanently killed hot-reload in sessions where the place
+    -- sat open longer than the timeout before the first push.
     print("[DevLoader] waiting for first devsync push (run: python3 devsync.py)")
-    root = CoreGui:WaitForChild(SRC_NAME, 600)
-    if not root then
-        warn("[DevLoader] gave up waiting for " .. SRC_NAME)
-        return
-    end
+    root = CoreGui:WaitForChild(SRC_NAME)
 end
 
 root:GetAttributeChangedSignal("Version"):Connect(function()
