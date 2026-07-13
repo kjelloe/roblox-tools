@@ -1092,3 +1092,53 @@ counting 0/0.
 **test_tag_scene flake fix:** the "FIGURES fallback scan" assertion retries the
 mode-cycle up to 3× with 0.3 s waits — tag removal propagates asynchronously and
 the first rescan occasionally saw stale state in full-suite runs.
+
+---
+
+## Part Handoff E2E manipulation test (2026-07-13)
+
+Full authoring-to-playback test driven through the plugin's real code paths:
+two cloned R6 rigs pass a crate prop (16 frames @ 10 fps, Simple Mode), with
+spawned smoke, tracked-emitter sparkle, subtitle, camera cut + FOV change —
+exported and verified in-game via CutscenePlayer. Fixes that came out of it:
+
+**Static plugin shadowing devsync (`build.py`, `export.py`):**
+- `build.py` rewrote `MultiAnimation.rbxmx` into the Plugins folder, silently
+  re-enabling the static plugin that `devsync.py install` had disabled — Studio
+  then ran stale code while devsync pushes went nowhere. `build.py` now writes
+  `MultiAnimation.rbxmx.disabled` when the DevLoader is installed; `export.py`
+  falls back to the `.disabled` file when packaging.
+
+**`tagFolder` bridge half-configured the session (`init.server.lua`):**
+- It tagged and scanned but never set `panel._tagFolderName` (the UI dropdown
+  sets both), so Camera View / + Rig failed after bridge-driven setup. The
+  bridge now calls `panel:setTagFolder` first.
+
+**Empty-text subtitle events rendered an empty bar:**
+- The only way to end a subtitle is an empty-text event, but `""` is truthy in
+  Lua — editor preview, `CutscenePlayer`, and `CutsceneCamera` all showed a
+  blank background bar instead of hiding. All three now treat `""` as a clear
+  marker; `Recorder:getActiveSubtitleAt` returns nil for it.
+  `test_subtitle_core` +2 cases (41).
+
+**New TestBridge commands (`init.server.lua`):**
+- `addSpawnedEffect` / `getSpawnedEffects` / `deleteSpawnedEffect` (mirror the
+  overlay's Add-to-Frame path including gizmo + edit-mode preview fire) and
+  `exportScene` (mirrors the Export button) — spawned effects and export are
+  now reachable from bridge-driven tests.
+
+**mcp.py tooling (Studio update fallout):**
+- `screen_capture` now requires a `capture_id`; image content blocks are saved
+  to `/tmp/roblox_capture_*.jpg` and returned as a path marker (`mcp capture`).
+- `StudioMCP.exe` resolved directly from the newest Versions folder (mcp.bat
+  hardcodes a stale path after every Roblox update; its registry fallback is
+  broken cmd syntax).
+
+**Notable behavior observations (no code change):** prop tracking is tag-based
+and parent-agnostic (a tagged prop keeps tracking inside a rig Model); edit-mode
+WeldConstraints co-move welded parts on script CFrame writes even when anchored
+(offset frozen at weld creation) — a possible basis for a future "prop follows
+hand" attach feature; edit-mode viewport camera requires
+`CameraType = Scriptable` before CFrame writes stick; the DevLoader needs a
+`devsync.py push` after every Studio restart and a reload resets the session
+(save/load slots recover it).

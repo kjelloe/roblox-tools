@@ -350,7 +350,8 @@ table that survives the RemoteFunction boundary, consumed by `CutscenePlayer`:
         },
     },
     spawnedEffects = { {id, frame, effectType, posX, posY, posZ, ...}, ... },
-    subtitles      = { {frame, text}, ... },        -- only when SubtitleTrack exists
+    subtitles      = { {frame, text}, ... },        -- only when SubtitleTrack exists;
+                                                    -- text = "" is a clear marker (hides)
     subtitleStyle  = { fontAsset, size, ... },      -- only when SubtitleTrack exists
 }
 ```

@@ -5,6 +5,12 @@ and `~/GIT/Roblox/mcp.py` with subcommands:
 `luau / console / tail / tree / inspect / read / grep / search / state /
 capture / studios / check / drift / test / deploy / playtest`.
 
+`mcp capture` saves the viewport screenshot to `/tmp/roblox_capture_<ms>.jpg`
+and prints the path (newer Studio builds return an image block and require a
+`capture_id`, both handled by mcp.py). Note: in edit mode, scripted viewport
+camera moves only stick if `CameraType = Scriptable` is set before writing
+`CFrame` (restore `Fixed` after).
+
 Tools 3–5 below were implemented from these specs (kept for reference).
 Tools 6–8 describe the second wave (also implemented).
 
@@ -369,6 +375,14 @@ widget + toolbar) which the next boot invokes first.
 
 `install` renames `MultiAnimation.rbxmx` → `.disabled` so the two plugin instances
 don't fight; `uninstall` restores it. Push takes ~0.4 s with the daemon running.
+`build.py` cooperates: when the DevLoader is installed it writes the build to
+`.disabled` directly (a plain build used to re-enable the static plugin, which
+then shadowed the dev tree with stale code after the next Studio restart).
+
+**After every Studio restart:** the dev source tree lives in CoreGui and is not
+saved with the place, so the loader idles ("waiting for first devsync push")
+until you run `devsync.py push`. A reload also resets the recorder session —
+save to a named slot before pushing mid-authoring and load it back after.
 
 The teardown changes in `init.server.lua` are inert for the normally installed
 plugin (`_G` is per plugin VM, empty on every normal load).
@@ -396,7 +410,12 @@ byte-identical (pull → push --as → pull → diff).
 (`__MultiAnimTestBridge`) that lets `execute_luau` — a different Lua VM — drive
 the live panel: `ping`, `getRigs`, `getActiveRigs`, `setActiveRig`, `setFrame`,
 `stepFrame`, `addKeyframe`, `getFrames`, `deleteKeyframe`, `getCurrentFrame`,
-`getFrameCount`. Payloads cross the VM boundary as JSON strings.
+`getFrameCount`, plus command groups for Simple Mode, camera, easing, effects,
+spawned effects (`addSpawnedEffect`/`getSpawnedEffects`/`deleteSpawnedEffect` —
+same path as the overlay's Add to Frame, including gizmo and preview fire),
+subtitles, sessions, playback tab, and `exportScene` (same path as the Export
+button). Payloads cross the VM boundary as JSON strings. The full command list
+is the `cmds` table in `init.server.lua`.
 
 `tests/test_ui_bridge.lua` (18 cases) covers exclusive rig selection, frame
 clamping, and a keyframe add/delete round-trip at a parking frame — restoring

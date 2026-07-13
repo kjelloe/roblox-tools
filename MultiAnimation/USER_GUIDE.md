@@ -408,6 +408,12 @@ name set, only tagged instances are tracked. There's no "Track Part" or "+ Rig" 
 > Tag row dropdown to get started. Camera View and Add Rig require a folder to be
 > selected first; a warning overlay appears if none is configured.
 
+> **Timing in Simple Mode:** every captured frame is a keyframe — there are no
+> sparse keyframes with gaps like Advanced mode. Scene duration is therefore
+> controlled by the **FPS box**, not by keyframe spacing: 16 frames at 10 fps
+> is a 1.6 s scene. Use a low fps (5–12) for hand-posed scenes; 30 fps means
+> 30 poses per second of animation.
+
 **The core workflow:**
 
 - **`+ Add Frame`** — captures the current frame's pose. When the cursor is at
@@ -530,6 +536,24 @@ Max Dist:   [80  ]
   via `CutscenePlayer`, spawned effects fire automatically using the same crossing-pointer
   logic — no extra setup required, just re-export after adding effects. During **Simple Mode
   play** (`▶ Play`) each effect fires the moment the playhead crosses the recorded frame.
+
+**Subtitles:** the subtitle row (below the action rows) drives a stepped text
+track that shows during editor Play, and in-game via both `CutscenePlayer` and
+the synchronized `CutsceneServer` path:
+
+- **`Sub-titles: OFF/ON`** — master toggle. The track only exports while ON.
+- **Text box** — type the subtitle line for the current frame.
+- **`○/✓ Frame N`** — toggles a subtitle *event* at the current frame: ✓ records
+  the text box's content there, ○ removes the event. Subtitles are stepped —
+  the text stays up until the next event.
+- **To end a subtitle**, add an event with an **empty text box** at the frame
+  where it should disappear (a "clear" marker — it hides the subtitle rather
+  than showing an empty bar).
+- **`Style…`** — overlay for font, size, colours, stroke, background
+  transparency, and screen position; the style is per-session and exports with
+  the scene.
+- Navigating to a frame syncs the text box and Frame button to that frame's
+  inherited subtitle state.
 
 **Save / Export** work exactly as in Advanced mode, right there in the
 Simple panel — no need to switch modes just to save your work or export
