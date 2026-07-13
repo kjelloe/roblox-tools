@@ -599,6 +599,17 @@ Props are `BasePart` instances tracked by the animator on demand. They are archi
 
 **Export:** `PropTracks` ModuleScript written alongside `ScaleTracks` in the scene folder. Absent if no props were tracked. `MultiAnimPlayer.play(scene, rigMap, propMap?)` — `propMap` is optional for backward compatibility.
 
+**Attachment (authoring aid):** the Simple Mode **Attach** button binds a tracked
+prop to any target part: `propAttachments[propName] = { part, offset }` with the
+offset frozen at attach time (`target.CFrame:Inverse() * prop.CFrame`), and a
+plugin Heartbeat writes `prop.CFrame = part.CFrame * offset` every frame while
+in edit mode (skipped when `RunService:IsRunning()`). Selection semantics: prop +
+target selected → attach; only an attached prop selected → detach. Deliberately
+not WeldConstraint-based — a weld instance left in the workspace would freeze the
+rig in play mode and double-move parts during preview. Purely ephemeral: no
+session or export data, state dies with the plugin VM, entries self-clean when
+either part disappears. Bridge: `attachProp` / `detachProp` / `getPropAttachments`.
+
 ### Viewport Selection Sync
 
 `Selection.SelectionChanged` fires when the user clicks in the Studio viewport. The handler walks each selected instance's ancestor chain to find a matching rig in `allRigs`. If any rig is found, `panel:setActiveRigs(rigNames)` sets the selector buttons. Ignored during playback.

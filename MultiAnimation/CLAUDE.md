@@ -55,6 +55,7 @@ MultiAnimation/
     ├── PlayerRigProxy.lua          ← player→R6 rig resolver, clone/direct (Phase 10)
     ├── MultiAnimDataServer.lua     ← server RemoteFunction: MultiAnimGetScene (Phase 10)
     ├── SpawnedEffectRunner.lua     ← fires particle bursts and sounds at world positions in-game
+    ├── SubtitleGui.lua             ← client subtitle display (styled ScreenGui)
     └── CutscenePlayer.lua          ← client-side playback orchestrator (Phase 10)
 ```
 

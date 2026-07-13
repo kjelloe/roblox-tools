@@ -413,6 +413,7 @@ the live panel: `ping`, `getRigs`, `getActiveRigs`, `setActiveRig`, `setFrame`,
 `getFrameCount`, plus command groups for Simple Mode, camera, easing, effects,
 spawned effects (`addSpawnedEffect`/`getSpawnedEffects`/`deleteSpawnedEffect` —
 same path as the overlay's Add to Frame, including gizmo and preview fire),
+prop attachments (`attachProp`/`detachProp`/`getPropAttachments`),
 subtitles, sessions, playback tab, and `exportScene` (same path as the Export
 button). Payloads cross the VM boundary as JSON strings. The full command list
 is the `cmds` table in `init.server.lua`.

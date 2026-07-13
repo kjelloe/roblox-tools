@@ -4,677 +4,240 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MultiAnimation — User Guide</title>
+<!-- GENERATED from USER_GUIDE.md by export.py — do not edit by hand. -->
 <style>
   :root {
-    --bg:        #1b1d21;
-    --panel:     #24262b;
-    --panel2:    #2b2e34;
-    --border:    #3a3d44;
-    --text:      #d6d8dd;
-    --muted:     #9a9da6;
-    --accent:    #ffc83c;   /* rig yellow */
-    --teal:      #00cfcf;   /* prop */
-    --orange:    #ff9628;   /* camera move */
-    --red:       #ff5050;   /* camera cut */
-    --link:      #6fb8ff;
-    --code-bg:   #17181c;
+    --bg: #1b1d21; --panel: #24262b; --border: #3a3d44; --text: #d6d8dd;
+    --muted: #9a9da6; --accent: #ffc83c; --link: #6fb8ff; --code-bg: #17181c;
   }
   * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font: 16px/1.65 "Segoe UI", system-ui, -apple-system, sans-serif;
-  }
-  .wrap { max-width: 880px; margin: 0 auto; padding: 32px 24px 96px; }
-
-  header { border-bottom: 2px solid var(--accent); padding-bottom: 18px; margin-bottom: 28px; }
-  h1 { margin: 0 0 6px; font-size: 2rem; color: #fff; }
-  .subtitle { color: var(--muted); margin: 0; }
-
-  h2 {
-    margin: 48px 0 14px;
-    padding: 8px 14px;
-    font-size: 1.25rem;
-    color: #fff;
-    background: var(--panel);
-    border-left: 4px solid var(--accent);
-    border-radius: 4px;
-  }
-  h3 { margin: 26px 0 8px; font-size: 1.05rem; color: var(--accent); }
-
-  p, li { color: var(--text); }
-  a { color: var(--link); text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  strong { color: #fff; }
-  em { color: var(--muted); }
-
-  nav.toc {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 14px 22px;
-    margin-bottom: 8px;
-    columns: 2;
-  }
-  nav.toc a { display: block; padding: 2px 0; }
-  @media (max-width: 640px) { nav.toc { columns: 1; } }
-
-  table {
-    border-collapse: collapse;
-    width: 100%;
-    margin: 14px 0 22px;
-    font-size: 0.93rem;
-  }
-  th, td {
-    border: 1px solid var(--border);
-    padding: 8px 12px;
-    text-align: left;
-    vertical-align: top;
-  }
-  th { background: var(--panel2); color: #fff; }
+  body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.55;
+         font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 2rem 1.2rem 4rem; }
+  h1 { color: var(--accent); border-bottom: 2px solid var(--border); padding-bottom: .4rem; }
+  h2 { color: var(--accent); margin-top: 2.2rem; border-bottom: 1px solid var(--border);
+       padding-bottom: .25rem; }
+  h3 { color: var(--text); margin-top: 1.6rem; }
+  a { color: var(--link); }
+  hr { border: 0; border-top: 1px solid var(--border); margin: 2rem 0; }
+  code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px;
+         padding: .08rem .35rem; font-size: .9em; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+        padding: .8rem 1rem; overflow-x: auto; }
+  pre code { background: none; border: 0; padding: 0; font-size: .85em; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .92em; }
+  th, td { border: 1px solid var(--border); padding: .45rem .6rem; text-align: left;
+           vertical-align: top; }
+  th { background: var(--panel); color: var(--accent); }
   tr:nth-child(even) td { background: var(--panel); }
-
-  code {
-    background: var(--code-bg);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 1px 6px;
-    font: 0.88em/1.5 Consolas, "Cascadia Code", monospace;
-    color: #e8c87a;
-  }
-  pre {
-    background: var(--code-bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 14px 18px;
-    overflow-x: auto;
-  }
-  pre code { background: none; border: none; padding: 0; color: #cdd3de; }
-  pre .cm { color: #6a9955; }       /* comments */
-  pre .str { color: #ce9178; }      /* strings */
-
-  kbd {
-    display: inline-block;
-    min-width: 1.7em;
-    text-align: center;
-    background: linear-gradient(#3a3d44, #2b2e34);
-    border: 1px solid #4a4e57;
-    border-bottom-width: 3px;
-    border-radius: 6px;
-    padding: 2px 8px;
-    font: bold 0.85em Consolas, monospace;
-    color: #fff;
-    box-shadow: 0 1px 0 rgba(0,0,0,.4);
-  }
-
-  .dot {
-    display: inline-block;
-    width: 12px; height: 12px;
-    border-radius: 50%;
-    margin-right: 6px;
-    vertical-align: baseline;
-  }
-  .dot.rig    { background: var(--accent); }
-  .dot.prop   { background: var(--teal); }
-  .dot.move   { background: var(--orange); }
-  .dot.cut    { background: var(--red); }
-
-  .tip, .warn {
-    border-radius: 8px;
-    padding: 12px 18px;
-    margin: 16px 0;
-    border: 1px solid var(--border);
-  }
-  .tip  { background: #1d2a22; border-left: 4px solid #4ec06d; }
-  .warn { background: #2a241d; border-left: 4px solid var(--orange); }
-  .tip strong, .warn strong { color: #fff; }
-
-  .pill {
-    display: inline-block;
-    background: var(--panel2);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 1px 10px;
-    font-size: 0.82rem;
-    color: var(--muted);
-    margin-left: 8px;
-  }
-  footer {
-    margin-top: 64px;
-    border-top: 1px solid var(--border);
-    padding-top: 16px;
-    color: var(--muted);
-    font-size: 0.88rem;
-  }
+  blockquote { border-left: 4px solid var(--accent); background: var(--panel);
+               margin: 1rem 0; padding: .6rem 1rem; border-radius: 0 8px 8px 0;
+               color: var(--muted); }
+  blockquote p { margin: 0; }
+  nav.toc { background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+            padding: .8rem 1.2rem; margin: 1.4rem 0; }
+  nav.toc ol { margin: .3rem 0; padding-left: 1.4rem; }
+  .generated { color: var(--muted); font-size: .8rem; margin-top: 3rem;
+               border-top: 1px solid var(--border); padding-top: .6rem; }
 </style>
 </head>
 <body>
 <div class="wrap">
-
-<header>
-  <h1>MultiAnimation — User Guide</h1>
-  <p class="subtitle">Animate multiple R6 rigs, props, and a cutscene camera on one shared
-  timeline — entirely in Roblox Studio edit mode — then play it back in-game,
-  synchronized across all players.</p>
-</header>
-
-<nav class="toc">
-  <a href="#start">1. Getting Started</a>
-  <a href="#panel">2. The Panel, Top to Bottom</a>
-  <a href="#rigs">3. Animating Rigs</a>
-  <a href="#props">4. Animating Props</a>
-  <a href="#camera">5. The Camera Track (Cutscenes)</a>
-  <a href="#effects">6. The Effect Track (Particles / Sounds / Lights)</a>
-  <a href="#keys">7. Keyboard Shortcuts</a>
-  <a href="#mouse">8. Mouse Interactions — Reference</a>
-  <a href="#sessions">9. Sessions: Save, Load, New</a>
-  <a href="#export">10. Export &amp; In-Game Playback</a>
-  <a href="#simple">11. Simple Mode (Quick Capture)</a>
-  <a href="#playback">12. Playback Tab — Use Animations In-Game</a>
-  <a href="#tips">13. Tips &amp; Troubleshooting</a>
-</nav>
-
-<h2 id="start">1. Getting Started</h2>
-
-<p><strong>Install:</strong> the plugin lives at
-<code>%LOCALAPPDATA%\Roblox\Plugins\MultiAnimation.rbxmx</code> (built by
-<code>build.py</code>). After installing, restart Studio. The plugin appears in
-the <strong>Plugins toolbar</strong> — not in “Manage Plugins”, which is
-marketplace-only.</p>
-
-<p><strong>Scene setup:</strong> put your R6 rigs in a folder called
-<code>FIGURES</code> in Workspace:</p>
-
-<pre><code>Workspace
-└── FIGURES
-    ├── Rig1   (R6: Humanoid + Torso + Motor6Ds)
-    └── Rig2</code></pre>
-
-<p><strong>Open the panel:</strong> click the MultiAnimation toolbar button.
-The panel docks at the bottom. Rigs are detected automatically — including
-rigs you add or remove while the panel is open.</p>
-
-<div class="warn"><strong>Note:</strong> while the panel is open, the plugin
-disconnects the rigs' Motor6D joints so you can pose limbs individually (in
-edit mode they otherwise act as rigid welds). Joints are reconnected
-automatically when the plugin unloads.</div>
-
-<h2 id="panel">2. The Panel, Top to Bottom</h2>
-
-<table>
-<tr><th>Section</th><th>What's in it</th></tr>
-<tr><td><strong>Mode toggle</strong></td><td><code>Simple</code> / <code>Advanced</code> / <code>Playback</code>
-buttons, always visible — switches the whole panel layout without losing session data.
-See §11 Simple Mode, §12 Playback Tab.</td></tr>
-<tr><td><strong>RIGS IN SCENE</strong></td><td>One button per detected rig
-(exclusive select — exactly one active), plus <code>↺ Refresh</code>,
-<code>+ Rig</code>, <code>Save As</code>, <code>Load</code>, <code>New</code></td></tr>
-<tr><td><strong>PROPS IN SCENE</strong></td><td><code>Track Part</code> button +
-one toggle per tracked prop (multi-select), each with a <code>×</code> to untrack</td></tr>
-<tr><td><strong>TIMELINE</strong></td><td>One keyframe lane per rig
-(<span class="dot rig"></span>yellow dots), the Camera lane
-(<span class="dot move"></span>orange / <span class="dot cut"></span>red dots),
-and one lane per prop (<span class="dot prop"></span>teal dots)</td></tr>
-<tr><td><strong>CONTROLS</strong></td><td>Frame navigation, step size, the
-scrubber, scene name, action buttons (including <code>💾 Save</code>), and the
-camera row</td></tr>
-</table>
-
-<p>These five are the <strong>Advanced mode</strong> sections. <strong>Simple
-mode</strong> (toggle above) replaces RIGS IN SCENE / PROPS IN SCENE / TIMELINE /
-CONTROLS with one compact section — see §11, Simple Mode.</p>
-
-<h2 id="rigs">3. Animating Rigs</h2>
-
-<ol>
-<li><strong>Select a rig</strong> — click its button in the panel, <em>or</em>
-    just click any part of it in the viewport. Selection is exclusive
-    (radio-button style).</li>
-<li><strong>Pose it</strong> — move/rotate limbs with Studio's normal tools.
-    You can also resize parts (scale is animated too) and move the whole rig.</li>
-<li><strong>Add a keyframe</strong> — press <kbd>K</kbd> or click
-    <strong>+ Add Keyframe</strong>. A yellow dot appears on that rig's lane.</li>
-<li><strong>Move to the next frame</strong> — press <kbd>L</kbd> (forward) /
-    <kbd>J</kbd> (back), drag the scrubber, or type a frame number. Pose
-    again, keyframe again.</li>
-<li><strong>Watch it</strong> — <strong>▶ Preview</strong> plays the timeline
-    live in the viewport; <strong>■ Stop</strong> halts at the current frame.</li>
-</ol>
-
-<h3>Adding rigs</h3>
-<p>Click <strong><code>+ Rig</code></strong> to clone Rig1 into FIGURES as the
-next free <code>RigN</code>, placed beside the existing rigs. It's detected
-and ready to animate immediately. (Dropping any R6 model into FIGURES by hand
-works too.)</p>
-
-<h3>Copying poses between rigs and frames</h3>
-<p>The <strong>Copy KF / Paste KF / Paste Mirrored</strong> row at the bottom
-of CONTROLS is a keyframe clipboard:</p>
-<ol>
-<li>Select the source rig, go to the keyframe you want, click
-    <strong>Copy KF</strong> (the label shows what's held, e.g.
-    <code>Rig1 @ 12</code>).</li>
-<li>Select the target rig and/or move to another frame, then click
-    <strong>Paste KF</strong> — the pose (joints + sizes) is written there.
-    The target rig keeps its own position in the world; only the pose
-    transfers.</li>
-<li><strong>Paste Mirrored</strong> flips the pose left↔right — a right-arm
-    wave becomes a left-arm wave. Perfect for symmetric walk cycles and
-    mirrored reaction shots between two characters.</li>
-</ol>
-
-<h3>Useful behaviours</h3>
-<ul>
-<li>Scrubbing <strong>interpolates</strong> between keyframes live, so you can
-    inspect any in-between pose.</li>
-<li>Parking on a keyframe, adjusting the pose, then scrubbing away
-    <strong>auto-updates</strong> that keyframe — no need to press
-    <kbd>K</kbd> again.</li>
-<li><strong>Double-click anywhere on a rig's lane</strong> to jump there
-    <em>and</em> keyframe that rig in one motion.</li>
-<li>Each rig records independently: only the <strong>active</strong> rig
-    captures when you press <kbd>K</kbd>. Other rigs' keyframes are never
-    touched.</li>
-</ul>
-
-<h2 id="props">4. Animating Props</h2>
-
+<h1 id="multianimation-user-guide">MultiAnimation — User Guide</h1>
+<p>A Roblox Studio plugin for animating <strong>multiple rigs (R6, R15, or custom), props, and a cutscene camera</strong> on one shared timeline — entirely in edit mode — and playing the result back in-game, synchronized across all players.</p>
+<p>This guide is for the person <em>using</em> the plugin. For developer tooling (building, testing, hot-reload) see the repo <code>README.md</code>; for internals see <code>ARCHITECTURE.md</code>.</p>
+<hr>
+<nav class="toc"><strong>Contents</strong><ol><li><a href="#1-getting-started">1. Getting Started</a></li><li><a href="#2-the-panel-top-to-bottom">2. The Panel, Top to Bottom</a></li><li><a href="#3-animating-rigs">3. Animating Rigs</a></li><li><a href="#4-animating-props">4. Animating Props</a></li><li><a href="#5-the-camera-track-cutscenes">5. The Camera Track (Cutscenes)</a></li><li><a href="#6-the-effect-track-particle-sound-light-events">6. The Effect Track (Particle / Sound / Light Events)</a></li><li><a href="#7-keyframe-easing">7. Keyframe Easing</a></li><li><a href="#8-keyboard-shortcuts">8. Keyboard Shortcuts</a></li><li><a href="#9-mouse-interactions-complete-reference">9. Mouse Interactions — Complete Reference</a></li><li><a href="#10-sessions-save-load-new">10. Sessions: Save, Load, New</a></li><li><a href="#11-export-in-game-playback">11. Export &amp; In-Game Playback</a></li><li><a href="#12-simple-mode-quick-capture">12. Simple Mode (Quick Capture)</a></li><li><a href="#13-playback-tab-use-animations-in-game">13. Playback Tab — Use Animations In-Game</a></li><li><a href="#14-tips-troubleshooting">14. Tips &amp; Troubleshooting</a></li></ol></nav>
+<h2 id="1-getting-started">1. Getting Started</h2>
+<p><strong>Install:</strong> the plugin lives at <code>%LOCALAPPDATA%\Roblox\Plugins\MultiAnimation.rbxmx</code> (built by <code>build.py</code>). After installing, restart Studio. The plugin appears in the <strong>Plugins toolbar</strong> (not in "Manage Plugins" — that's marketplace-only).</p>
+<p><strong>Scene setup — Simple Mode (recommended):</strong> put your rigs in any workspace folder (e.g. <code>MyScene</code>) and select it via the Tag row folder dropdown. No specific folder name is required.</p>
+<p><strong>Scene setup — Advanced Mode:</strong> rigs are discovered by scanning the top-level children of the workspace; any R6/R15 model found there is tracked automatically.</p>
+<p><strong>Open the panel:</strong> click the MultiAnimation toolbar button. The panel docks at the bottom. Rigs are detected automatically — including rigs you add or remove while the panel is open.</p>
+<blockquote><p><strong>Note:</strong> while the panel is open, the plugin disconnects the rigs' Motor6D joints so you can pose limbs individually (in edit mode they otherwise act as rigid welds). Joints are reconnected automatically when the plugin unloads.</p></blockquote>
+<hr>
+<h2 id="2-the-panel-top-to-bottom">2. The Panel, Top to Bottom</h2>
+<table><thead><tr><th>Section</th><th>What's in it</th></tr></thead><tbody><tr><td><strong>Mode toggle</strong></td><td><code>Simple</code> / <code>Advanced</code> / <code>Playback</code> buttons, always visible — switches the whole panel layout without losing session data. See §11 Simple Mode, §12 Playback Tab.</td></tr><tr><td><strong>RIGS IN SCENE</strong></td><td>One button per detected rig (exclusive select — exactly one active), plus <code>↺ Refresh</code>, <code>+ Rig</code>, <code>Save As</code>, <code>Load</code>, <code>New</code></td></tr><tr><td><strong>PROPS IN SCENE</strong></td><td><code>Track Part</code> button + one toggle per tracked prop (multi-select), each with a <code>×</code> to untrack</td></tr><tr><td><strong>TIMELINE</strong></td><td>One keyframe lane per rig (yellow dots), the Camera lane (orange/red dots), and one lane per prop (teal dots)</td></tr><tr><td><strong>CONTROLS</strong></td><td>Frame navigation, step size, the scrubber, scene name, action buttons (including <code>💾 Save</code>), and the camera row</td></tr></tbody></table>
+<p>These five are the <strong>Advanced mode</strong> sections. <strong>Simple mode</strong> (toggle above) replaces RIGS IN SCENE / PROPS IN SCENE / TIMELINE / CONTROLS with one compact section — see §11, Simple Mode.</p>
+<hr>
+<h2 id="3-animating-rigs">3. Animating Rigs</h2>
+<ol><li><strong>Select a rig</strong> — click its button in the panel, <em>or</em> just click any part of it in the viewport. Selection is exclusive (radio-button style).</li><li><strong>Pose it</strong> — move/rotate limbs with Studio's normal tools. You can also resize parts (scale is animated too) and move the whole rig.</li><li><strong>Add a keyframe</strong> — press <strong><code>K</code></strong> or click <strong>+ Add Keyframe</strong>. A yellow dot appears on that rig's lane at the current frame.</li><li><strong>Move to the next frame</strong> — press <strong><code>L</code></strong> (forward) / <strong><code>J</code></strong> (back), drag the scrubber, or type a frame number. Pose again, keyframe again.</li><li><strong>Watch it</strong> — <strong>▶ Preview</strong> plays the timeline live in the viewport; <strong>■ Stop</strong> halts and leaves you at the current frame.</li></ol>
+<p><strong>Adding rigs:</strong> click <strong><code>+ Rig</code></strong> to clone the first rig into the configured folder as the next free <code>RigN</code>, placed beside the existing rigs. It's detected and ready to animate immediately. (Dropping any R6 model into the folder by hand works too.)</p>
+<p><strong>Copying poses between rigs and frames:</strong> the <strong>Copy KF / Paste KF / Paste Mirrored</strong> row at the bottom of CONTROLS is a keyframe clipboard:</p>
+<ol><li>Select the source rig, go to the keyframe you want, click <strong>Copy KF</strong> (the label shows what's held, e.g. <code>Rig1 @ 12</code>).</li><li>Select the target rig and/or move to another frame, then click <strong>Paste KF</strong> — the pose (joints + sizes) is written there. The target rig keeps its own position in the world; only the pose transfers.</li><li><strong>Paste Mirrored</strong> flips the pose left↔right — a right-arm wave becomes a left-arm wave. Perfect for symmetric walk cycles and mirrored reaction shots between two characters.</li></ol>
+<p><strong>Useful behaviours:</strong></p>
+<ul><li>Scrubbing <strong>interpolates</strong> between keyframes live, so you can inspect any in-between pose.</li><li>Parking on a keyframe, adjusting the pose, then scrubbing away <strong>auto-updates</strong> that keyframe — no need to press <code>K</code> again.</li><li><strong>Double-click anywhere on a rig's lane</strong> to jump there <em>and</em> keyframe that rig in one motion.</li><li>Each rig records independently: only the <strong>active</strong> rig captures when you press <code>K</code>. Other rigs' keyframes are never touched.</li></ul>
+<hr>
+<h2 id="4-animating-props">4. Animating Props</h2>
 <p>Any single <code>BasePart</code> (block, boulder, projectile…) can be animated:</p>
-
-<ol>
-<li>Select the part in the viewport and click <strong>Track Part</strong>. It
-    gets a toggle button and a teal lane. (Names must be unique; keep props
-    <code>Anchored</code>.)</li>
-<li>Prop toggles are <strong>multi-select</strong> and independent of the rig
-    selection — you can keyframe Rig1 and two props in the same
-    <kbd>K</kbd> press.</li>
-<li>Move/rotate the prop, keyframe, repeat. Position <em>and</em> rotation
-    interpolate smoothly (rotation slerps, so tumbling looks right).</li>
-<li>The <code>×</code> on a prop button untracks it from the panel but keeps
-    its recorded data in the session (and in the export).</li>
-</ol>
-
-<h2 id="camera">5. The Camera Track (Cutscenes)</h2>
-
+<ol><li>Select the part in the viewport and click <strong>Track Part</strong>. It gets a toggle button and a teal lane. (Names must be unique; keep props <code>Anchored</code>.)</li><li>Prop toggles are <strong>multi-select</strong> and independent of the rig selection — you can keyframe Rig1 and two props in the same <code>K</code> press.</li><li>Move/rotate the prop, keyframe, repeat. Position <em>and</em> rotation interpolate smoothly (rotation slerps, so tumbling looks right).</li><li>The <code>×</code> on a prop button untracks it from the panel but keeps its recorded data in the session (and in the export).</li></ol>
+<hr>
+<h2 id="5-the-camera-track-cutscenes">5. The Camera Track (Cutscenes)</h2>
 <p>Direct your scene like a film, without ever entering play mode:</p>
-
-<ol>
-<li><strong>Frame a shot:</strong> fly the Studio viewport to where you want
-    the camera.</li>
-<li><strong>Press <kbd>C</kbd></strong> (or click <strong>📷 Cam KF</strong>).
-    The current view — position, rotation, <em>and</em> field of view —
-    becomes a camera keyframe at the current frame. An
-    <span class="dot move"></span><strong>orange dot</strong> appears on the
-    Camera lane and a small <strong>gizmo part</strong> appears in the scene
-    showing the shot (the stud marks the look direction).</li>
-<li><strong>Move vs Cut:</strong> keyframes default to <strong>move</strong> —
-    the camera glides smoothly from the previous shot. Click
-    <strong>Cam&nbsp;KF:&nbsp;move</strong> to flip it to <strong>cut</strong> —
-    the previous shot holds, then the camera jumps hard at that frame (the dot
-    and gizmo turn <span class="dot cut"></span><strong>red</strong>). Classic
-    multi-angle editing is just a row of cuts.</li>
-<li><strong>Review:</strong> toggle <strong>Cam Preview: ON</strong> and scrub
-    or press Preview — your viewport <em>is</em> the cutscene camera. Toggle
-    OFF and your previous view is restored exactly.</li>
-<li><strong>Adjust shots:</strong> click a gizmo to jump the timeline to its
-    keyframe; drag a gizmo with Studio's move/rotate tools to re-aim that
-    shot. Right-click the dot on the Camera lane to delete it (the gizmo
-    disappears too).</li>
-</ol>
-
-<p>FOV is captured per keyframe and interpolates on moves — capture two
-keyframes with different zoom levels for dolly-zoom style shots.</p>
-
-<p>Gizmos are never saved into your place file and vanish when the plugin
-unloads.</p>
-
-<div class="tip"><strong>Tip:</strong> capture a camera keyframe
-<em>before</em> turning Cam Preview on — while preview is on, the viewport
-shows the track, so capturing would just re-record the existing shot (the
-plugin warns and skips if you try).</div>
-
-<h2 id="effects">6. The Effect Track (Particles / Sounds / Lights)</h2>
-
-<p>Trigger one-shot effects — particle bursts, sound cues, light flashes — exactly
-on the frame you choose, without any manual scripting at runtime.</p>
-
-<h3>Supported effect types</h3>
-<table>
-<tr><th>Type</th><th>Detected class</th><th>Actions</th></tr>
-<tr><td>Particle</td><td><code>ParticleEmitter</code></td><td><code>emit</code> (burst) · <code>on</code> (enable continuous) · <code>off</code></td></tr>
-<tr><td>Sound</td><td><code>Sound</code></td><td><code>play</code> · <code>stop</code></td></tr>
-<tr><td>Toggle</td><td><code>PointLight</code>, <code>SpotLight</code>, <code>SurfaceLight</code>, <code>Beam</code>, <code>Trail</code>, <code>Highlight</code></td><td><code>on</code> · <code>off</code></td></tr>
-</table>
-
-<h3>Workflow</h3>
-<ol>
-<li>In the <strong>PROPS</strong> section click <strong>Track Effect</strong>.</li>
-<li>Click the part (or the effect instance itself) in the viewport. The plugin
-walks the part's descendants to find the first compatible effect and adds a
-<strong>purple chip</strong> with the effect's name and current action.
-A <strong>purple lane</strong> appears in the timeline.</li>
-<li><strong>Change the default action:</strong> click the chip to cycle through
-that type's actions (<code>emit → on → off → emit …</code>). The action shown
-is the default for <em>new</em> events you place.</li>
-<li><strong>Place an event:</strong> navigate to a frame, then
-<strong>double-click</strong> the purple lane. An event dot is recorded at that
-frame using the current default action. <code>emit</code> events store a burst
-count (default 15).</li>
-<li><strong>Right-click an event dot</strong> to delete it.</li>
-<li><strong>Untrack:</strong> click <code>×</code> on the chip. The live link is
-removed but all events are preserved (re-tracking the same effect restores
-them).</li>
-</ol>
-
-<div class="tip"><strong>Tip:</strong> effects are always one-shot — no
-interpolation occurs between event dots.  To toggle a light on at frame 10 and
-off at frame 30, place an <code>on</code> event at frame 10 and an
-<code>off</code> event at frame 30.</div>
-
-<h2 id="keys">7. Keyboard Shortcuts</h2>
-
-<p>All shortcuts work while the viewport has focus and are ignored while
-you're typing in a textbox. The legend at the bottom of the panel lists them
-too.</p>
-
-<table>
-<tr><th>Key</th><th>Action</th></tr>
-<tr><td><kbd>K</kbd></td><td>Add / update keyframe for all <strong>active rigs
-and props</strong> at the current frame</td></tr>
-<tr><td><kbd>J</kbd></td><td>Step timeline <strong>back</strong> by Step frames
-(default 2)</td></tr>
-<tr><td><kbd>L</kbd></td><td>Step timeline <strong>forward</strong> by Step
-frames (default 2)</td></tr>
-<tr><td><kbd>C</kbd></td><td>Capture the viewport camera as a
-<strong>camera keyframe</strong> at the current frame</td></tr>
-</table>
-
-<p>The <strong>Step</strong> box in CONTROLS sets how far
-<kbd>J</kbd>/<kbd>L</kbd> jump.</p>
-
-<h2 id="mouse">8. Mouse Interactions — Complete Reference</h2>
-
-<table>
-<tr><th>Where</th><th>Action</th><th>Result</th></tr>
-<tr><td><code>Simple</code> / <code>Advanced</code></td><td>Click</td><td>Switch panel mode (session data untouched)</td></tr>
-<tr><td>Rig button (panel)</td><td>Click</td><td>Exclusive-select that rig</td></tr>
-<tr><td><code>+ Rig</code></td><td>Click</td><td>Clone Rig1 → next free RigN, auto-detected and ready</td></tr>
-<tr><td><code>Copy KF</code></td><td>Click</td><td>Copy the active rig's keyframe at the current frame</td></tr>
-<tr><td><code>Paste KF</code></td><td>Click</td><td>Paste the copied pose onto the active rig at the current frame</td></tr>
-<tr><td><code>Paste Mirrored</code></td><td>Click</td><td>Paste with left↔right swapped and reflected</td></tr>
-<tr><td>Rig part (viewport)</td><td>Click</td><td>Exclusive-select that rig in the panel</td></tr>
-<tr><td>Prop button (panel)</td><td>Click</td><td>Toggle that prop active/inactive (multi-select)</td></tr>
-<tr><td>Prop button <code>×</code></td><td>Click</td><td>Untrack prop (data kept)</td></tr>
-<tr><td><code>Track Part</code></td><td>Click</td><td>Track the viewport-selected BasePart as a prop</td></tr>
-<tr><td>Any keyframe dot</td><td>Left-click</td><td>Jump timeline to that frame</td></tr>
-<tr><td>Any keyframe dot</td><td><strong>Right-click</strong></td><td><strong>Delete</strong> that keyframe (that lane only)</td></tr>
-<tr><td>Rig / prop lane</td><td>Double-click</td><td>Jump there + add keyframe for that rig/prop</td></tr>
-<tr><td>Camera lane</td><td>Double-click</td><td>Jump there + capture a camera keyframe</td></tr>
-<tr><td>Camera gizmo (viewport)</td><td>Click</td><td>Jump timeline to that camera keyframe</td></tr>
-<tr><td>Camera gizmo (viewport)</td><td>Drag / rotate</td><td>Re-aim that camera keyframe</td></tr>
-<tr><td><code>Track Effect</code></td><td>Click</td><td>Track the selected part/effect as an effect lane</td></tr>
-<tr><td>Effect chip</td><td>Click</td><td>Cycle default action (emit → on → off → …)</td></tr>
-<tr><td>Effect chip <code>×</code></td><td>Click</td><td>Untrack effect (events kept)</td></tr>
-<tr><td>Effect lane</td><td>Double-click</td><td>Add an event at the current frame using the current default action</td></tr>
-<tr><td>Effect event dot</td><td><strong>Right-click</strong></td><td><strong>Delete</strong> that event</td></tr>
-<tr><td>Scrubber</td><td>Drag</td><td>Scrub; auto-updates an existing keyframe at the departure frame</td></tr>
-<tr><td><code>|◄</code> / <code>►|</code></td><td>Click</td><td>Jump to first / last frame</td></tr>
-<tr><td><code>◄</code> / <code>►</code></td><td>Click</td><td>Step one frame back / forward</td></tr>
-<tr><td><strong>Simple mode</strong> <code>+ Add Frame</code></td><td>Click</td><td>Capture current frame's pose. At the blank end slot: grow the timeline by 1 and advance cursor. At an existing frame: update its data and advance cursor by 1 (no grow).</td></tr>
-<tr><td><strong>Simple mode</strong> <code>+ Insert</code></td><td>Click</td><td>Insert a blank frame at the current position, shift all subsequent frame data right by 1</td></tr>
-<tr><td><strong>Simple mode</strong> <code>▶ Play</code> / <code>■ Stop</code></td><td>Click</td><td>Play from the current frame to the end, or stop mid-playback</td></tr>
-<tr><td><strong>Simple mode</strong> <code>Del Frame</code></td><td>Click</td><td>Delete the current frame's data, shift all subsequent frames left by 1, shrink the timeline</td></tr>
-<tr><td><strong>Simple mode</strong> <code>Camera View</code></td><td>Click</td><td>ON: create/show the manipulable <code>SimpleCamera</code> part and arm camera capture on + Add Frame. OFF: hide the part (kept in FIGURES for next toggle-on).</td></tr>
-<tr><td><strong>Simple mode</strong> FOV box</td><td>Type + Tab/Enter</td><td>Set the <code>SimpleCamera</code>'s field of view (clamped 1–120)</td></tr>
-<tr><td><strong>Simple mode</strong> <code>Look Through</code></td><td>Click</td><td>Slave the viewport to the <code>SimpleCamera</code>'s view, then fly freely with Studio's normal edit-camera controls; toggle off to restore your original viewport exactly</td></tr>
-<tr><td><code>SimpleCamera</code> part (viewport)</td><td>Move / rotate</td><td>Pose the camera like any rig or prop — captured by <code>+ Add Frame</code> alongside rig/prop poses; shows a wireframe FOV-frustum outline</td></tr>
-<tr><td><strong>Simple mode</strong> FPS box (nav row)</td><td>Type + Tab/Enter</td><td>Set playback speed (1–999 fps, default 30). Affects ▶ Play speed; saved with the session.</td></tr>
-<tr><td><code>💾 Save</code></td><td>Click</td><td>Quick-save the session under the current scene name (no dialog)</td></tr>
-</table>
-
-<p><strong>Dot colours:</strong>
-<span class="dot rig"></span>rig &nbsp;·&nbsp;
-<span class="dot prop"></span>prop &nbsp;·&nbsp;
-<span class="dot move"></span>camera (move) &nbsp;·&nbsp;
-<span class="dot cut"></span>camera (cut) &nbsp;·&nbsp;
-<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#BE78FF;vertical-align:middle;"></span>&nbsp;effect event</p>
-
-<h2 id="sessions">9. Sessions: Save, Load, New</h2>
-
-<ul>
-<li>Everything auto-saves to an <code>_autosave</code> slot one second after
-    any change.</li>
-<li><strong>💾 Save</strong> writes a quick-save to whatever name is in the
-    scene box right now — no dialog, no overwrite confirmation. Use it for
-    "save my progress" without committing to a new named snapshot.</li>
-<li><strong>Save As</strong> stores a named snapshot (up to 30, newest first);
-    <strong>Load</strong> brings one back — including props (re-linked by
-    name), the camera track, and all effect events.</li>
-<li><strong>New</strong> clears the whole session after a confirmation. Rigs
-    are re-scanned; rest poses re-captured.</li>
-<li>Sessions survive closing/reopening the panel within a Studio session.</li>
-</ul>
-
-<h2 id="export">10. Export &amp; In-Game Playback</h2>
-
-<p>Type a scene name (default <code>Scene_001</code>) and press
-<strong>⬆ Export</strong>. This writes to
-<code>ServerStorage.MultiAnimationData.&lt;SceneName&gt;</code>:</p>
-
-<table>
-<tr><th>Item</th><th>Content</th></tr>
-<tr><td><code>&lt;Rig&gt;_Joints</code></td><td>Standard Roblox <code>KeyframeSequence</code> per rig</td></tr>
-<tr><td><code>ScaleTracks</code></td><td>Part sizes per keyframe</td></tr>
-<tr><td><code>RootTracks</code></td><td>Whole-rig world positions (if the rig moved)</td></tr>
-<tr><td><code>PropTracks</code></td><td>Prop CFrames (if props were tracked)</td></tr>
-<tr><td><code>CameraTrack</code></td><td>Camera CFrames + FOV + cut flags (if camera keyframes exist)</td></tr>
-<tr><td><code>EffectTracks</code></td><td>One-shot effect events: instance path + action + frame (if effects have events)</td></tr>
-</table>
-
-<p>The playback modules (<code>MultiAnimPlayer</code>,
-<code>CutsceneServer</code>, <code>CutsceneCamera</code>) are deployed
-alongside automatically.</p>
-
-<h3>Animation only <span class="pill">server Script</span></h3>
-
-<pre><code><span class="cm">-- Server Script:</span>
-local player = require(game.ServerStorage.MultiAnimationData.MultiAnimPlayer)
-player.play(<span class="str">"Scene_001"</span>, { Rig1 = workspace.FIGURES.Rig1, Rig2 = workspace.FIGURES.Rig2 })
-player.onFinished(function(name) print(name .. <span class="str">" done"</span>) end)</code></pre>
-
-<h3>Full cutscene with synchronized cameras <span class="pill">all players</span></h3>
-
-<pre><code><span class="cm">-- Server Script:</span>
+<ol><li><strong>Frame a shot:</strong> fly the Studio viewport to where you want the camera.</li><li><strong>Press <code>C</code></strong> (or click <strong>📷 Cam KF</strong>). The current view — position, rotation, <em>and</em> field of view — becomes a camera keyframe at the current frame. An <strong>orange dot</strong> appears on the Camera lane and a small <strong>gizmo part</strong> appears in the scene showing the shot (the stud marks the look direction).</li><li><strong>Move vs Cut:</strong> keyframes default to <strong>move</strong> — the camera glides smoothly from the previous shot. Click <strong>Cam KF: move</strong> to flip it to <strong>cut</strong> — the previous shot holds, then the camera jumps hard at that frame (the dot and gizmo turn <strong>red</strong>). Classic multi-angle editing is just a row of cuts.</li><li><strong>Review:</strong> toggle <strong>Cam Preview: ON</strong> and scrub or press Preview — your viewport <em>is</em> the cutscene camera. Toggle OFF and your previous view is restored exactly.</li><li><strong>Adjust shots:</strong> click a gizmo to jump the timeline to its keyframe; drag a gizmo with Studio's move/rotate tools to re-aim that shot. Right-click the dot on the Camera lane to delete it (the gizmo disappears too).</li></ol>
+<p>FOV is captured per keyframe and interpolates on moves — capture two keyframes with different zoom levels for dolly-zoom style shots.</p>
+<p>Gizmos are never saved into your place file and vanish when the plugin unloads.</p>
+<blockquote><p><strong>Tip:</strong> capture a camera keyframe <em>before</em> turning Cam Preview on — while preview is on, the viewport shows the track, so capturing would just re-record the existing shot (the plugin warns and skips if you try).</p></blockquote>
+<hr>
+<h2 id="6-the-effect-track-particle-sound-light-events">6. The Effect Track (Particle / Sound / Light Events)</h2>
+<p>Trigger one-shot effects — particle bursts, sound cues, light flashes — exactly on the frame you choose, without any manual scripting at runtime.</p>
+<p><strong>Supported effect types</strong></p>
+<table><thead><tr><th>Type</th><th>Detected class</th><th>Actions</th></tr></thead><tbody><tr><td>Particle</td><td><code>ParticleEmitter</code></td><td><code>emit</code> (burst) · <code>on</code> (enable continuous) · <code>off</code></td></tr><tr><td>Sound</td><td><code>Sound</code></td><td><code>play</code> · <code>stop</code></td></tr><tr><td>Toggle</td><td><code>PointLight</code>, <code>SpotLight</code>, <code>SurfaceLight</code>, <code>Beam</code>, <code>Trail</code>, <code>Highlight</code></td><td><code>on</code> · <code>off</code></td></tr></tbody></table>
+<p><strong>Workflow</strong></p>
+<ol><li>In the <strong>PROPS</strong> section click <strong>Track Effect</strong>.</li><li>Click the part (or the effect instance itself) in the viewport. The plugin walks the part's descendants to find the first compatible effect and adds a <strong>purple chip</strong> with the effect's name and current action (<code>emit</code>, <code>on</code>, etc.). A <strong>purple lane</strong> appears in the timeline.</li><li><strong>Change the default action:</strong> click the chip to cycle through that type's actions (<code>emit → on → off → emit …</code>). The action shown is the default for <em>new</em> events you place.</li><li><strong>Place an event:</strong> navigate to a frame, then <strong>double-click</strong> the purple lane. An event is recorded at that frame using the current default action.</li><li><code>emit</code> events also store the burst count (default 15).</li><li><strong>Right-click an event dot</strong> to delete it.</li><li><strong>Untrack:</strong> click <code>×</code> on the purple chip. The live link is removed but all events are preserved in the session (re-tracking the same effect restores them).</li><li><strong>Export</strong> works as normal — if any effect has events, an <code>EffectTracks</code> <code>ModuleScript</code> is written alongside the scene.  Both <code>MultiAnimPlayer</code> (server playback) and <code>CutscenePlayer</code> (client playback) load it and fire events in their Heartbeat loop using a crossing-pointer so each event fires exactly once per playback.</li></ol>
+<blockquote><p><strong>Tip:</strong> effects are always one-shot — there is no interpolation between event dots. To toggle a light on at frame 10 and off at frame 30, place an <code>on</code> event at frame 10 and an <code>off</code> event at frame 30.</p></blockquote>
+<hr>
+<h2 id="7-keyframe-easing">7. Keyframe Easing</h2>
+<p>Every keyframe stores an <strong>easing curve</strong> that shapes the interpolation from that keyframe toward the next one. The default is Linear (constant speed). Six styles are available:</p>
+<table><thead><tr><th>Style</th><th>Effect</th></tr></thead><tbody><tr><td><strong>Linear</strong></td><td>Constant speed — the default</td></tr><tr><td><strong>Ease In</strong></td><td>Starts slow, accelerates (cubic in)</td></tr><tr><td><strong>Ease Out</strong></td><td>Arrives slow, decelerates (cubic out)</td></tr><tr><td><strong>EaseInOut</strong></td><td>Slow start <em>and</em> end, faster in the middle</td></tr><tr><td><strong>Constant</strong></td><td>Hold the pose until the next keyframe (step / hold)</td></tr><tr><td><strong>Bounce</strong></td><td>Overshoots and bounces near the target</td></tr></tbody></table>
+<p><strong>Advanced mode:</strong> right-click any keyframe dot (rig, prop, camera, or effect lane) to open a context menu with all six easing options and a Delete option. The menu appears at cursor position; clicking outside it (or any option) dismisses it.</p>
+<p><strong>Simple mode:</strong> the <strong><code>Ease: Linear</code></strong> button (to the right of <code>+ Add Frame</code>) opens the same easing picker. The selected easing is stamped onto all rigs, props, and the camera when you press <code>+ Add Frame</code>. Navigating to a frame that already has a keyframe syncs the button to show its stored easing automatically.</p>
+<hr>
+<h2 id="8-keyboard-shortcuts">8. Keyboard Shortcuts</h2>
+<p>All shortcuts work while the viewport has focus and are ignored while you're typing in a textbox. The legend at the bottom of the panel lists them too.</p>
+<table><thead><tr><th>Key</th><th>Action</th></tr></thead><tbody><tr><td><strong><code>K</code></strong></td><td><strong>Advanced:</strong> Add / update keyframe for all active rigs and props · <strong>Simple:</strong> same as <code>+ Add Frame</code></td></tr><tr><td><strong><code>J</code></strong></td><td>Step timeline <strong>back</strong> by Step frames (default 2)</td></tr><tr><td><strong><code>L</code></strong></td><td>Step timeline <strong>forward</strong> by Step frames (default 2)</td></tr><tr><td><strong><code>C</code></strong></td><td>Capture the viewport camera as a <strong>camera keyframe</strong> at the current frame</td></tr></tbody></table>
+<p>The <strong>Step</strong> box in CONTROLS sets how far <code>J</code>/<code>L</code> jump.</p>
+<hr>
+<h2 id="9-mouse-interactions-complete-reference">9. Mouse Interactions — Complete Reference</h2>
+<table><thead><tr><th>Where</th><th>Action</th><th>Result</th></tr></thead><tbody><tr><td><code>Simple</code> / <code>Advanced</code></td><td>Click</td><td>Switch panel mode (session data untouched)</td></tr><tr><td>Rig button (panel)</td><td>Click</td><td>Exclusive-select that rig</td></tr><tr><td><code>+ Rig</code></td><td>Click</td><td>Clone Rig1 → next free RigN, auto-detected and ready</td></tr><tr><td><code>Copy KF</code></td><td>Click</td><td>Copy the active rig's keyframe at the current frame</td></tr><tr><td><code>Paste KF</code></td><td>Click</td><td>Paste the copied pose onto the active rig at the current frame</td></tr><tr><td><code>Paste Mirrored</code></td><td>Click</td><td>Paste with left↔right swapped and reflected</td></tr><tr><td>Rig part (viewport)</td><td>Click</td><td>Exclusive-select that rig in the panel</td></tr><tr><td>Prop button (panel)</td><td>Click</td><td>Toggle that prop active/inactive (multi-select)</td></tr><tr><td>Prop button <code>×</code></td><td>Click</td><td>Untrack prop (data kept)</td></tr><tr><td><code>Track Part</code></td><td>Click</td><td>Track the viewport-selected BasePart as a prop</td></tr><tr><td>Any keyframe dot</td><td>Left-click</td><td>Jump timeline to that frame</td></tr><tr><td>Any keyframe dot (Advanced)</td><td><strong>Right-click</strong></td><td>Open context menu: set easing curve (6 styles) or Delete that keyframe</td></tr><tr><td>Rig / prop lane</td><td>Double-click</td><td>Jump there + add keyframe for that rig/prop</td></tr><tr><td>Camera lane</td><td>Double-click</td><td>Jump there + capture a camera keyframe</td></tr><tr><td>Camera gizmo (viewport)</td><td>Click</td><td>Jump timeline to that camera keyframe</td></tr><tr><td>Camera gizmo (viewport)</td><td>Drag / rotate</td><td>Re-aim that camera keyframe</td></tr><tr><td><code>Track Effect</code></td><td>Click</td><td>Track the selected part/effect as an effect lane</td></tr><tr><td>Effect chip</td><td>Click</td><td>Cycle default action (emit → on → off → …)</td></tr><tr><td>Effect chip <code>×</code></td><td>Click</td><td>Untrack effect (events kept)</td></tr><tr><td>Effect lane</td><td>Double-click</td><td>Add an event at the current frame using the current default action</td></tr><tr><td>Effect event dot</td><td><strong>Right-click</strong></td><td><strong>Delete</strong> that event</td></tr><tr><td>Scrubber</td><td>Drag</td><td>Scrub; auto-updates an existing keyframe at the departure frame</td></tr><tr><td><code>|◄</code> / <code>►|</code></td><td>Click</td><td>Jump to first / last frame</td></tr><tr><td><code>◄</code> / <code>►</code></td><td>Click</td><td>Step one frame back / forward</td></tr><tr><td><strong>Simple mode</strong> <code>Ease: Linear</code></td><td>Click</td><td>Open easing picker: Linear / Ease In / Ease Out / EaseInOut / Constant / Bounce. Sets the outgoing curve for the next frame capture. Auto-syncs when you navigate to an existing keyframe.</td></tr><tr><td><strong>Simple mode</strong> <code>+ Add Frame</code></td><td>Click</td><td>Capture current frame's pose. At the blank end slot: grow the timeline by 1 and advance cursor. At an existing frame: update its data and advance cursor by 1 (no grow).</td></tr><tr><td><strong>Simple mode</strong> <code>Duplicate</code></td><td>Click</td><td>Capture current frame, duplicate it into a new frame immediately after, and move cursor there</td></tr><tr><td><strong>Simple mode</strong> <code>▶ Play</code> / <code>■ Stop</code></td><td>Click</td><td>Play from the current frame to the end, or stop mid-playback</td></tr><tr><td><strong>Simple mode</strong> <code>Del Frame</code></td><td>Click</td><td>Delete the current frame's data, shift all subsequent frames left by 1, shrink the timeline</td></tr><tr><td><strong>Simple mode</strong> <code>Attach</code></td><td>Click</td><td>With a tracked prop + target part selected: attach the prop so it follows the part while you pose (grip offset frozen). With only an attached prop selected: detach. Authoring aid — never saved or exported.</td></tr><tr><td><strong>Simple mode</strong> <code>Camera View</code></td><td>Click</td><td>ON: create/show the manipulable <code>SimpleCamera</code> part in the animation folder and arm camera capture on <code>+ Add Frame</code>. OFF: hide the part (kept in the folder for next toggle-on). Requires an animation folder to be selected first — shows a warning if none is set.</td></tr><tr><td><strong>Simple mode</strong> FOV box</td><td>Type + Tab/Enter</td><td>Set the <code>SimpleCamera</code>'s field of view (clamped 1–120)</td></tr><tr><td><strong>Simple mode</strong> <code>Look Through</code></td><td>Click</td><td>Slave the viewport to the <code>SimpleCamera</code>'s view, then fly freely with Studio's normal edit-camera controls; toggle off to restore your original viewport exactly. Auto-capture on navigation is skipped while Look Through is active.</td></tr><tr><td><strong>Simple mode</strong> <code>Del Cam &gt;=Here</code></td><td>Click</td><td>Opens a confirm dialog then deletes all camera keyframes at the current frame and onwards — useful for extending a fixed frame-1 camera without accumulating stale keyframes.</td></tr><tr><td><code>SimpleCamera</code> part (viewport)</td><td>Move / rotate</td><td>Pose the camera like any rig or prop — captured the same way on step-forward; shows a wireframe FOV-frustum outline</td></tr><tr><td><strong>Simple mode</strong> <code>Onion Skin: OFF/ON</code></td><td>Click</td><td>Toggle ghost poses: semi-transparent red = previous keyframe, blue = next keyframe; ghosts refresh on every frame change</td></tr><tr><td><strong>Simple mode</strong> FPS box (nav row)</td><td>Type + Tab/Enter</td><td>Set playback speed (1–999 fps, default 30). Affects <code>▶ Play</code> speed; saved with the session.</td></tr><tr><td><code>💾 Save</code></td><td>Click</td><td>Quick-save the session under the current scene name (no dialog)</td></tr></tbody></table>
+<p><strong>Dot colours:</strong> yellow = rig · teal = prop · orange = camera (move) · red = camera (cut) · purple = effect event.</p>
+<hr>
+<h2 id="10-sessions-save-load-new">10. Sessions: Save, Load, New</h2>
+<ul><li>Everything auto-saves to an <code>_autosave</code> slot one second after any change.</li><li><strong>💾 Save</strong> writes a quick-save to whatever name is in the scene box right now — no dialog, no overwrite confirmation. Use it for "save my progress" without committing to a new named snapshot.</li><li><strong>Save As</strong> stores a named snapshot (up to 30, newest first); <strong>Load</strong> brings one back — including props (re-linked by name), the camera track, and all effect events.</li><li><strong>New</strong> (Simple Mode only) auto-increments the scene name (<code>Scene_001</code> → <code>Scene_002</code>), shows a confirm overlay with the current tagged instance count and keyframe count, then clears all tags, resets the full session, and rescans rigs. Tag toggles reset to Rigs ON / Props ON / Effects OFF.</li><li><strong>Delete</strong> (Simple Mode only, red button) opens a list overlay showing all saved sessions. Clicking a session shows a confirmation: "Are you sure you want to delete <code>"&lt;name&gt;"</code>?" with <strong>Yes</strong> (deletes) and <strong>No</strong> (back to list) buttons. A <strong>Cancel</strong> button at the bottom of both the Delete and Load list overlays closes them without doing anything.</li><li>Sessions survive closing/reopening the panel within a Studio session.</li></ul>
+<h3 id="transferring-sessions-between-pcs">Transferring sessions between PCs</h3>
+<ul><li><strong>Export File</strong> serialises the full session to a <code>StringValue</code> in <code>ServerStorage.MultiAnimSessions</code> and selects it. Right-click the StringValue in Explorer → <strong>Save to File</strong> → <code>.rbxm</code>.</li><li><strong>Import File</strong> reads a selected <code>StringValue</code> and restores the session. Insert the <code>.rbxm</code> into the target project, select the StringValue in Explorer, then click <strong>Import File</strong>.</li><li>Both buttons are in the <strong>RIGS IN SCENE</strong> row, below Save As / Load / New.</li><li>See <code>export-import.md</code> for the full workflow, what is and isn't transferred, and size limits.</li></ul>
+<hr>
+<h2 id="11-export-in-game-playback">11. Export &amp; In-Game Playback</h2>
+<p>Type a scene name (default <code>Scene_001</code>) and press <strong>⬆ Export</strong>. This writes to <code>ServerStorage.MultiAnimationData.&lt;SceneName&gt;</code>:</p>
+<table><thead><tr><th>Item</th><th>Content</th></tr></thead><tbody><tr><td><code>&lt;Rig&gt;_Joints</code></td><td>Standard Roblox <code>KeyframeSequence</code> per rig</td></tr><tr><td><code>ScaleTracks</code></td><td>Part sizes per keyframe</td></tr><tr><td><code>RootTracks</code></td><td>Whole-rig world positions (if the rig moved)</td></tr><tr><td><code>PropTracks</code></td><td>Prop CFrames (if props were tracked)</td></tr><tr><td><code>CameraTrack</code></td><td>Camera CFrames + FOV + cut flags (if camera keyframes exist)</td></tr><tr><td><code>EffectTracks</code></td><td>One-shot effect events: instance path + action + frame (if effects have events)</td></tr><tr><td><code>SpawnedEffects</code></td><td>World-position one-shots: Explosion / Smoke / Sound (if any were added)</td></tr><tr><td><code>SubtitleTrack</code></td><td>Subtitle style + timed text events (if subtitles are enabled and exist)</td></tr></tbody></table>
+<p>The playback modules are deployed alongside automatically — server side (<code>MultiAnimPlayer</code>, <code>CutsceneServer</code>, <code>CutsceneCamera</code>, <code>MultiAnimDataServer</code>, <code>SpawnedEffectRunner</code>) into <code>ServerStorage.MultiAnimationData</code>, client side (<code>CutscenePlayer</code>, <code>CutsceneCamera</code>, <code>PlayerRigProxy</code>, <code>LetterboxGui</code>, <code>SpawnedEffectRunner</code>, <code>SubtitleGui</code>) into <code>ReplicatedStorage</code>.</p>
+<p><strong>Animation only</strong> (server Script):</p>
+<pre><code>local player = require(game.ServerStorage.MultiAnimationData.MultiAnimPlayer)
+player.play(&quot;Scene_001&quot;, { Rig1 = workspace.MyScene.Rig1, Rig2 = workspace.MyScene.Rig2 })
+player.onFinished(function(name) print(name .. &quot; done&quot;) end)</code></pre>
+<p><strong>Full cutscene with synchronized cameras</strong> (all players see the same thing):</p>
+<pre><code>-- Server Script:
 local Cutscene = require(game.ServerStorage.MultiAnimationData.CutsceneServer)
-Cutscene.play(<span class="str">"Scene_001"</span>, { Rig1 = workspace.FIGURES.Rig1, Rig2 = workspace.FIGURES.Rig2 })
+Cutscene.play(&quot;Scene_001&quot;, { Rig1 = workspace.MyScene.Rig1, Rig2 = workspace.MyScene.Rig2 })
 
-<span class="cm">-- LocalScript in StarterPlayerScripts:</span>
-require(game.ReplicatedStorage:WaitForChild(<span class="str">"CutsceneCamera"</span>)).start()</code></pre>
-
-<p>Every client's camera follows the camera track on a shared clock and is
-restored when the cutscene ends.</p>
-
-<div class="tip"><strong>Version-control your animations:</strong> from a
-terminal, <code>mcp scene pull Scene_001</code> saves the exported scene as
-diffable text under <code>MultiAnimation/scenes/</code> — commit it with your
-code. <code>mcp scene push</code> restores it into Studio.</div>
-
-<h2 id="simple">11. Simple Mode (Quick Capture)</h2>
-
-<p>A lighter, faster workflow for straightforward poses-on-a-timeline work —
-no rig selection, no manual prop tracking, no "Add Keyframe" button to
-remember.</p>
-
-<p><strong>Turn it on:</strong> click <strong>Simple</strong> in the mode
-toggle above RIGS IN SCENE (switches back to <strong>Advanced</strong> any
-time — your session data is untouched either way).</p>
-
-<p>The panel collapses to just: a scrubber + frame counter, a nav row with
-<strong>Del Frame</strong>, <strong>+ Insert</strong>, <strong>▶ Play/Stop</strong>,
-<strong>+ Add Frame</strong>, and an <strong>FPS box</strong> (default 30), a
-<strong>Camera View</strong> toggle with FOV box and <strong>Look Through</strong>
-toggle, and a scene name + Save/Export row.</p>
-
-<p><strong>Everything in <code>Workspace.FIGURES</code> is tracked
-automatically</strong> — R6 rigs the same way Advanced mode tracks them, and
-any other part/model gets its world-space CFrame tracked like an
-Advanced-mode prop. There's no "Track Part" or "+ Rig" step; just put things
-in FIGURES.</p>
-
+-- LocalScript in StarterPlayerScripts:
+require(game.ReplicatedStorage:WaitForChild(&quot;CutsceneCamera&quot;)).start()</code></pre>
+<p>Every client's camera follows the camera track on a shared clock and is restored when the cutscene ends. Subtitles (if the scene has them) are shown on the same shared clock. Note: in this server-driven path, particle-burst effects fire on the server and may not be visible to clients in a live multiplayer game — use the <code>CutscenePlayer</code> path when effects matter.</p>
+<p><strong>Version-control your animations:</strong> from a terminal, <code>mcp scene pull Scene_001</code> saves the exported scene as diffable text under <code>MultiAnimation/scenes/</code> — commit it with your code. <code>mcp scene push</code> restores it into Studio.</p>
+<hr>
+<h2 id="12-simple-mode-quick-capture">12. Simple Mode (Quick Capture)</h2>
+<p>A lighter, faster workflow for straightforward poses-on-a-timeline work — no rig selection, no manual prop tracking, no "Add Keyframe" button to remember.</p>
+<p><strong>Turn it on:</strong> click <strong>Simple</strong> in the mode toggle above RIGS IN SCENE (switches back to <strong>Advanced</strong> any time — your session data is untouched either way).</p>
+<p>The panel has two rows at the very top of the Simple section:</p>
+<p><strong>Tag row</strong> (first row):</p>
+<pre><code>Tag: [MyScene ▼]  [Rigs ✓]  [Props ✓]  [Effects □]  [Clear scene tags]  Manual tag: MAnim:Scene_001</code></pre>
+<ul><li>Choose a workspace folder from the dropdown. Clicking the button opens a <strong>searchable folder picker</strong>: a small popup with a text filter box at the top and a scrollable list of matching folder names below. Start typing to narrow the list; click any row to select.</li><li>Every qualifying instance inside the selected folder is tagged with <code>MAnim:&lt;scene&gt;</code> via CollectionService. Rigs and Props are ON by default; Effects must be opted in.</li><li><strong>Nested models are supported.</strong> If your animation folder contains sub-models or sub-folders used as organisers (e.g. <code>AnimFolder/Characters/Hero</code>), Refresh Tags recurses into them automatically. It stops at the first rig/prop/effect found at each level — rig sub-parts are never tagged separately.</li><li><strong>When new untagged objects are found</strong> in the folder, a confirm overlay lists them ("Add N new object(s)?"). Click <strong>OK</strong> to tag them and rescan; <strong>Cancel</strong> to skip tagging but still rescan the existing tags.</li><li><strong>When objects have been renamed</strong> (recorder tracks exist under old names, but the folder now contains same-type objects under new names), a <strong>Renamed Objects</strong> overlay appears. Each orphaned track shows a cycle button with the available same-type candidates. Click the button to step through candidates; click <strong>Apply</strong> to rename the recorder data and rescan. Click <strong>Cancel</strong> to skip the remap without losing data.</li><li><strong>Clear scene tags</strong> removes all <code>MAnim:&lt;scene&gt;</code> tags from tagged instances. A confirm overlay shows how many rigs, props, and effects are currently tagged so you can verify before clearing.</li><li>The muted <strong>"Manual tag: MAnim:Scene_001"</strong> hint updates live with the scene name — copy it to apply tags yourself via Studio's Tag Editor (useful for instances scattered across many folders).</li><li>Once tagged, the scene name drives the rig scan: non-empty scene name → <code>scanByTag</code> (anywhere in workspace); empty → <code>scan(nil)</code> (workspace top-level children, no specific folder required).</li></ul>
+<p><strong>Scene row</strong> (last row): <code>Scene:</code> box (160 px wide) · <code>💾 Save</code> · <code>⬆ Export</code> · <code>Save As</code> · <code>Load</code> · <code>New</code> · <code>Delete</code> (red)</p>
+<blockquote><p><strong>Scene name sanitization:</strong> when you press Tab/Enter after typing a name, any character that is not alphanumeric or <code>_</code> (including spaces) is automatically replaced with <code>_</code>. This keeps the name safe for export paths, CollectionService tags, and slot keys without any manual effort. The box shows the sanitized form immediately.</p></blockquote>
+<blockquote><p><strong>Renaming a scene:</strong> type a new name in the <code>Scene:</code> box and press Tab/Enter. All <code>MAnim:&lt;oldName&gt;</code> CollectionService tags on tracked instances are automatically renamed to <code>MAnim:&lt;newName&gt;</code> — the scene binding survives the rename.</p></blockquote>
+<p>Then: scrubber + frame counter, nav row (<strong>Del Frame</strong> · <strong>+ Insert</strong> · <strong>▶ Play/Stop</strong> · <strong>+ Add Frame</strong> · <strong>FPS box</strong>), <strong>Camera View</strong> + <strong>FOV</strong> + <strong>Look Through</strong>, <strong>Onion Skin</strong>.</p>
+<p><strong>Everything in the selected animation folder is tracked automatically</strong> when no scene name is set — R6 and R15 rigs the same way Advanced mode tracks them, and any other part/model gets its world-space CFrame tracked like an Advanced-mode prop. With a scene name set, only tagged instances are tracked. There's no "Track Part" or "+ Rig" step.</p>
+<blockquote><p><strong>New users:</strong> no folder structure is assumed. Select any workspace folder from the Tag row dropdown to get started. Camera View and Add Rig require a folder to be selected first; a warning overlay appears if none is configured.</p></blockquote>
+<blockquote><p><strong>Timing in Simple Mode:</strong> every captured frame is a keyframe — there are no sparse keyframes with gaps like Advanced mode. Scene duration is therefore controlled by the <strong>FPS box</strong>, not by keyframe spacing: 16 frames at 10 fps is a 1.6 s scene. Use a low fps (5–12) for hand-posed scenes; 30 fps means 30 poses per second of animation.</p></blockquote>
 <p><strong>The core workflow:</strong></p>
-
-<ul>
-<li><strong><code>+ Add Frame</code></strong> — captures the current frame's
-    pose. When the cursor is at the blank end slot it grows the timeline by one
-    and moves the cursor there. When the cursor is at an <em>existing</em> frame
-    it overwrites that frame's data and advances the cursor by 1 without growing
-    the timeline (useful for re-posing a frame you navigated back to). The
-    typical forward loop is: pose → <strong>+ Add Frame</strong>
-    → pose → <strong>+ Add Frame</strong> → …</li>
-<li><strong><code>+ Insert</code></strong> — shifts all frames <em>after</em>
-    the current one right by 1, growing the timeline by 1 without overwriting
-    what's already there. The cursor stays on the current frame, which is now
-    blank — ready for a new pose. Use this to slip a new key between two
-    existing ones.</li>
-<li><strong><code>Del Frame</code></strong> — removes the current frame's data,
-    shifts all subsequent frames left by 1 (so frame numbers stay contiguous),
-    and shrinks the timeline by 1. The cursor lands on
-    min(current, newEnd).</li>
-</ul>
-
-<p><strong>Made a mistake?</strong> Press <strong>Del Frame</strong>. The frame
-is deleted and subsequent data shifts to close the gap — re-pose at the
-current cursor position and press <strong>+ Add Frame</strong> again.</p>
-
-<p><strong>Auto-save on navigation:</strong> any time you click a different
-frame icon (or use the nav buttons), the frame you're leaving is automatically
-re-captured — so posing and moving on is safe without remembering to press
-<strong>+ Add Frame</strong> each time. The same capture fires at the start of
-a scrubber drag. Changes still auto-save to the <code>_autosave</code> slot
-within a second.</p>
-
-<p><strong>Play / Stop:</strong> press <strong>▶ Play</strong> to play the
-recorded animation forward from the current frame to the end of the
-timeline; the button flips to <strong>■ Stop</strong> while playing. Press it
-again (or let it reach the end) to stop — the viewport settles on whatever
-frame playback stopped at. The <strong>FPS box</strong> (right of the nav row,
-default 30) controls playback speed; type a number and press Tab or Enter to
-apply. The setting is saved with the session.</p>
-
-<p><strong>Camera View:</strong> toggling it on creates (or reuses) a
-<strong><code>SimpleCamera</code></strong> part in <code>FIGURES</code> — a
-real, manipulable object you pose with Studio's normal move/rotate tools,
-exactly like a rig or prop. A wireframe outline on the part shows its
-field of view and aim direction at a glance (an apex plus a far rectangle
-sized from the FOV — not a solid shape, so it won't block your view of
-anything behind it). When Camera View is on, pressing <strong>+ Add Frame</strong>
-captures the camera part's CFrame and FOV alongside all rig/prop poses. Set
-its field of view with the <strong>FOV</strong> box next to the toggle
-(1–120); the wireframe redraws to match. Toggling Camera View <strong>off</strong>
-hides the <code>SimpleCamera</code> part and its FOV outline — the part stays
-in FIGURES so it reappears in the same position when you turn Camera View back on.</p>
-
-<p><strong>Look Through:</strong> with Camera View on, toggle <strong>Look
-Through</strong> to slave your edit-mode viewport to the
-<code>SimpleCamera</code> part's current view. Once it's on, fly around with
-Studio's normal edit-camera controls (right-drag to look, WASD/QE to move,
-scroll to zoom) — the camera part follows your viewport live, so the gizmo
-doesn't fight your navigation. Toggle Look Through off to restore your own
-viewport exactly where it was <em>before</em> you turned it on (not wherever
-you flew to). Look Through is rejected (no-op) if Camera View isn't on yet.</p>
-
-<p><strong>Save / Export</strong> work exactly as in Advanced mode, right
-there in the Simple panel — no need to switch modes just to save your work or
-export the scene.</p>
-
-<h2 id="playback">12. Playback Tab — Use Animations In-Game</h2>
-
-<p>The <strong>Playback</strong> tab (third mode button) lets you select any saved
-scene and generate a Lua snippet ready to paste into a game
-<code>LocalScript</code>. It also supports animating a <strong>player's actual
-character</strong> (or a local clone of it) as one of the rigs.</p>
-
-<h3>Setup</h3>
-<ol>
-  <li><strong>Server side</strong> — add a <code>Script</code> to
-    <code>ServerScriptService</code>:
-    <pre><code>require(game.ServerStorage.MultiAnimationData.MultiAnimDataServer).setup()</code></pre>
-    Deploy <code>MultiAnimDataServer.lua</code> to
-    <code>ServerStorage.MultiAnimationData</code>. This creates the
-    <code>MultiAnimGetScene</code> RemoteFunction clients use to fetch scene data.
-  </li>
-  <li><strong>Client side</strong> — deploy <code>CutscenePlayer.lua</code>,
-    <code>PlayerRigProxy.lua</code>, and <code>LetterboxGui.lua</code> to
-    <code>ReplicatedStorage</code>.
-  </li>
-  <li><strong>Paste the snippet</strong> from the Playback tab into a
-    <code>LocalScript</code>. Example output:
-    <pre><code>local CutscenePlayer = require(game.ReplicatedStorage.CutscenePlayer)
+<ul><li><strong><code>+ Add Frame</code></strong> — captures the current frame's pose. When the cursor is at the blank end slot it grows the timeline by one and moves the cursor there. When the cursor is at an <em>existing</em> frame it overwrites that frame's data and advances the cursor by 1 without growing the timeline (useful for re-posing a frame you navigated back to). The typical forward loop is: pose → <strong>+ Add Frame</strong> → pose → <strong>+ Add Frame</strong> → …</li><li><strong><code>Duplicate</code></strong> — captures the current frame, shifts all frames <em>after</em> it right by 1, and copies the current frame's data into the newly created frame right after it. The cursor moves to the duplicate. Use this to start from the same pose as the current frame and tweak from there.</li><li><strong><code>Del Frame</code></strong> — removes the current frame's data, shifts all subsequent frames left by 1 (so frame numbers stay contiguous), and shrinks the timeline by 1. The cursor lands on min(current, newEnd).</li></ul>
+<p>Both <strong>Duplicate</strong> and <strong>Del Frame</strong> move <em>everything</em> recorded at the shifted frames: rig poses, prop positions, camera keyframes, effect events, spawned effects (explosions/smoke/sounds), and subtitles all stay in sync. A frame that holds only a spawned effect or subtitle counts as having data — you can delete or duplicate it like any other frame (deleting removes the effect or subtitle event at that frame).</p>
+<p><strong>Attach — make a prop follow a hand (or any part):</strong></p>
+<ol><li>Select the tracked prop, then Ctrl+click the part it should follow (e.g. a rig's <code>Right Arm</code>).</li><li>Click <strong>Attach</strong>. The prop now rides that part — pose the arm and the prop moves with it, keeping the exact grip offset it had at attach time. Capture frames as usual; the prop's CFrame is recorded per frame like any prop.</li><li>At the release frame (throw, drop, hand-over), select <strong>only the prop</strong> and click <strong>Attach</strong> again to detach — from there the prop is keyframed freely.</li></ol>
+<p>Attachments are an <em>authoring aid</em>: they are never saved with the session or exported — the recorded per-frame CFrames are what plays back. While attached, the prop follows the target even during scrub and Preview, so detach before reviewing frames where the prop should fly free.</p>
+<p><strong>Made a mistake?</strong> Press <strong>Del Frame</strong>. The frame is deleted and subsequent data shifts to close the gap — re-pose at the current cursor position and press <strong>+ Add Frame</strong> again.</p>
+<p><strong>Auto-save on navigation:</strong> any time you click a different frame icon (or use the nav buttons), the frame you're leaving is automatically re-captured — so posing and moving on is safe without remembering to press <strong>+ Add Frame</strong> each time. The same capture fires at the start of a scrubber drag. Changes still auto-save to the <code>_autosave</code> slot within a second.</p>
+<p><strong>Play / Stop:</strong> press <strong>▶ Play</strong> to play the recorded animation forward from the current frame to the end of the timeline; the button flips to <strong>■ Stop</strong> while playing. Press it again (or let it reach the end) to stop — the viewport settles on whatever frame playback stopped at. The <strong>FPS box</strong> (right of the nav row, default 30) controls playback speed; type a number and press Tab or Enter to apply. The setting is saved with the session.</p>
+<p><strong>Camera View:</strong> requires an animation folder to be selected (Tag row → folder dropdown). If none is configured, a warning overlay asks you to select one first and the toggle reverts to OFF. Once a folder is set, toggling Camera View on creates (or reuses) a <strong><code>SimpleCamera</code></strong> part inside that folder — a real, manipulable object you pose with Studio's normal move/rotate tools, exactly like a rig or prop. When created for the first time in a scene, it spawns near the average position of the tagged rigs (offset 2 units up, 8 units back) so it frames them immediately. A wireframe outline on the part shows its field of view and aim direction at a glance (an apex plus a far rectangle sized from the FOV — not a solid shape, so it won't block your view of anything behind it). The wireframe is visible only while Look Through is OFF — in Look Through mode the gizmo is hidden so it doesn't obstruct navigation. When Camera View is on, pressing <strong>+ Add Frame</strong> captures the camera part's CFrame and FOV alongside all rig/prop poses. Set the camera's field of view with the <strong>FOV</strong> box next to the toggle (1–120); the wireframe redraws to match. Toggling Camera View <strong>off</strong> hides the <code>SimpleCamera</code> part and its FOV outline — the part stays in the animation folder so it reappears in the same position when you turn Camera View back on.</p>
+<p><strong>Del Cam &gt;=Here:</strong> opens a confirm overlay listing how many camera keyframes will be removed (current frame and all later frames), then deletes them. Use this when you want a fixed camera pose at frame 1 to persist without later keyframes overriding it — pose once, then delete everything from frame 2 onwards.</p>
+<p><strong>Look Through:</strong> with Camera View on, toggle <strong>Look Through</strong> to slave your edit-mode viewport to the <code>SimpleCamera</code> part's current view. Once it's on, fly around with Studio's normal edit-camera controls (right-drag to look, WASD/QE to move, scroll to zoom) — the camera part follows your viewport live. The FOV wireframe is hidden during Look Through so it doesn't obstruct navigation. Toggle Look Through off to restore your own viewport exactly where it was <em>before</em> you turned it on (not wherever you flew to). Look Through is rejected (no-op) if Camera View isn't on yet. <strong>Auto-capture on navigation is skipped while Look Through is active</strong> — viewport changes while flying are not recorded as camera keyframes.</p>
+<p><strong>Onion Skin:</strong> click <strong>Onion Skin: OFF</strong> in the camera row to toggle ghost rendering. When on, the previous and next keyframed frames are shown as semi-transparent ghost poses overlaid on the real rigs — <strong>red</strong> for the frame behind and <strong>blue</strong> for the frame ahead. Ghosts update automatically each time you change frames. Toggle off to clear them. (Ghosts are never saved with the place file and vanish on plugin unload.)</p>
+<p><strong>Effects (SpawnedEffects):</strong> click <strong>Add effect</strong> in the action row to add a one-shot world-position event (particle burst or sound) at any frame. An overlay opens:</p>
+<pre><code>ADD EFFECT  •  FRAME 5                                     [✕]
+Type:  [Explosion ◄►]
+Size:     [3     ]
+Color R:  [255   ]    Color G:  [80    ]
+Count:    [50    ]    Duration: [0.6   ]
+Speed:    [20    ]    Lifetime: [1.0   ]
+[Select Position]     X: —  Y: —  Z: —
+[  Add to Frame  ]    [Cancel]</code></pre>
+<p>For the <strong>Sound</strong> type the overlay shows different fields:</p>
+<pre><code>ADD EFFECT  •  FRAME 5                                     [✕]
+Type:  [Sound ◄►]
+Sound ID:   [rbxassetid://          ]
+Volume:     [1   ]
+Max Dist:   [80  ]
+[Select Position]     X: —  Y: —  Z: —
+[  Add to Frame  ]    [Cancel]</code></pre>
+<ul><li><strong>Type</strong> cycles through <code>Explosion</code> (orange burst), <code>Smoke</code> (gray column), and <code>Sound</code> (plays a Roblox Sound asset at the world position with 3-D rolloff). Each type loads its defaults automatically; only the relevant fields are shown.</li><li><strong>Sound ID</strong> — paste the <code>rbxassetid://</code> URI of any uploaded Roblox audio asset.</li><li><strong>Select Position</strong> switches to a click-in-viewport picker — click anywhere in the scene to choose where the effect fires. You can re-click to move it. The X/Y/Z coordinates update in the overlay.</li><li><strong>Add to Frame</strong> saves the effect to the current frame and fires a preview immediately (edit-mode only, no play mode needed).</li><li>A small <strong>coloured sphere gizmo</strong> appears at the effect's position (orange = Explosion, gray = Smoke, blue = Sound). Click the sphere to reopen the overlay in <strong>edit mode</strong> with a <strong>Delete</strong> button, so you can adjust or remove it.</li><li>Effects are saved with the session and exported with the scene. During in-game playback via <code>CutscenePlayer</code>, spawned effects fire automatically using the same crossing-pointer logic — no extra setup required, just re-export after adding effects. During <strong>Simple Mode play</strong> (<code>▶ Play</code>) each effect fires the moment the playhead crosses the recorded frame.</li></ul>
+<p><strong>Subtitles:</strong> the subtitle row (below the action rows) drives a stepped text track that shows during editor Play, and in-game via both <code>CutscenePlayer</code> and the synchronized <code>CutsceneServer</code> path:</p>
+<ul><li><strong><code>Sub-titles: OFF/ON</code></strong> — master toggle. The track only exports while ON.</li><li><strong>Text box</strong> — type the subtitle line for the current frame.</li><li><strong><code>○/✓ Frame N</code></strong> — toggles a subtitle <em>event</em> at the current frame: ✓ records the text box's content there, ○ removes the event. Subtitles are stepped — the text stays up until the next event.</li><li><strong>To end a subtitle</strong>, add an event with an <strong>empty text box</strong> at the frame where it should disappear (a "clear" marker — it hides the subtitle rather than showing an empty bar).</li><li><strong><code>Style…</code></strong> — overlay for font, size, colours, stroke, background transparency, and screen position; the style is per-session and exports with the scene.</li><li>Navigating to a frame syncs the text box and Frame button to that frame's inherited subtitle state.</li></ul>
+<p><strong>Save / Export</strong> work exactly as in Advanced mode, right there in the Simple panel — no need to switch modes just to save your work or export the scene.</p>
+<hr>
+<h2 id="13-playback-tab-use-animations-in-game">13. Playback Tab — Use Animations In-Game</h2>
+<p>The <strong>Playback</strong> tab (third mode button) lets you select any saved scene and generate a Lua snippet ready to paste into a game <code>LocalScript</code>. It also supports animating a <strong>player's actual character</strong> (or a local clone of it) as one of the rigs.</p>
+<h3 id="how-to-set-up-in-game-playback">How to set up in-game playback</h3>
+<ol><li><strong>Server side</strong> — add a <code>Script</code> to <code>ServerScriptService</code>:</li></ol>
+<pre><code>require(game.ServerStorage.MultiAnimationData.MultiAnimDataServer).setup()</code></pre>
+<p>Deploy <code>MultiAnimDataServer.lua</code> to <code>ServerStorage.MultiAnimationData</code> (via <code>mcp deploy</code> or manual paste). This creates the <code>MultiAnimGetScene</code> RemoteFunction that clients call to fetch scene data.</p>
+<ol start="2"><li><strong>Client side</strong> — deploy <code>CutscenePlayer.lua</code>, <code>CutsceneCamera.lua</code>, <code>PlayerRigProxy.lua</code>, <code>LetterboxGui.lua</code>, <code>SpawnedEffectRunner.lua</code>, and <code>SubtitleGui.lua</code> to <code>ReplicatedStorage</code>. Pressing <strong>Export</strong> in the plugin does all of this automatically.</li></ol>
+<ol start="3"><li><strong>Paste the snippet</strong> from the Playback tab into a <code>LocalScript</code>. Example:</li></ol>
+<pre><code>local CutscenePlayer = require(game.ReplicatedStorage.CutscenePlayer)
 local handle = CutscenePlayer.play(
-    "MyScene",
+    &quot;MyScene&quot;,
     {
-        Rig1 = workspace.FIGURES.Rig1,
-        Rig2 = { player = game.Players.LocalPlayer, mode = "clone" },
+        Rig1 = workspace.MyScene.Rig1,
+        Rig2 = { player = game.Players.LocalPlayer, mode = &quot;clone&quot; },
     },
-    { fps = 30, loop = false, movieMode = true }
+    { loop = true, movieMode = true }
+    -- fps uses the scene&#x27;s recorded export fps by default; add fps=N to override
 )
--- handle.stop() cancels early</code></pre>
-  </li>
-</ol>
+-- handle.stop() to cancel early
 
-<h3>Rig mapping modes</h3>
-<table>
-<tr><th>Mode</th><th>What it does</th></tr>
-<tr><td><strong>Fixed rig</strong></td><td>Uses the workspace rig as-is (default)</td></tr>
-<tr><td><strong>LocalPlayer — clone</strong></td><td>Clones the local player's character; strips scripts and Humanoid; hides the original during playback; restores on finish</td></tr>
-<tr><td><strong>LocalPlayer — direct</strong></td><td>Animates the player's real character; sets <code>PlatformStand = true</code> to suppress physics; restores on finish</td></tr>
-<tr><td><strong>UserId — clone</strong></td><td>Same as clone but looks up the player by UserId (must be in the same server)</td></tr>
-<tr><td><strong>UserId — direct</strong></td><td>Same as direct but by UserId</td></tr>
-</table>
-<p><em>R6 only</em> — R15 player characters are warned and skipped.</p>
+-- handle.onComplete(fn) fires once after full teardown (natural end, stop(), or error)
+handle.onComplete(function()
+    print(&quot;cutscene finished&quot;)
+end)</code></pre>
+<p><strong>Props are animated automatically.</strong> <code>CutscenePlayer</code> reads prop tracks from the scene data and drives each prop's <code>CFrame</code> every frame — no matter what the plugin scrubber was parked at when you pressed Play. Props are resolved by CollectionService tag (<code>MAnim:&lt;sceneName&gt;</code>) first, then by <code>workspace:FindFirstChild</code> fallback.</p>
+<p><strong>Debounce pattern</strong> — <code>Touched</code> fires once per body part that contacts the trigger (4–5 events simultaneously for a player). Without a debounce, multiple animations start in parallel and camera teardown breaks. Use <code>handle.onComplete</code> to reset:</p>
+<pre><code>local CutscenePlayer = require(game.ReplicatedStorage.CutscenePlayer)
+local debounce = false
 
-<h3>Parameters</h3>
-<table>
-<tr><th>Control</th><th>Effect</th></tr>
-<tr><td><strong>◄ / ►</strong> scene selector</td><td>Cycle through saved sessions</td></tr>
-<tr><td><strong>FPS box</strong></td><td>Override playback speed (1–999; defaults to scene's recorded fps)</td></tr>
-<tr><td><strong>Loop</strong></td><td>Restart automatically when the last frame is reached</td></tr>
-<tr><td><strong>Movie Mode</strong></td><td>Shows cinematic black bars (top/bottom 10%) during playback via <code>LetterboxGui</code></td></tr>
-</table>
+part.Touched:Connect(function(hit)
+    local character = game.Players.LocalPlayer.Character
+    if debounce or not character or not hit:IsDescendantOf(character) then return end
+    debounce = true
 
-<h2 id="tips">13. Tips &amp; Troubleshooting</h2>
+    local handle = CutscenePlayer.play(&quot;MyScene&quot;,
+        { Rig1 = { player = game.Players.LocalPlayer, mode = &quot;clone&quot; } },
+        { movieMode = true, resetOnEnd = true })
 
-<table>
-<tr><th>Symptom</th><th>Explanation / fix</th></tr>
-<tr><td>Moving one limb drags the whole rig</td><td>The plugin panel isn't open
-(motors reconnected). Open it.</td></tr>
-<tr><td>Rig looks broken / “cannot capture” warning</td><td>A Motor6D is
-missing — the warning names it. Fix the rig, then Refresh.</td></tr>
-<tr><td>Keyframe didn't record for a rig</td><td>That rig wasn't the
-<strong>active</strong> one. Select it first.</td></tr>
-<tr><td>Viewport stuck following the camera</td><td>Cam Preview is ON — toggle
-it off to restore your view.</td></tr>
-<tr><td>Camera keyframe captured the wrong shot</td><td>You captured with Cam
-Preview ON (plugin warns and skips) — toggle off, frame the shot, press
-<kbd>C</kbd>.</td></tr>
-<tr><td>Orange/red boxes left in the scene</td><td>Camera gizmos — they never
-save with the place and vanish on unload. Delete a camera keyframe to remove
-its gizmo.</td></tr>
-<tr><td>Exported playback ignores my latest edits</td><td>Re-export, or run
-<code>mcp drift</code> / <code>mcp deploy</code> from a terminal.</td></tr>
-<tr><td>In-game cutscene camera slightly ahead of rig motion</td><td>Known v1
-caveat (~50–100&nbsp;ms replication lag).</td></tr>
-<tr><td>Undo behaves oddly during preview</td><td>Preview suspends the undo
-history while playing; it resumes on Stop.</td></tr>
-</table>
-
-<footer>
-  MultiAnimation User Guide — also available as Markdown
-  (<code>USER_GUIDE.md</code>). Developer tooling: repo <code>README.md</code>;
-  internals: <code>ARCHITECTURE.md</code>.
-</footer>
-
+    handle.onComplete(function()
+        debounce = false
+    end)
+end)</code></pre>
+<h3 id="implicit-rig-resolution-no-rigmap-needed">Implicit rig resolution (no rigMap needed)</h3>
+<p>For most scenes you can call <code>CutscenePlayer.play</code> with no rigMap at all:</p>
+<pre><code>CutscenePlayer.play(&quot;MyScene&quot;)
+-- or with options only:
+CutscenePlayer.play(&quot;MyScene&quot;, {}, { movieMode = true })</code></pre>
+<p>Resolution priority for every rig name in the scene when no explicit rigMap entry is given:</p>
+<ol><li><strong><code>"RigPlayer"</code></strong> — automatically mapped to <code>{ player = LocalPlayer, mode = "clone" }</code>. Name a rig <code>RigPlayer</code> in the animation folder and it becomes the local player's character clone in-game with zero configuration.</li><li><strong>Tagged scene instance</strong> — any rig tagged <code>MAnim:&lt;sceneName&gt;</code> whose name matches is used directly, regardless of which workspace folder it lives in.</li><li><strong>Workspace top-level child</strong> — scanned directly when no tag folder is configured (no specific folder name required).</li></ol>
+<p>Explicit rigMap entries always override this order, so you can still override <code>RigPlayer</code> to a different player, or point any rig at a specific instance:</p>
+<pre><code>CutscenePlayer.play(&quot;BossScene&quot;, {
+    RigPlayer = { player = targetPlayer, mode = &quot;clone&quot; },  -- override: different player
+})</code></pre>
+<h3 id="rig-mapping-modes">Rig mapping modes</h3>
+<table><thead><tr><th>Mode</th><th>What it does</th></tr></thead><tbody><tr><td><strong>Fixed rig</strong></td><td>Uses the workspace rig as-is (default)</td></tr><tr><td><strong>LocalPlayer — clone</strong></td><td>Clones the local player's character; strips scripts and Humanoid; hides the original during playback; camera follows the clone so you see the scene; restores character + camera on finish</td></tr><tr><td><strong>LocalPlayer — direct</strong></td><td>Animates the player's real character; sets <code>PlatformStand = true</code> to suppress physics; restores on finish</td></tr><tr><td><strong>UserId — clone</strong></td><td>Same as clone but looks up the player by UserId (must be in the same server)</td></tr><tr><td><strong>UserId — direct</strong></td><td>Same as direct but by UserId</td></tr></tbody></table>
+<p>Both R6 and R15 player characters are supported.</p>
+<h3 id="parameters">Parameters</h3>
+<table><thead><tr><th>Control</th><th>Effect</th></tr></thead><tbody><tr><td><strong>◄ / ►</strong> scene selector</td><td>Cycle through saved sessions. A yellow warning appears if the selected scene has not been exported yet.</td></tr><tr><td><strong>Loop</strong></td><td>Restart automatically when the last frame is reached</td></tr><tr><td><strong>Movie Mode</strong></td><td>Shows cinematic black bars (top/bottom 10%) during playback</td></tr></tbody></table>
+<blockquote><p><strong>FPS:</strong> playback speed is read from the scene's export data. To override it, add <code>fps = N</code> to the opts table in the generated snippet — the Playback tab no longer shows an FPS box.</p></blockquote>
+<h3 id="movie-mode-letterbox">Movie Mode (letterbox)</h3>
+<p>Toggling <strong>Movie Mode</strong> on adds two black bars that cover the top and bottom 10% of the screen via a <code>ScreenGui</code> in <code>PlayerGui</code> (DisplayOrder 200). They are automatically removed when playback finishes or <code>handle.stop()</code> is called.</p>
+<hr>
+<h2 id="14-tips-troubleshooting">14. Tips &amp; Troubleshooting</h2>
+<table><thead><tr><th>Symptom</th><th>Explanation / fix</th></tr></thead><tbody><tr><td>Moving one limb drags the whole rig</td><td>The plugin panel isn't open (motors reconnected). Open it.</td></tr><tr><td>Rig looks broken / "cannot capture" warning</td><td>A Motor6D is missing — the warning names it. Fix the rig, then Refresh.</td></tr><tr><td>Keyframe didn't record for a rig</td><td>That rig wasn't the <strong>active</strong> one. Select it first.</td></tr><tr><td>Viewport stuck following the camera</td><td>Cam Preview is ON — toggle it off to restore your view.</td></tr><tr><td>Camera keyframe captured the wrong shot</td><td>You captured with Cam Preview ON (plugin warns and skips) — toggle off, frame the shot, press <code>C</code>.</td></tr><tr><td>Orange/red boxes left in the scene</td><td>Camera gizmos — they never save with the place and vanish on unload. Delete a camera keyframe to remove its gizmo.</td></tr><tr><td>Exported playback ignores my latest edits</td><td>Re-export, or run <code>mcp drift</code> / <code>mcp deploy</code> from a terminal.</td></tr><tr><td>In-game cutscene camera slightly ahead of rig motion</td><td>Known v1 caveat (~50–100 ms replication lag).</td></tr><tr><td>Undo behaves oddly during preview</td><td>Preview suspends the undo history while playing; it resumes on Stop.</td></tr><tr><td>Ctrl+Z while posing</td><td>Safe — the pose change is undone, and the plugin automatically keeps the rig joints disconnected so limbs stay individually posable.</td></tr><tr><td>Simple Mode shows no rigs after setting a scene name</td><td>Nothing is tagged yet — use the Tag row folder dropdown to select and tag your animation folder, or apply <code>MAnim:&lt;scene&gt;</code> tags manually in Studio's Tag Editor.</td></tr><tr><td>Camera View button shows "No Animation Folder" warning</td><td>Select a folder first via the Tag row dropdown — Camera View requires an animation folder to create the <code>SimpleCamera</code> part in.</td></tr><tr><td>Toggle buttons (Rigs/Props/Effects) look stuck</td><td>They reset to defaults (Rigs ON, Props ON, Effects OFF) whenever you press <strong>New</strong>. Current state is always shown by the button's highlight colour.</td></tr></tbody></table>
+<p class="generated">Generated from USER_GUIDE.md by export.py — 2026-07-13 22:52. Do not edit by hand.</p>
 </div>
 </body>
 </html>
