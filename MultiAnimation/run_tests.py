@@ -50,18 +50,26 @@ def parse_result(texts: list[str]) -> tuple[int, int, bool, list[str]]:
     """
     Returns (passed, failed, all_passed, lines).
     lines = every PASS/FAIL line from the output (for verbose mode).
+    A file whose output lacks the `=== N passed, M failed ===` summary line is
+    reported as failed — otherwise its cases silently count as 0/0.
     """
     full = "\n".join(texts)
     passed, failed = 0, 0
     detail_lines = []
+    saw_summary = False
 
     for line in full.splitlines():
         m = _SUMMARY_RE.search(line)
         if m:
+            saw_summary = True
             passed = int(m.group(1))
             failed = int(m.group(2))
         if line.startswith("PASS  ") or line.startswith("FAIL  "):
             detail_lines.append(line)
+
+    if not saw_summary:
+        detail_lines.append("FAIL  missing '=== N passed, M failed ===' summary line")
+        return passed, 1, False, detail_lines
 
     all_passed = "ALL TESTS PASSED" in full
     return passed, failed, all_passed, detail_lines

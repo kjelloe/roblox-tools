@@ -70,8 +70,8 @@
 | `ui/KeyframeMarker` | UI | Individual dot on a TrackLane; left-click jumps, right-click opens easing/delete context menu |
 | `ui/Scrubber` | UI | Horizontal drag slider for frame position |
 | `game/MultiAnimPlayer` | Game | In-game simultaneous playback — direct Motor6D.Transform Heartbeat loop |
-| `game/CutsceneServer` | Game | Synchronized cutscene start: plays anims, broadcasts camera track + timestamp |
-| `game/CutsceneCamera` | Game | Client camera driver: Scriptable camera follows CameraTrack on a shared clock |
+| `game/CutsceneServer` | Game | Synchronized cutscene start: plays anims, broadcasts camera + subtitle tracks + timestamp; signals clients on stop/natural end |
+| `game/CutsceneCamera` | Game | Client camera + subtitle driver: Scriptable camera follows CameraTrack, SubtitleGui stepped display, both on a shared clock |
 | `game/LetterboxGui` | Game | Cinematic black bars (top/bottom 10%) in PlayerGui ScreenGui (Phase 10) |
 | `game/PlayerRigProxy` | Game | Resolves player entries into R6 or R15 rig models; clone/direct modes (Phase 10) |
 | `game/MultiAnimDataServer` | Game | Server-side `MultiAnimGetScene` RemoteFunction — parses scene from ServerStorage (Phase 10) |

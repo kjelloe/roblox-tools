@@ -3685,8 +3685,17 @@ local testBridge = TestBridge.start({
 
     -- Tag instances inside a workspace folder for the current scene.
     -- types: { rigs=bool, props=bool, effects=bool } — defaults all true.
+    exportScene = function(a)
+        -- Same path as the Export button (panel.onExportRequested handler).
+        local okE, res = Exporter.export(recorder:getSession(), (a and a.name) or panel:getSimpleSceneName())
+        return { exported = okE, scene = res }
+    end,
+
     tagFolder = function(a)
         local types = a.types or { rigs = true, props = true, effects = true }
+        -- Mirror the UI dropdown path: it records the selection on the panel
+        -- before tagging (Camera View / + Rig depend on _tagFolderName).
+        panel:setTagFolder(a.folder)
         doTagAllIn(a.folder, types)
         return true
     end,
@@ -3791,6 +3800,25 @@ local testBridge = TestBridge.start({
     end,
 
     -- Subtitle bridge commands
+    addSpawnedEffect = function(a)
+        -- Same path as the overlay's Add to Frame (panel.onSpawnedFxAdded):
+        -- record, create gizmo, fire an edit-mode preview.
+        local fx = recorder:addSpawnedEffect(a)
+        createEffectGizmo(fx)
+        SpawnedEffectRunner.fire(Vector3.new(fx.posX, fx.posY, fx.posZ), fx.effectType, fx)
+        return fx.id
+    end,
+
+    getSpawnedEffects = function()
+        return recorder:getSpawnedEffects()
+    end,
+
+    deleteSpawnedEffect = function(a)
+        destroyEffectGizmo(a.id)
+        recorder:deleteSpawnedEffect(a.id)
+        return true
+    end,
+
     getSubtitleEnabled = function()
         return recorder:getSubtitlesEnabled()
     end,

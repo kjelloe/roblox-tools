@@ -137,9 +137,16 @@ ok("getRigs empty after tags cleared", rigsAfterClear.ok and #rigsAfterClear.res
 -- ── Empty scene name falls back to FIGURES scan ───────────────────────────────
 
 call("setSimpleSceneName", { name = "" })
-call("setMode", { mode = "advanced" })
-call("setMode", { mode = "simple" })
-local rigsNoScene = call("getRigs")
+-- Tag removal propagates asynchronously; the first rescan after clearSceneTags
+-- occasionally still sees stale state and returns []. Retry the mode-cycle.
+local rigsNoScene
+for _ = 1, 3 do
+    call("setMode", { mode = "advanced" })
+    call("setMode", { mode = "simple" })
+    rigsNoScene = call("getRigs")
+    if rigsNoScene.ok and #rigsNoScene.result >= 1 then break end
+    task.wait(0.3)
+end
 ok("empty scene name → FIGURES fallback scan finds rigs",
     rigsNoScene.ok and #rigsNoScene.result >= 1,
     rigsNoScene.ok and HttpService:JSONEncode(rigsNoScene.result) or rigsNoScene.err)

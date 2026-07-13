@@ -1067,3 +1067,28 @@ End-to-end review of author → export (Studio + file bundle) → in-game playba
 **New test:** `tests/test_cutscene_client_core.lua` (20 cases) — eased sampling,
 Constant/missing-easing fallbacks, camera cut-hold/jump/resume, effect-event
 flattening + crossing-window single-fire, duration tail coverage.
+
+---
+
+## Follow-up hardening (2026-07-12, same session)
+
+**CutsceneServer path subtitles (`game/CutsceneServer.lua`, `game/CutsceneCamera.lua`):**
+- The synchronized-multiplayer path broadcast only the camera track; scenes with
+  subtitles showed none. `CutsceneServer.play` now also broadcasts
+  `{fps, style, events}` from SubtitleTrack, and `CutsceneCamera` displays them
+  stepped on the shared clock via ReplicatedStorage `SubtitleGui`. Natural
+  completion now fires the `"__stop"` signal to clients (wrapper around
+  `MultiAnimPlayer.onFinished`; register callbacks via `Cutscene.onFinished`).
+  `publishCameraModule` replaces a stale ReplicatedStorage copy when the source
+  differs (previously returned early, so updates never propagated).
+- Documented caveat: effect tracks/spawned effects fire server-side in this
+  path; `ParticleEmitter:Emit()` does not replicate, so bursts may be invisible
+  to clients in live multiplayer — use the CutscenePlayer path for effects.
+
+**run_tests.py output contract enforced:** a test file whose output lacks the
+`=== N passed, M failed ===` summary line now reports FAIL instead of silently
+counting 0/0.
+
+**test_tag_scene flake fix:** the "FIGURES fallback scan" assertion retries the
+mode-cycle up to 3× with 0.3 s waits — tag removal propagates asynchronously and
+the first rescan occasionally saw stale state in full-suite runs.

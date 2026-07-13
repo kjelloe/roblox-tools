@@ -50,7 +50,8 @@ function Rec:getActiveSubtitleAt(frame)
     for _,ev in ipairs(self._session.subtitles) do
         if ev.frame <= frame then active = ev else break end
     end
-    return active and active.text or nil
+    if active and active.text ~= "" then return active.text end
+    return nil
 end
 function Rec:getSubtitleEvents() return self._session.subtitles end
 function Rec:clearSubtitles()
@@ -122,6 +123,12 @@ ok(r:getActiveSubtitleAt(12) == "Middle Updated", "stepped lookup between 10 and
 
 -- 18. stepped lookup: frame ≥ 15 → Goodbye
 ok(r:getActiveSubtitleAt(20) == "Goodbye", "stepped lookup after 15")
+
+-- 18b. empty-text event acts as a clear marker (hides, not empty bar)
+r:setSubtitleEvent(18, "")
+ok(r:getActiveSubtitleAt(19) == nil, "empty-text event clears active subtitle")
+ok(r:getActiveSubtitleAt(16) == "Goodbye", "text before clear marker unaffected")
+r:removeSubtitleEvent(18)
 
 -- 19. remove event
 r:removeSubtitleEvent(10)

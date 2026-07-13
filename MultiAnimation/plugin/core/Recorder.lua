@@ -535,7 +535,8 @@ function Recorder:getSubtitleEventAt(frame)
 end
 
 -- Returns the active subtitle text at `frame` (stepped: most recent event ≤ frame).
--- Returns nil if no subtitle is active.
+-- Returns nil if no subtitle is active. An empty-text event acts as a "clear"
+-- marker — it hides the subtitle rather than showing an empty bar.
 function Recorder:getActiveSubtitleAt(frame)
     local active = nil
     for _, ev in ipairs(self._session.subtitles) do
@@ -545,7 +546,8 @@ function Recorder:getActiveSubtitleAt(frame)
             break
         end
     end
-    return active and active.text or nil
+    if active and active.text ~= "" then return active.text end
+    return nil
 end
 
 function Recorder:getSubtitleEvents()

@@ -88,7 +88,10 @@ def build_plugin() -> None:
         print(result.stdout)
         print(result.stderr)
         sys.exit(f"[export] build.py failed — aborting")
+    # build.py writes MultiAnimation.rbxmx.disabled when devsync is installed.
     src = os.path.join(PLUGINS_DIR, PLUGIN_FILE)
+    if not os.path.exists(src):
+        src = src + ".disabled"
     dst = os.path.join(EXPORT_DIR, PLUGIN_FILE)
     shutil.copy2(src, dst)
     print(f"[export] Plugin → {dst}")

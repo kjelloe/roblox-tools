@@ -374,11 +374,23 @@ require(game.ReplicatedStorage:WaitForChild("CutsceneCamera")).start()
 ```
 
 `CutsceneServer.play` fires a RemoteEvent with the scene name, a shared
-`workspace:GetServerTimeNow()` start timestamp (+0.35 s lead), and the
-CameraTrack data (clients cannot read ServerStorage). Each client sets its
-camera to `Scriptable` and drives CFrame + FOV per RenderStepped against the
-shared clock; the player camera is restored when the track ends or on stop.
-Known caveat: rig motion replicates ~50–100 ms behind the locally-driven camera.
+`workspace:GetServerTimeNow()` start timestamp (+0.35 s lead), the CameraTrack
+data, and the SubtitleTrack data `{fps, style, events}` (clients cannot read
+ServerStorage). Each client sets its camera to `Scriptable` and drives CFrame +
+FOV per RenderStepped against the shared clock; subtitles are displayed stepped
+on the same clock via the `SubtitleGui` module in ReplicatedStorage. The player
+camera is restored when the track ends or on stop; subtitles hide on the
+server's `"__stop"` signal, fired both by `Cutscene.stop()` and on natural
+completion. Register completion callbacks via `Cutscene.onFinished` — it wraps
+`MultiAnimPlayer.onFinished` internally, so do not set the player-level
+callback directly when using CutsceneServer.
+
+Known caveats: rig motion replicates ~50–100 ms behind the locally-driven
+camera. Effect tracks and spawned effects fire server-side via MultiAnimPlayer
+in this path — fine in Studio play-solo, but method calls like
+`ParticleEmitter:Emit()` do not replicate, so particle bursts may not be
+visible to clients in a live multiplayer server (sounds and property toggles
+replicate normally). For client-visible effects use the `CutscenePlayer` path.
 
 ---
 

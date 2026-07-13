@@ -131,10 +131,25 @@ def _rpc(proc, results: "queue.Queue", msg_id: int, name: str, arguments: dict,
 
 
 def _result_texts(d: dict) -> tuple[list[str], bool]:
-    """Extract (texts, isError) from a tools/call response."""
+    """Extract (texts, isError) from a tools/call response.
+    Image content blocks are saved to /tmp and replaced with a path marker so
+    they survive the text-only daemon protocol (used by `mcp capture`)."""
     result = d.get("result", {})
     content = result.get("content", [])
-    texts = [c["text"] for c in content if c.get("type") == "text"]
+    texts = []
+    for c in content:
+        if c.get("type") == "text":
+            texts.append(c["text"])
+        elif c.get("type") == "image" and c.get("data"):
+            import base64
+            ext = "png" if "png" in (c.get("mimeType") or "png") else "jpg"
+            path = f"/tmp/roblox_capture_{int(time.time() * 1000)}.{ext}"
+            try:
+                with open(path, "wb") as f:
+                    f.write(base64.b64decode(c["data"]))
+                texts.append(f"[image saved: {path}]")
+            except Exception as e:
+                texts.append(f"[image decode failed: {e}]")
     return texts, result.get("isError", False)
 
 
@@ -395,7 +410,8 @@ def cmd_inspect(argv: list[str]):
 
 
 def cmd_capture(_argv):
-    texts, err = call_mcp("screen_capture", {})
+    # capture_id is required by newer Studio builds; any unique string works.
+    texts, err = call_mcp("screen_capture", {"capture_id": f"cap_{int(time.time())}"})
     if err:
         sys.stderr.write(f"[mcp error] {err}\n"); sys.stderr.flush()
         sys.exit(1)

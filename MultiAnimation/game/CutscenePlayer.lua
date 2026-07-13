@@ -549,6 +549,8 @@ function CutscenePlayer.play(sceneName, rigMap, options)
                 for _, ev in ipairs(subtitleEvents) do
                     if ev.frame <= frame then activeText = ev.text else break end
                 end
+                -- Empty-text events are "clear" markers, not empty bars.
+                if activeText == "" then activeText = nil end
                 if activeText ~= _lastSubText then
                     _lastSubText = activeText
                     if activeText then

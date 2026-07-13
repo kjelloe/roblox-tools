@@ -336,7 +336,10 @@ require(game.ReplicatedStorage:WaitForChild("CutsceneCamera")).start()
 ```
 
 Every client's camera follows the camera track on a shared clock and is
-restored when the cutscene ends.
+restored when the cutscene ends. Subtitles (if the scene has them) are shown
+on the same shared clock. Note: in this server-driven path, particle-burst
+effects fire on the server and may not be visible to clients in a live
+multiplayer game — use the `CutscenePlayer` path when effects matter.
 
 **Version-control your animations:** from a terminal, `mcp scene pull Scene_001`
 saves the exported scene as diffable text under `MultiAnimation/scenes/` —

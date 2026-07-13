@@ -8,6 +8,8 @@
 -- Scriptable, and drives CFrame + FieldOfView from the CameraTrack data every
 -- RenderStepped — perfectly aligned across clients because everyone uses
 -- workspace:GetServerTimeNow() against the same start time.
+-- Also displays the scene's subtitle track (if any) on the same clock, via
+-- the SubtitleGui sibling module in ReplicatedStorage.
 --
 -- Cut semantics match the editor: a keyframe with cut = true is jumped to,
 -- not interpolated toward — the previous shot holds until the cut frame.
@@ -21,6 +23,8 @@ local CutsceneCamera = {}
 
 local conn        = nil    -- RenderStepped connection while playing
 local savedState  = nil    -- camera state to restore after the cutscene
+local subConn     = nil    -- RenderStepped connection for subtitles
+local _subtitleGui = nil   -- lazily required ReplicatedStorage sibling
 
 local function easedAlpha(t, easing)
     if easing == "Constant" then return 0 end
@@ -102,6 +106,47 @@ local function stopPlayback()
     end
 end
 
+local function stopSubtitles()
+    if subConn then
+        subConn:Disconnect()
+        subConn = nil
+    end
+    if _subtitleGui then pcall(_subtitleGui.hide) end
+end
+
+-- Stepped subtitle display on the shared clock; text stays up until the next
+-- event or the server's "__stop" signal (fired on stop() and natural end).
+local function playSubtitles(subData, startTime)
+    stopSubtitles()
+    if not _subtitleGui then
+        local mod = script.Parent:FindFirstChild("SubtitleGui")
+        _subtitleGui = mod and require(mod) or nil
+    end
+    local gui = _subtitleGui
+    if not gui then return end
+    local events = subData.events or {}
+    if #events == 0 then return end
+    local fps      = subData.fps or 24
+    local style    = subData.style or {}
+    local lastText = nil
+
+    subConn = RunService.RenderStepped:Connect(function()
+        local elapsed = workspace:GetServerTimeNow() - startTime
+        if elapsed < 0 then return end
+        local frame  = math.floor(elapsed * fps) + 1
+        local active = nil
+        for _, ev in ipairs(events) do
+            if ev.frame <= frame then active = ev.text else break end
+        end
+        -- Empty-text events are "clear" markers, not empty bars.
+        if active == "" then active = nil end
+        if active ~= lastText then
+            lastText = active
+            if active then pcall(gui.show, active, style) else pcall(gui.hide) end
+        end
+    end)
+end
+
 local function playCamera(cameraData, startTime)
     stopPlayback()
     local kfs = cameraKeyframes(cameraData)
@@ -133,17 +178,20 @@ function CutsceneCamera.start()
         warn("[CutsceneCamera] RemoteEvent not found — is CutsceneServer in use?")
         return
     end
-    remote.OnClientEvent:Connect(function(sceneName, startTime, cameraData)
+    remote.OnClientEvent:Connect(function(sceneName, startTime, cameraData, subtitleData)
         if sceneName == "__stop" then
             stopPlayback()
-        elseif cameraData then
-            playCamera(cameraData, startTime)
+            stopSubtitles()
+        else
+            if cameraData   then playCamera(cameraData, startTime) end
+            if subtitleData then playSubtitles(subtitleData, startTime) end
         end
     end)
 end
 
 function CutsceneCamera.stop()
     stopPlayback()
+    stopSubtitles()
 end
 
 return CutsceneCamera

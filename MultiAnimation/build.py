@@ -153,7 +153,12 @@ def build(dry_run: bool = False) -> None:
         print(output)
         return
 
-    out_path = os.path.join(PLUGINS_DIR_WSL, OUTPUT_NAME)
+    # When devsync is installed (DevLoader present), the static plugin must stay
+    # disabled — writing MultiAnimation.rbxmx would re-enable it and Studio would
+    # boot a stale static copy alongside (or instead of) the dev tree.
+    devsync_active = os.path.exists(os.path.join(PLUGINS_DIR_WSL, "MultiAnimationDevLoader.rbxmx"))
+    out_name = OUTPUT_NAME + ".disabled" if devsync_active else OUTPUT_NAME
+    out_path = os.path.join(PLUGINS_DIR_WSL, out_name)
     os.makedirs(PLUGINS_DIR_WSL, exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(output)
@@ -164,7 +169,10 @@ def build(dry_run: bool = False) -> None:
 
     print(f"[build] Hash: {build_hash}")
     print(f"[build] Written → {out_path}")
-    print("[build] Reload the plugin in Studio: Plugins → Manage Plugins → reload MultiAnimation")
+    if devsync_active:
+        print("[build] devsync active — wrote .disabled so the DevLoader stays the only plugin; use devsync.py push to reload")
+    else:
+        print("[build] Reload the plugin in Studio: Plugins → Manage Plugins → reload MultiAnimation")
 
 # ── entry point ───────────────────────────────────────────────────────────────
 
