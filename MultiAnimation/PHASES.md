@@ -1177,6 +1177,21 @@ ReplicatedStorage `SpawnedEffectRunner`; `"__stop"` cancels pending events.
 together (⬆ Export does both). `tests/test_cutscene_effects_core.lua`
 (15 cases, headless).
 
+**Multi-client test finding:** `Script.Source` is readable only with plugin
+capability — `publishCameraModule`'s stale-copy source-compare crashed a live
+server (`lacking capability PluginOrOpenCloud`). Now pcall-guarded: edit-mode
+tooling still refreshes stale copies; a live server keeps the deployed copy
+(the Exporter owns freshness in that flow).
+
+**Multi-client verification (2026-07-14):** two-player Clients-and-Servers run
+confirmed both clients show the identical cutscene — camera cuts, client-fired
+smoke/sparkle, and subtitles in sync on the shared clock. Also caught two more
+bugs: `loadSession` returned true for a missing slot (now returns false — an
+empty session then silently exported over a good scene), and saved session
+slots can vanish when the DevLoader .rbxmx is rebuilt (plugin-settings
+identity) — exported scenes are now kept on disk via `mcp scene pull`
+(`scenes/Handoff_001/`).
+
 **Latent camera bug fixed en route:** the CameraTrack broadcast sent `frames`
 as a frame-keyed dictionary — sparse Advanced-mode camera keyframes (e.g.
 frames 1 and 25 only) would be silently dropped by remote serialization; dense

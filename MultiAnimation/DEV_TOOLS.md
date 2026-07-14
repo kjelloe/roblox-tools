@@ -379,6 +379,12 @@ don't fight; `uninstall` restores it. Push takes ~0.4 s with the daemon running.
 `.disabled` directly (a plain build used to re-enable the static plugin, which
 then shadowed the dev tree with stale code after the next Studio restart).
 
+**Hotpatch is overwritten by the next Export:** `Exporter.export` (the ⬆ button
+or the `exportScene` bridge cmd) re-deploys game modules from the *plugin's*
+embedded copies. If you hotpatch a `game/` fix, `devsync.py push` before the
+next export — otherwise the export silently rolls the deployed module back to
+the dev tree's older copy.
+
 **After every Studio restart:** the dev source tree lives in CoreGui and is not
 saved with the place, so the loader idles ("waiting for first devsync push")
 until you run `devsync.py push`. A reload also resets the recorder session —

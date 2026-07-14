@@ -739,7 +739,7 @@ local function loadNamed(name)
     local ok, data = pcall(function() return plugin:GetSetting(DATA_PREFIX .. name) end)
     if not ok or not data or not data.rigs then
         warn("[MultiAnimation] Save '" .. name .. "' not found")
-        return
+        return false
     end
     applySessionData(data)
     -- Old saves have no sceneName field; fall back to the slot name itself.
@@ -747,6 +747,7 @@ local function loadNamed(name)
         panel:setSimpleSceneName(name)
     end
     print("[MultiAnimation] Loaded '" .. name .. "'")
+    return true
 end
 
 -- ── Scene tagging ─────────────────────────────────────────────────────────────
@@ -3710,7 +3711,7 @@ local testBridge = TestBridge.start({
     end,
 
     loadSession = function(a)
-        loadNamed(a.name)
+        local loaded = loadNamed(a.name)
         if mode == "simple" then
             local sn = panel:getSimpleSceneName()
             local tf = panel._tagFolderName
@@ -3720,7 +3721,7 @@ local testBridge = TestBridge.start({
                 doSimpleScan()
             end
         end
-        return true
+        return loaded
     end,
 
     deleteSession = function(a)

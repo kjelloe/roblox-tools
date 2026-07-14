@@ -407,10 +407,14 @@ Known caveat: rig motion replicates ~50–100 ms behind the locally-driven camer
 ```lua
 local player = require(game.ServerStorage.MultiAnimationData.MultiAnimPlayer)
 
--- Play a named scene on a set of rigs (propMap is optional — Phase 7)
+-- Play a named scene on a set of rigs (propMap and opts are optional)
 player.play("Scene_001",
     { Rig1 = workspace.FIGURES.Rig1, Rig2 = workspace.FIGURES.Rig2 },
-    { Block = workspace.Block }   -- omit to play rigs only (backward compatible)
+    { Block = workspace.Block },  -- omit to play rigs only (backward compatible)
+    { resetOnEnd = true,          -- snap rigs/props back to frame 1 on finish
+      skipEffects = false }       -- true = suppress effect/spawned-effect firing
+                                  -- (CutsceneServer sets this when clients fire
+                                  -- them locally; duration still counts their tails)
 )
 
 -- Stop all active playback immediately (rigs + props)

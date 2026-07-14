@@ -37,12 +37,18 @@ end
 
 -- Make CutsceneCamera requireable by clients (ServerStorage is not replicated).
 -- Replaces a stale copy when the source differs (e.g. after a plugin update).
+-- Reading Script.Source requires plugin capability — available to edit-mode
+-- tooling, but not to a live game server, where the pcall fails and the
+-- deployed copy is kept (the Exporter owns freshness in that flow).
 local function publishCameraModule()
     local src = script.Parent:FindFirstChild("CutsceneCamera")
     if not src then return end
     local existing = ReplicatedStorage:FindFirstChild("CutsceneCamera")
     if existing then
-        if existing.Source == src.Source then return end
+        local ok, same = pcall(function()
+            return existing.Source == src.Source
+        end)
+        if not ok or same then return end
         existing:Destroy()
     end
     src:Clone().Parent = ReplicatedStorage

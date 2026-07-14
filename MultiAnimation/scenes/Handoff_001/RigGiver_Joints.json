@@ -1,0 +1,2231 @@
+{
+  "authoredHipHeight": 0,
+  "keyframes": [
+    {
+      "poses": [
+        {
+          "cframe": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "children": [
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Neck",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "RootJoint",
+              "weight": 1
+            }
+          ],
+          "name": "HumanoidRootPart",
+          "weight": 1
+        }
+      ],
+      "time": 0
+    },
+    {
+      "poses": [
+        {
+          "cframe": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "children": [
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Neck",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                -1e-06,
+                0,
+                0,
+                0.939693,
+                -0.34202,
+                0,
+                0.34202,
+                0.939693,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "RootJoint",
+              "weight": 1
+            }
+          ],
+          "name": "HumanoidRootPart",
+          "weight": 1
+        }
+      ],
+      "time": 0.1
+    },
+    {
+      "poses": [
+        {
+          "cframe": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "children": [
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Neck",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                0.707107,
+                -0.707107,
+                0,
+                0.707107,
+                0.707107,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "RootJoint",
+              "weight": 1
+            }
+          ],
+          "name": "HumanoidRootPart",
+          "weight": 1
+        }
+      ],
+      "time": 0.2
+    },
+    {
+      "poses": [
+        {
+          "cframe": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "children": [
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Neck",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                -1e-06,
+                0,
+                0,
+                0.34202,
+                -0.939693,
+                0,
+                0.939693,
+                0.34202,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "RootJoint",
+              "weight": 1
+            }
+          ],
+          "name": "HumanoidRootPart",
+          "weight": 1
+        }
+      ],
+      "time": 0.3
+    },
+    {
+      "poses": [
+        {
+          "cframe": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "children": [
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Neck",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                0,
+                -1,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "RootJoint",
+              "weight": 1
+            }
+          ],
+          "name": "HumanoidRootPart",
+          "weight": 1
+        }
+      ],
+      "time": 0.4
+    },
+    {
+      "poses": [
+        {
+          "cframe": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "children": [
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Neck",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                1e-06,
+                0,
+                0,
+                -0.173648,
+                -0.984808,
+                0,
+                0.984808,
+                -0.173648,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "RootJoint",
+              "weight": 1
+            }
+          ],
+          "name": "HumanoidRootPart",
+          "weight": 1
+        }
+      ],
+      "time": 0.5
+    },
+    {
+      "poses": [
+        {
+          "cframe": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "children": [
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Neck",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                -1e-06,
+                0,
+                0,
+                -0.34202,
+                -0.939693,
+                0,
+                0.939693,
+                -0.34202,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "RootJoint",
+              "weight": 1
+            }
+          ],
+          "name": "HumanoidRootPart",
+          "weight": 1
+        }
+      ],
+      "time": 0.6
+    },
+    {
+      "poses": [
+        {
+          "cframe": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "children": [
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Neck",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                -1e-06,
+                0,
+                0,
+                -0.34202,
+                -0.939693,
+                0,
+                0.939693,
+                -0.34202,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "RootJoint",
+              "weight": 1
+            }
+          ],
+          "name": "HumanoidRootPart",
+          "weight": 1
+        }
+      ],
+      "time": 0.7
+    },
+    {
+      "poses": [
+        {
+          "cframe": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "children": [
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Neck",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                -1e-06,
+                0,
+                0,
+                -0.34202,
+                -0.939693,
+                0,
+                0.939693,
+                -0.34202,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "RootJoint",
+              "weight": 1
+            }
+          ],
+          "name": "HumanoidRootPart",
+          "weight": 1
+        }
+      ],
+      "time": 0.8
+    },
+    {
+      "poses": [
+        {
+          "cframe": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "children": [
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Neck",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                -1e-06,
+                0,
+                0,
+                -0.34202,
+                -0.939693,
+                0,
+                0.939693,
+                -0.34202,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "RootJoint",
+              "weight": 1
+            }
+          ],
+          "name": "HumanoidRootPart",
+          "weight": 1
+        }
+      ],
+      "time": 0.9
+    },
+    {
+      "poses": [
+        {
+          "cframe": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "children": [
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Neck",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                1e-06,
+                0,
+                0,
+                0.5,
+                -0.866025,
+                0,
+                0.866025,
+                0.5,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "RootJoint",
+              "weight": 1
+            }
+          ],
+          "name": "HumanoidRootPart",
+          "weight": 1
+        }
+      ],
+      "time": 1
+    },
+    {
+      "poses": [
+        {
+          "cframe": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "children": [
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Neck",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                0.866025,
+                -0.5,
+                0,
+                0.5,
+                0.866025,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "RootJoint",
+              "weight": 1
+            }
+          ],
+          "name": "HumanoidRootPart",
+          "weight": 1
+        }
+      ],
+      "time": 1.1
+    },
+    {
+      "poses": [
+        {
+          "cframe": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "children": [
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Neck",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "RootJoint",
+              "weight": 1
+            }
+          ],
+          "name": "HumanoidRootPart",
+          "weight": 1
+        }
+      ],
+      "time": 1.2
+    },
+    {
+      "poses": [
+        {
+          "cframe": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "children": [
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Neck",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "RootJoint",
+              "weight": 1
+            }
+          ],
+          "name": "HumanoidRootPart",
+          "weight": 1
+        }
+      ],
+      "time": 1.3
+    },
+    {
+      "poses": [
+        {
+          "cframe": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "children": [
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Neck",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "RootJoint",
+              "weight": 1
+            }
+          ],
+          "name": "HumanoidRootPart",
+          "weight": 1
+        }
+      ],
+      "time": 1.4
+    },
+    {
+      "poses": [
+        {
+          "cframe": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "children": [
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Neck",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "RootJoint",
+              "weight": 1
+            }
+          ],
+          "name": "HumanoidRootPart",
+          "weight": 1
+        }
+      ],
+      "time": 1.5
+    }
+  ],
+  "loop": false,
+  "name": "RigGiver_Joints"
+}

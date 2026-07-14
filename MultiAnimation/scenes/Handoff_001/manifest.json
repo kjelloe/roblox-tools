@@ -1,0 +1,16 @@
+{
+  "kfs": [
+    "RigGiver_Joints",
+    "RigReceiver_Joints"
+  ],
+  "modules": [
+    "CameraTrack",
+    "EffectTracks",
+    "PropTracks",
+    "RootTracks",
+    "ScaleTracks",
+    "SpawnedEffects",
+    "SubtitleTrack"
+  ],
+  "scene": "Handoff_001"
+}
