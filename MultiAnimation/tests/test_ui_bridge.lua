@@ -166,6 +166,11 @@ for _, n in ipairs((r.ok and r.result) or {}) do
 end
 ok("deleted session no longer in list", not stillThere)
 
+-- loadSession must report failure for a missing slot (it used to return true
+-- with an empty restore — an export after that silently wrote an empty scene).
+r = call("loadSession", { name = "__no_such_slot__" })
+ok("loadSession returns false for a missing slot", r.ok and r.result == false, r.err)
+
 -- ── Restore user state ────────────────────────────────────────────────────────
 
 if prevFrame.ok then call("setFrame", { frame = prevFrame.result }) end

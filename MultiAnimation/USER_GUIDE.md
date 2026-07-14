@@ -288,6 +288,12 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
   both the Delete and Load list overlays closes them without doing anything.
 - Sessions survive closing/reopening the panel within a Studio session.
 
+> **Durability:** named saves live in Roblox's plugin-settings store, which is
+> tied to the installed plugin file — a plugin reinstall/update can orphan them.
+> For anything you can't afford to lose, also use **Export File** (saves the
+> session into the place as a StringValue) or keep the exported scene: it lives
+> in the place file, and `mcp scene pull` copies it to disk as git-diffable text.
+
 ### Transferring sessions between PCs
 
 - **Export File** serialises the full session to a `StringValue` in `ServerStorage.MultiAnimSessions` and selects it. Right-click the StringValue in Explorer → **Save to File** → `.rbxm`.
