@@ -1183,6 +1183,12 @@ server (`lacking capability PluginOrOpenCloud`). Now pcall-guarded: edit-mode
 tooling still refreshes stale copies; a live server keeps the deployed copy
 (the Exporter owns freshness in that flow).
 
+**DevLoader hardening (2026-07-14):** removed the 10-minute give-up (a place
+open longer than that before the first push permanently killed hot-reload for
+the session), then replaced the timeout-less `WaitForChild` with a
+`CoreGui.ChildAdded:Wait()` loop — idle sessions in unrelated projects no
+longer log "Infinite yield possible" warnings.
+
 **Multi-client verification (2026-07-14):** two-player Clients-and-Servers run
 confirmed both clients show the identical cutscene — camera cuts, client-fired
 smoke/sparkle, and subtitles in sync on the shared clock. Also caught two more
@@ -1208,3 +1214,85 @@ hand" attach feature; edit-mode viewport camera requires
 `CameraType = Scriptable` before CFrame writes stick; the DevLoader needs a
 `devsync.py push` after every Studio restart and a reload resets the session
 (save/load slots recover it).
+
+---
+
+## Backflip test scene + Lighting post-effect toggles (2026-07-15)
+
+**Effect lane extension:** `ColorCorrectionEffect`, `BloomEffect`, and
+`BlurEffect` added to the Toggle classes — Lighting post-effects can now be
+switched on/off from the Effect lane. Enables plugin-native **fade to black**:
+three ColorCorrections at Brightness −0.34 toggled on across consecutive
+frames (stepped fade, works in editor preview and in-game), and instant
+full-body colour via a `Highlight` toggle. (+1 `test_effect_core` case.)
+
+**Backflip_001 scene** (`Workspace.BackflipTest`, session slot, and
+`scenes/Backflip_001[_Slow]/` on disk): single-rig stress test authored via
+bridge — face close-up (FOV 30) → zoom-out dolly → 8-keyframe 360° head orbit →
+5-frame backflip (root track through a full −360° pitch with height arc and
+tuck poses) → red Highlight flash on landing → 4-frame fall onto the back →
+3-step fade to black; `off` events at frame 1 reset the effects for replays.
+Exported twice from one session: `Backflip_001` (12 fps, ~2.4 s, automated
+playtest PASS) and `Backflip_001_Slow` (1 fps, ~29 s, human viewing via the
+Disabled `__BackflipViewer` LocalScript — enable + F5). Verifies three
+previously untested paths: camera FOV animation + orbit interpolation, root
+rotations >180° across keyframes, and Lighting-effect toggles in-game.
+
+---
+
+## Fade effect type + animation trigger pads (2026-07-15)
+
+**Fade spawned-effect type:** fourth type in the Add Effect overlay — fields
+Color R/G/B, optional Image ID (`rbxassetid://` decal shown over the colour),
+Duration (default 1.0 s), Direction (`out` = to colour/image, `in` = reveal).
+Rendered as a full-screen ScreenGui overlay animated per Heartbeat with a
+FadeToken so a newer fade takes over a running one: edit-mode preview in
+CoreGui (plugin runner), in-game in PlayerGui (client paths; the server-only
+MultiAnimPlayer path creates it in every player's PlayerGui, which replicates).
+No world position — the violet gizmo sits at the authoring camera position as
+an edit handle. Exporter/session/remote pipes reuse the spawnedEffects track
+unchanged. Also fixed en route: **Color B was missing from the overlay's
+property rows** — blue was never editable or saved for Explosion/Smoke.
+Verified live: mid-fade transparency 0.50 at half duration, opaque at end.
+(+5 `test_spawned_effects_core`, +9 `test_spawned_effects_exporter`.)
+
+**Animation trigger pads** (`Workspace.AnimTriggerPads` +
+`StarterPlayerScripts.__AnimPadListener`): labelled neon pads near spawn —
+step on one in Play mode and the client plays the scene named in the pad's
+`SceneName` attribute via CutscenePlayer (movieMode, debounced, pad flashes
+amber while playing, resets on completion). Pads: `Backflip_001_Slow` (rig
+also tagged `MAnim:Backflip_001_Slow` for auto-resolution) and `Handoff_001`.
+Verified in play mode: pad touch → full cutscene with letterbox/effects/
+subtitle. New pads = duplicate a pad, set its `SceneName` attribute and label.
+
+**Feedback round (same day):** RedFlash highlight switched to Roblox
+"Really red"; the Backflip scene's three ColorCorrection step events replaced
+by a single smooth Fade event (dogfooding the new type — EffectTracks now
+carries only RedFlash); `SpawnedEffectRunner.clearFades()` added to both runner
+copies and wired into every teardown (CutscenePlayer doTeardown, CutsceneCamera
+stopEffects — fired by `"__stop"` on stop and natural end — MultiAnimPlayer
+finish, and the plugin's editor-preview stopPlayback) so a scene that ends
+faded-out always returns the view to normal. Verified in play mode: overlay
+gone after onComplete. Also: `character_navigation` now requires
+`datamodel_type` and its client host can go stale ("Target is closed") — new
+`mcp nav` command tries the tool then falls back to a Humanoid:MoveTo walk.
+
+---
+
+## Auto-pads on export + backflip direction fix (2026-07-15)
+
+**Auto-pads:** Playback-tab toggle "Pads: ON" (persisted plugin setting,
+default ON). Every successful export (button or `exportScene` bridge cmd)
+creates or updates `Workspace.AnimTriggerPads.Pad_<scene>` — labelled neon pad,
+`SceneName` attribute, palette colour, auto-placed in a grid near spawn — and
+deploys `game/AnimPadListener.lua` as a LocalScript in StarterPlayerScripts
+(replaces the hand-built `__AnimPadListener`; refreshed by source-compare,
+which is legal in plugin context). Existing pads keep user-adjusted
+position/colour; only label + attribute refresh. Step on a pad in Play mode →
+CutscenePlayer plays that scene (debounced, amber flash).
+Bridge: `setAutoPads`/`getAutoPads`/`ensureTriggerPad`.
+`tests/test_trigger_pads.lua` (12 cases, live). Suite ~873.
+
+**Backflip direction fix:** the flip rotated forward (pitch sign inverted) —
+frames 14–29 re-posed with positive pitch: proper backflip, lands on feet,
+falls backward onto his back. Both variants re-exported and re-pulled.

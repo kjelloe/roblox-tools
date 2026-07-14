@@ -396,6 +396,7 @@ function Panel.new(widget)
     self._ePlaybackRig            = ePlaybackRig
     table.insert(evts, ePlaybackRig)
     local ePlaybackParams         = mkEvent("onPlaybackParamsChanged")   -- fires ({fps,loop,movieMode})
+    local eAutoPads               = mkEvent("onAutoPadsToggled")          -- fires (bool)
     local ePlaybackCopy           = mkEvent("onPlaybackCopySnippet")
     local ePlaybackPreview        = mkEvent("onPlaybackPreview")
 
@@ -1938,21 +1939,25 @@ function Panel.new(widget)
     do -- SPAWNED FX OVERLAY
     -- Card overlay for adding/editing single-frame spawned effects (Explosion, Smoke, Sound).
     -- Opened by the Effects button in Simple Mode action row, or by clicking a gizmo sphere.
-    local FX_TYPES = { "Explosion", "Smoke", "Sound" }
+    local FX_TYPES = { "Explosion", "Smoke", "Sound", "Fade" }
     local FX_DEFAULTS = {
         Explosion = { size=3, colorR=255, colorG=80,  colorB=0,   count=50, duration=0.6, speed=20, lifetime=1.0 },
         Smoke     = { size=5, colorR=160, colorG=160, colorB=160, count=25, duration=4.0, speed=4,  lifetime=5.0 },
         Sound     = { soundId="", volume=1, maxDistance=80 },
+        Fade      = { colorR=0, colorG=0, colorB=0, imageId="", duration=1.0, direction="out" },
     }
     local FX_PROPS = {
         { key="size",     label="Size"     },
         { key="colorR",   label="Color R"  },
         { key="colorG",   label="Color G"  },
+        { key="colorB",   label="Color B"  },
         { key="count",    label="Count"    },
         { key="duration", label="Duration" },
         { key="speed",    label="Speed"    },
         { key="lifetime", label="Lifetime" },
     }
+    -- Fade reuses the colour + duration rows; these are particle-only.
+    local FX_PARTICLE_ONLY = { size=true, count=true, speed=true, lifetime=true }
 
     local fxOv = Instance.new("Frame")
     fxOv.Name              = "SpawnedFxOverlay"
@@ -2040,14 +2045,39 @@ function Panel.new(widget)
     local fxSoundDistBox = textBox(fxSoundDistRow, "80", 80, 2)
     fxSoundDistBox.ZIndex = 56
 
+    -- Fade-specific rows (hidden by default)
+    local fxFadeImgRow = hrow(fxOv, 8, 4)
+    fxFadeImgRow.Visible = false
+    lbl(fxFadeImgRow, "Image ID:", 62, 1)
+    local fxFadeImgBox = textBox(fxFadeImgRow, "", 140, 2)
+    fxFadeImgBox.PlaceholderText = "rbxassetid:// (optional)"
+    fxFadeImgBox.ZIndex = 56; fxFadeImgBox.ClearTextOnFocus = false
+
+    local fxFadeDirRow = hrow(fxOv, 9, 4)
+    fxFadeDirRow.Visible = false
+    lbl(fxFadeDirRow, "Direction:", 62, 1)
+    local fxFadeDirBtn = btn(fxFadeDirRow, "out (to colour)", 2)
+    fxFadeDirBtn.ZIndex = 56
+    self._spawnedFxDir = "out"
+    fxFadeDirBtn.MouseButton1Click:Connect(function()
+        self._spawnedFxDir = self._spawnedFxDir == "out" and "in" or "out"
+        fxFadeDirBtn.Text = self._spawnedFxDir == "out"
+            and "  out (to colour)  " or "  in (reveal scene)  "
+    end)
+
     local function fxApplyTypeVisibility(effectType)
         local isSound = effectType == "Sound"
+        local isFade  = effectType == "Fade"
         for _, prop in ipairs(FX_PROPS) do
-            fxBoxRows[prop.key].Visible = not isSound
+            local vis = not isSound
+            if isFade and FX_PARTICLE_ONLY[prop.key] then vis = false end
+            fxBoxRows[prop.key].Visible = vis
         end
-        fxSoundIdRow.Visible  = isSound
-        fxSoundVolRow.Visible = isSound
+        fxSoundIdRow.Visible   = isSound
+        fxSoundVolRow.Visible  = isSound
         fxSoundDistRow.Visible = isSound
+        fxFadeImgRow.Visible   = isFade
+        fxFadeDirRow.Visible   = isFade
     end
 
     -- Position row
@@ -2090,6 +2120,7 @@ function Panel.new(widget)
         self._spawnedFxType = nextType
         fxTypeBtn.Text = "  " .. nextType .. "  "
         fxApplyTypeVisibility(nextType)
+        fxPosRow.Visible = nextType ~= "Fade"
         local p = FX_DEFAULTS[nextType]
         if p then
             if nextType == "Sound" then
@@ -2100,22 +2131,37 @@ function Panel.new(widget)
                 for _, prop in ipairs(FX_PROPS) do
                     if p[prop.key] ~= nil then fxBoxes[prop.key].Text = tostring(p[prop.key]) end
                 end
+                if nextType == "Fade" then
+                    fxFadeImgBox.Text = p.imageId or ""
+                    self._spawnedFxDir = p.direction or "out"
+                    fxFadeDirBtn.Text = "  out (to colour)  "
+                end
             end
         end
     end)
 
     fxAddBtn.MouseButton1Click:Connect(function()
+        local isFade = self._spawnedFxType == "Fade"
         local pos = self._spawnedFxPos
-        if not pos then return end
+        if not pos and not isFade then return end
         local data = {
             frame      = self._spawnedFxFrame or 1,
             effectType = self._spawnedFxType  or "Explosion",
-            posX = pos.X, posY = pos.Y, posZ = pos.Z,
         }
+        if pos then
+            data.posX, data.posY, data.posZ = pos.X, pos.Y, pos.Z
+        end
         if self._spawnedFxType == "Sound" then
             data.soundId     = fxSoundIdBox.Text
             data.volume      = tonumber(fxSoundVolBox.Text) or 1
             data.maxDistance = tonumber(fxSoundDistBox.Text) or 80
+        elseif isFade then
+            data.colorR   = tonumber(fxBoxes.colorR.Text) or 0
+            data.colorG   = tonumber(fxBoxes.colorG.Text) or 0
+            data.colorB   = tonumber(fxBoxes.colorB.Text) or 0
+            data.duration = tonumber(fxBoxes.duration.Text) or 1
+            data.imageId  = fxFadeImgBox.Text
+            data.direction = self._spawnedFxDir or "out"
         else
             for _, prop in ipairs(FX_PROPS) do
                 data[prop.key] = tonumber(fxBoxes[prop.key].Text) or 1
@@ -2156,8 +2202,17 @@ function Panel.new(widget)
         self._spawnedFxType = effectType
         fxTypeBtn.Text = "  " .. effectType .. "  "
         fxApplyTypeVisibility(effectType)
+        fxPosRow.Visible = effectType ~= "Fade"
         local isSound = effectType == "Sound"
+        local isFade  = effectType == "Fade"
         local defaults = FX_DEFAULTS[effectType] or FX_DEFAULTS.Explosion
+        if isFade then
+            local src = data or defaults
+            self._spawnedFxDir = src.direction or "out"
+            fxFadeDirBtn.Text = self._spawnedFxDir == "out"
+                and "  out (to colour)  " or "  in (reveal scene)  "
+            fxFadeImgBox.Text = src.imageId or ""
+        end
         if data then
             if isSound then
                 fxSoundIdBox.Text   = data.soundId     or defaults.soundId or ""
@@ -2298,6 +2353,18 @@ function Panel.new(widget)
         pbResetBtn.Text = "Reset: " .. (self._pbResetOnEnd and "ON" or "OFF")
         ePlaybackParams:Fire({ loop = self._pbLoop, movieMode = self._pbMovieMode, resetOnEnd = self._pbResetOnEnd })
     end)
+    -- Auto-pads: build/update a trigger pad for each exported scene
+    local pbPadsBtn = btn(pbParamRow, "Pads: ON", 4)
+    self._autoPadsOn = true
+    pbPadsBtn.MouseButton1Click:Connect(function()
+        self._autoPadsOn = not self._autoPadsOn
+        pbPadsBtn.Text = "Pads: " .. (self._autoPadsOn and "ON" or "OFF")
+        eAutoPads:Fire(self._autoPadsOn)
+    end)
+    function self:setAutoPadsState(on)
+        self._autoPadsOn = on
+        pbPadsBtn.Text = "Pads: " .. (on and "ON" or "OFF")
+    end
 
     -- Snippet label
     local pbSnipHdr = hrow(playbackSec, 6, 2)

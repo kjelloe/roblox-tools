@@ -1083,6 +1083,7 @@ createEffectGizmo = function(fx)
     p.Archivable    = false
     p.Color         = fx.effectType == "Smoke" and Color3.fromRGB(150, 150, 150)
                    or fx.effectType == "Sound" and Color3.fromRGB(80, 160, 255)
+                   or fx.effectType == "Fade"  and Color3.fromRGB(140, 60, 200)
                    or Color3.fromRGB(255, 120, 0)
     p.CFrame        = CFrame.new(fx.posX or 0, fx.posY or 0, fx.posZ or 0)
     p.Parent        = getEffectGizmoFolder()
@@ -1352,6 +1353,7 @@ local function _showPreviewSubtitle(text, style)
 end
 
 local function stopPlayback()
+    SpawnedEffectRunner.clearFades()
     if playConn then
         playConn:Disconnect()
         playConn = nil
@@ -2645,6 +2647,12 @@ panel.onSpawnedFxPickPosRequested:Connect(function()
 end)
 
 panel.onSpawnedFxAdded:Connect(function(data)
+    -- A Fade has no world position; give its gizmo an edit handle where the
+    -- author's camera was, so the event stays clickable/editable.
+    if data.effectType == "Fade" and not data.posX then
+        local cp = workspace.CurrentCamera.CFrame.Position
+        data.posX, data.posY, data.posZ = cp.X, cp.Y, cp.Z
+    end
     local fx = recorder:addSpawnedEffect(data)
     createEffectGizmo(fx)
     SpawnedEffectRunner.fire(Vector3.new(fx.posX, fx.posY, fx.posZ), fx.effectType, fx)
@@ -3106,10 +3114,95 @@ panel.onNewAnimationRequested:Connect(function(newName)
     doFullSessionReset(newName)
 end)
 
+-- ── Auto-pads: a labelled trigger pad per exported scene ─────────────────────
+-- Step on a pad in Play mode and its scene plays (see game/AnimPadListener.lua,
+-- deployed to StarterPlayerScripts alongside the pad). Existing pads keep their
+-- position and colour; only the label/attribute refresh on re-export.
+
+local PAD_COLORS = {
+    Color3.fromRGB(80, 170, 255), Color3.fromRGB(120, 220, 120),
+    Color3.fromRGB(255, 170, 80), Color3.fromRGB(220, 120, 220),
+    Color3.fromRGB(255, 120, 120), Color3.fromRGB(120, 220, 220),
+}
+
+local autoPadsEnabled = plugin:GetSetting("MultiAnim_autoPads")
+if autoPadsEnabled == nil then autoPadsEnabled = true end
+panel:setAutoPadsState(autoPadsEnabled)
+
+panel.onAutoPadsToggled:Connect(function(on)
+    autoPadsEnabled = on
+    plugin:SetSetting("MultiAnim_autoPads", on)
+end)
+
+local function ensureTriggerPad(sceneName)
+    local folder = workspace:FindFirstChild("AnimTriggerPads")
+    if not folder then
+        folder = Instance.new("Folder")
+        folder.Name = "AnimTriggerPads"
+        folder.Parent = workspace
+    end
+
+    local pad = folder:FindFirstChild("Pad_" .. sceneName)
+    if not pad then
+        local count = #folder:GetChildren()
+        local spawnLoc = workspace:FindFirstChildOfClass("SpawnLocation")
+        local origin = spawnLoc and spawnLoc.Position or Vector3.new(0, 0, 0)
+        pad = Instance.new("Part")
+        pad.Name = "Pad_" .. sceneName
+        pad.Size = Vector3.new(6, 0.5, 6)
+        pad.Anchored = true
+        pad.Material = Enum.Material.Neon
+        pad.Color = PAD_COLORS[count % #PAD_COLORS + 1]
+        pad.Position = origin + Vector3.new(-15 + (count % 4) * 10, 0.8,
+            8 + math.floor(count / 4) * 10)
+        local sg = Instance.new("SurfaceGui")
+        sg.Name = "Label"
+        sg.Face = Enum.NormalId.Top
+        sg.CanvasSize = Vector2.new(300, 300)
+        local tl = Instance.new("TextLabel")
+        tl.Size = UDim2.fromScale(1, 1)
+        tl.BackgroundTransparency = 1
+        tl.TextColor3 = Color3.new(0, 0, 0)
+        tl.TextScaled = true
+        tl.Font = Enum.Font.GothamBold
+        tl.Rotation = 90
+        tl.Parent = sg
+        sg.Parent = pad
+        pad.Parent = folder
+    end
+    pad:SetAttribute("SceneName", sceneName)
+    local lblGui = pad:FindFirstChild("Label")
+    local textLbl = lblGui and lblGui:FindFirstChildOfClass("TextLabel")
+    if textLbl then textLbl.Text = sceneName end
+
+    -- Deploy/refresh the client listener (Source readable in plugin context).
+    local sps = game:GetService("StarterPlayer"):FindFirstChildOfClass("StarterPlayerScripts")
+    local srcModule = script:FindFirstChild("game")
+        and script.game:FindFirstChild("AnimPadListener")
+    if sps and srcModule then
+        local legacy = sps:FindFirstChild("__AnimPadListener")
+        if legacy then legacy:Destroy() end
+        local existing = sps:FindFirstChild("AnimPadListener")
+        if existing and existing.Source ~= srcModule.Source then
+            existing:Destroy()
+            existing = nil
+        end
+        if not existing then
+            local ls = Instance.new("LocalScript")
+            ls.Name = "AnimPadListener"
+            ls.Source = srcModule.Source
+            ls.Parent = sps
+        end
+    end
+    return pad
+end
+
 panel.onExportRequested:Connect(function(sceneName)
     local ok, result = Exporter.export(recorder:getSession(), sceneName)
     if not ok then
         warn(string.format("[MultiAnimation] Export failed: %s", result))
+    elseif autoPadsEnabled then
+        ensureTriggerPad(result)
     end
 end)
 
@@ -3797,7 +3890,23 @@ local testBridge = TestBridge.start({
     exportScene = function(a)
         -- Same path as the Export button (panel.onExportRequested handler).
         local okE, res = Exporter.export(recorder:getSession(), (a and a.name) or panel:getSimpleSceneName())
+        if okE and autoPadsEnabled then ensureTriggerPad(res) end
         return { exported = okE, scene = res }
+    end,
+
+    setAutoPads = function(a)
+        autoPadsEnabled = a.on == true
+        panel:setAutoPadsState(autoPadsEnabled)
+        return autoPadsEnabled
+    end,
+
+    getAutoPads = function()
+        return autoPadsEnabled
+    end,
+
+    ensureTriggerPad = function(a)
+        local pad = ensureTriggerPad(a.scene)
+        return pad and pad:GetFullName() or false
     end,
 
     attachProp = function(a)

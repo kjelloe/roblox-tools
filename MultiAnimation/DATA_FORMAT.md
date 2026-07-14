@@ -84,6 +84,9 @@ session = {
         { id = 2, frame = 30, effectType = "Sound",
           posX = 0, posY = 5, posZ = 0,
           soundId = "rbxassetid://…", volume = 1, maxDistance = 80 },
+        { id = 3, frame = 27, effectType = "Fade",   posX = 0, posY = 0, posZ = 0,
+          colorR = 0, colorG = 0, colorB = 0, imageId = "", duration = 1.0,
+          direction = "out" },   -- "out" = to colour/image, "in" = reveal
     },
     subtitlesEnabled = false,   -- master toggle for the subtitle track
     subtitleStyle    = { … },   -- font/colour/stroke/background/offset fields

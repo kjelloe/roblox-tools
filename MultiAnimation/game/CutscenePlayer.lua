@@ -436,6 +436,8 @@ function CutscenePlayer.play(sceneName, rigMap, options)
         teardownRigs()
         if movieMode then LetterboxGui.hide() end
         if SubtitleGui then pcall(SubtitleGui.hide) end
+        -- A scene that ends faded-out must not leave the view black.
+        pcall(SpawnedEffectRunner.clearFades)
         -- Snap camera back to the live player character before restoring CameraType so
         -- Roblox's CameraModule resumes from the character position, not the cinematic
         -- endpoint (which would look like the camera is stuck far from the player).

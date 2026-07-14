@@ -125,6 +125,13 @@ local function stopEffects()
         fxConn:Disconnect()
         fxConn = nil
     end
+    -- Runs on "__stop" (fired on stop AND natural completion): a scene that
+    -- ends faded-out must not leave the view black.
+    if not _spawnedRunner then
+        local mod = script.Parent:FindFirstChild("SpawnedEffectRunner")
+        _spawnedRunner = mod and require(mod) or nil
+    end
+    if _spawnedRunner then pcall(_spawnedRunner.clearFades) end
 end
 
 local function fireTargetEffect(ev)

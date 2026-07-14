@@ -507,6 +507,7 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap, opts)
             done = true
             local sn = _sceneName
             if _resetFn then pcall(_resetFn) end
+            if sfxRunner then pcall(sfxRunner.clearFades) end
             clearActive()
             fireFinished(sn)
         end

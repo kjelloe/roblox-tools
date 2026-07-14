@@ -21,12 +21,14 @@ local PRESETS = {
     Explosion = { size=3, colorR=255, colorG=80,  colorB=0,   count=50, duration=0.6, speed=20, lifetime=1.0 },
     Smoke     = { size=5, colorR=160, colorG=160, colorB=160, count=25, duration=4.0, speed=4,  lifetime=5.0 },
     Sound     = { soundId="", volume=1, maxDistance=80 },
+    Fade      = { colorR=0, colorG=0, colorB=0, imageId="", duration=1.0, direction="out" },
 }
 
 local PROPS = {
     { key="size",     label="Size"     },
     { key="colorR",   label="Color R"  },
     { key="colorG",   label="Color G"  },
+    { key="colorB",   label="Color B"  },
     { key="count",    label="Count"    },
     { key="duration", label="Duration" },
     { key="speed",    label="Speed"    },
@@ -121,6 +123,16 @@ ok("Explosion colorB=0",    PRESETS.Explosion.colorB == 0)
 ok("Smoke colorR=160",      PRESETS.Smoke.colorR == 160)
 ok("Smoke duration=4.0",    PRESETS.Smoke.duration == 4.0)
 ok("Smoke lifetime=5.0",    PRESETS.Smoke.lifetime == 5.0)
+ok("PRESETS has Fade",      PRESETS.Fade ~= nil)
+ok("Fade default duration 1.0", PRESETS.Fade.duration == 1.0)
+ok("Fade default direction out", PRESETS.Fade.direction == "out")
+ok("PROPS includes colorB", (function()
+    for _, p in ipairs(PROPS) do if p.key == "colorB" then return true end end
+    return false
+end)())
+local fadeParams = buildParams("Fade", { colorR = 255, duration = 2 })
+ok("buildParams Fade merges overrides",
+    fadeParams.colorR == 255 and fadeParams.duration == 2 and fadeParams.direction == "out")
 
 -- ── 2. PROPS ─────────────────────────────────────────────────────────────────
 

@@ -5,6 +5,12 @@ and `~/GIT/Roblox/mcp.py` with subcommands:
 `luau / console / tail / tree / inspect / read / grep / search / state /
 capture / studios / check / drift / test / deploy / playtest`.
 
+`mcp nav <x> <y> <z>` (or `mcp nav <instance.path>`) walks the play-mode
+character to a target: it tries the `character_navigation` MCP tool (which
+requires `datamodel_type: "Client"` since the July 2026 Studio update and whose
+client host is flaky — "Target is closed" in stale sessions) and falls back to
+a real `Humanoid:MoveTo` walk via `execute_luau`, preserving Touched semantics.
+
 `mcp capture` saves the viewport screenshot to `/tmp/roblox_capture_<ms>.jpg`
 and prints the path (newer Studio builds return an image block and require a
 `capture_id`, both handled by mcp.py). Note: in edit mode, scripted viewport

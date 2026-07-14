@@ -1,19 +1,22 @@
 -- EffectRunner — classify effect instances and fire one-shot effect events.
 --
 -- An "effect" is a ParticleEmitter, Sound, Light (Point/Spot/Surface), Beam,
--- Trail, or Highlight. Effect events live on the timeline as non-interpolated
--- one-shots: when playback crosses the event's frame, the action fires.
+-- Trail, Highlight, or a Lighting post-effect (ColorCorrection/Bloom/Blur).
+-- Effect events live on the timeline as non-interpolated one-shots: when
+-- playback crosses the event's frame, the action fires.
 --
 -- Kinds and their actions (first action = default):
 --   emitter  : emit (Emit(count)), on, off       — ParticleEmitter
 --   sound    : play, stop                        — Sound
 --   enabled  : on, off                           — Lights / Beam / Trail / Highlight
+--                                                  / Lighting post-effects
 
 local EffectRunner = {}
 
 local ENABLED_CLASSES = {
     PointLight = true, SpotLight = true, SurfaceLight = true,
     Beam = true, Trail = true, Highlight = true,
+    ColorCorrectionEffect = true, BloomEffect = true, BlurEffect = true,
 }
 
 local ACTIONS = {

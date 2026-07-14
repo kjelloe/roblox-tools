@@ -418,6 +418,48 @@ def cmd_capture(_argv):
     _print(texts)
 
 
+def cmd_nav(argv):
+    """Walk the play-mode character to x y z (or to an instance path).
+
+    Tries the character_navigation MCP tool first (needs datamodel_type since
+    the July 2026 Studio update); its client host is broken in some builds
+    ("Target is closed"), so falls back to a real Humanoid:MoveTo walk via
+    execute_luau — preserving Touched semantics, unlike a teleport."""
+    if not argv:
+        sys.exit("Usage: mcp nav <x> <y> <z>  |  mcp nav <instance.path>")
+    if len(argv) >= 3:
+        args = {"x": float(argv[0]), "y": float(argv[1]), "z": float(argv[2]),
+                "datamodel_type": "Client"}
+        target_lua = f"Vector3.new({float(argv[0])},{float(argv[1])},{float(argv[2])})"
+    else:
+        args = {"instance_path": argv[0], "datamodel_type": "Client"}
+        path = ".".join(f'["{p}"]' if " " in p else p for p in argv[0].split("."))
+        target_lua = f"game.{path}.Position"
+    texts, err = call_mcp("character_navigation", args, timeout=45)
+    if not err:
+        _print(texts)
+        return
+    lua = f"""
+local plr = game:GetService("Players").LocalPlayer
+local char = plr and plr.Character
+local hum = char and char:FindFirstChildOfClass("Humanoid")
+if not hum then return "no character/Humanoid (is play mode running?)" end
+local target = {target_lua}
+local done = false
+hum.MoveToFinished:Connect(function() done = true end)
+hum:MoveTo(target)
+local t0 = os.clock()
+repeat task.wait(0.1) until done or os.clock() - t0 > 25
+local dist = (char:GetPivot().Position - target).Magnitude
+return string.format("%s — %.1f studs from target", done and "arrived" or "walk timeout", dist)
+"""
+    texts, err = call_mcp("execute_luau", {"code": lua, "datamodel_type": "Client"},
+                          timeout=35)
+    if err and not texts:
+        sys.stderr.write(f"[mcp error] {err}\n"); sys.exit(1)
+    _print(texts)
+
+
 def cmd_studios(_argv):
     texts, err = call_mcp("list_roblox_studios", {})
     if err:
@@ -1455,6 +1497,7 @@ _COMMANDS = {
     "search":   cmd_search,
     "state":    cmd_state,
     "capture":  cmd_capture,
+    "nav":      cmd_nav,
     "studios":  cmd_studios,
     "check":    cmd_check,
     "drift":    cmd_drift,

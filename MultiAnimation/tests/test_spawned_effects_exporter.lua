@@ -32,6 +32,14 @@ local function buildSpawnedEffectsSource(session)
                 fx.id, fx.frame, fx.effectType, fx.posX or 0, fx.posY or 0, fx.posZ or 0,
                 fx.soundId or "", fx.volume or 1, fx.maxDistance or 80
             ))
+        elseif fx.effectType == "Fade" then
+            add(string.format(
+                "        {id=%d, frame=%d, effectType=%q, posX=%.4f, posY=%.4f, posZ=%.4f," ..
+                " colorR=%d, colorG=%d, colorB=%d, imageId=%q, duration=%.2f, direction=%q},",
+                fx.id, fx.frame, fx.effectType, fx.posX or 0, fx.posY or 0, fx.posZ or 0,
+                fx.colorR or 0, fx.colorG or 0, fx.colorB or 0,
+                fx.imageId or "", fx.duration or 1, fx.direction or "out"
+            ))
         else
             add(string.format(
                 "        {id=%d, frame=%d, effectType=%q, posX=%.4f, posY=%.4f, posZ=%.4f," ..
@@ -177,6 +185,37 @@ if fnS then
     ok("Sound maxDistance rt",       math.abs(eS.maxDistance - 120) < 0.1)
     ok("Sound has no size field",    eS.size == nil)
     ok("Sound has no colorR field",  eS.colorR == nil)
+end
+
+-- ── 6b. Fade entry ────────────────────────────────────────────────────────────
+
+local sessionF = {
+    spawnedEffects = {
+        { id=9, frame=27, effectType="Fade", posX=0, posY=0, posZ=0,
+          colorR=10, colorG=20, colorB=30, imageId="rbxassetid://424242",
+          duration=1.5, direction="in" },
+    },
+}
+local fnF, errFL = loadstring(buildSpawnedEffectsSource(sessionF))
+ok("Fade source loadstring OK",      fnF ~= nil, errFL)
+if fnF then
+    local eF = fnF().effects[1]
+    ok("Fade effectType",            eF.effectType == "Fade")
+    ok("Fade colours round-trip",    eF.colorR == 10 and eF.colorG == 20 and eF.colorB == 30)
+    ok("Fade imageId round-trips",   eF.imageId == "rbxassetid://424242")
+    ok("Fade duration round-trips",  math.abs(eF.duration - 1.5) < 0.01)
+    ok("Fade direction round-trips", eF.direction == "in")
+    ok("Fade has no count field",    eF.count == nil)
+end
+
+local sessionFD = { spawnedEffects = { { id=1, frame=1, effectType="Fade" } } }
+local fnFD = loadstring(buildSpawnedEffectsSource(sessionFD))
+ok("Fade defaults loadstring OK",    fnFD ~= nil)
+if fnFD then
+    local eD = fnFD().effects[1]
+    ok("Fade defaults: black, 1s, out",
+        eD.colorR == 0 and eD.colorB == 0 and math.abs(eD.duration - 1) < 0.01
+        and eD.direction == "out" and eD.imageId == "")
 end
 
 -- ── 7. Mixed Explosion + Sound ────────────────────────────────────────────────

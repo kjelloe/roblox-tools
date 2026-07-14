@@ -1,0 +1,13 @@
+{
+  "kfs": [
+    "Stuntman_Joints"
+  ],
+  "modules": [
+    "CameraTrack",
+    "EffectTracks",
+    "RootTracks",
+    "ScaleTracks",
+    "SpawnedEffects"
+  ],
+  "scene": "Backflip_001"
+}

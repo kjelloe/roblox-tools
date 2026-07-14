@@ -15,6 +15,10 @@ SpawnedEffectRunner.PRESETS = {
     Sound = {
         soundId = "", volume = 1, maxDistance = 80,
     },
+    Fade = {
+        colorR = 0, colorG = 0, colorB = 0,
+        imageId = "", duration = 1.0, direction = "out",
+    },
 }
 
 -- Ordered list of editable properties shown in the Effects overlay.
@@ -40,9 +44,86 @@ function SpawnedEffectRunner.buildParams(effectType, overrides)
     return p
 end
 
+-- Full-screen fade overlay (colour Frame + optional ImageLabel), animated over
+-- params.duration. direction "out" fades TO the colour/image, "in" reveals the
+-- scene again (and removes the overlay when done). A FadeToken attribute lets a
+-- newer fade take over from a still-running one.
+local function runFade(gui, params)
+    local dur   = math.max(tonumber(params.duration) or 1, 0.05)
+    local out   = (params.direction or "out") == "out"
+    local frame = gui:FindFirstChild("Color")
+    local img   = gui:FindFirstChild("Image")
+    frame.BackgroundColor3 = Color3.fromRGB(
+        math.clamp(math.floor(params.colorR or 0), 0, 255),
+        math.clamp(math.floor(params.colorG or 0), 0, 255),
+        math.clamp(math.floor(params.colorB or 0), 0, 255))
+    local hasImg = params.imageId ~= nil and params.imageId ~= ""
+    img.Image   = hasImg and params.imageId or ""
+    img.Visible = hasImg
+    local token = (gui:GetAttribute("FadeToken") or 0) + 1
+    gui:SetAttribute("FadeToken", token)
+    local t0 = os.clock()
+    local conn
+    conn = game:GetService("RunService").Heartbeat:Connect(function()
+        if not gui.Parent or gui:GetAttribute("FadeToken") ~= token then
+            conn:Disconnect()
+            return
+        end
+        local a  = math.min((os.clock() - t0) / dur, 1)
+        local tr = out and (1 - a) or a
+        frame.BackgroundTransparency = tr
+        if hasImg then img.ImageTransparency = tr end
+        if a >= 1 then
+            conn:Disconnect()
+            if not out then gui:Destroy() end
+        end
+    end)
+    return function()
+        conn:Disconnect()
+        if gui and gui.Parent then gui:Destroy() end
+    end
+end
+
+local function fadeOverlayIn(parent)
+    local gui = parent:FindFirstChild("__MAnimFadeGui")
+    if gui then return gui end
+    gui = Instance.new("ScreenGui")
+    gui.Name          = "__MAnimFadeGui"
+    gui.DisplayOrder  = 300
+    gui.IgnoreGuiInset = true
+    gui.ResetOnSpawn  = false
+    local frame = Instance.new("Frame")
+    frame.Name = "Color"
+    frame.Size = UDim2.fromScale(1, 1)
+    frame.BorderSizePixel = 0
+    frame.BackgroundTransparency = 1
+    frame.Parent = gui
+    local img = Instance.new("ImageLabel")
+    img.Name = "Image"
+    img.Size = UDim2.fromScale(1, 1)
+    img.BackgroundTransparency = 1
+    img.ImageTransparency = 1
+    img.ScaleType = Enum.ScaleType.Crop
+    img.Visible = false
+    img.Parent = gui
+    gui.Parent = parent
+    return gui
+end
+
+-- Remove any fade overlay so the view returns to normal (called when preview
+-- playback stops — a scene that ends faded-out must not leave the editor black).
+function SpawnedEffectRunner.clearFades()
+    local gui = game:GetService("CoreGui"):FindFirstChild("__MAnimFadeGui")
+    if gui then gui:Destroy() end
+end
+
 -- Create a temporary Part+ParticleEmitter (or Sound) at pos, fire it, then Destroy.
 -- Returns a cancel function that destroys it early.
 function SpawnedEffectRunner.fire(pos, effectType, params)
+    if effectType == "Fade" then
+        -- Edit-mode preview: overlay in CoreGui (plugin context).
+        return runFade(fadeOverlayIn(game:GetService("CoreGui")), params)
+    end
     if effectType == "Sound" then
         local part        = Instance.new("Part")
         part.Name         = "__MAnim_SpawnedFX"

@@ -125,7 +125,7 @@ python3 devsync.py uninstall   # back to build.py + manual reload
 ### Other dev scripts
 
 ```bash
-python3 run_tests.py [pattern] [-v]   # full suite (~846 cases, 33 files), or `mcp test`
+python3 run_tests.py [pattern] [-v]   # full suite (~873 cases, 34 files), or `mcp test`
 python3 export.py                     # package plugin + game scripts for distribution → export/
 python3 watch.py                      # auto-build on save (when not using devsync)
 python3 hotpatch.py game/MultiAnimPlayer.lua   # push one game/ module, or `mcp deploy`
@@ -221,7 +221,7 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 | `test_ui_camera.lua` | Live camera capture, gizmo lifecycle, preview restore via TestBridge (17 cases) |
 | `test_mirror_core.lua` | Keyframe mirror reflection math; involution; determinant; name-map round-trips (17 cases) |
 | `test_ui_rigtools.lua` | Live add-rig + auto-detect; copy/paste/mirror through TestBridge (20 cases) |
-| `test_effect_core.lua` | EffectRunner: classify, cycleAction, live fire, crossing-pointer playback (24 cases) |
+| `test_effect_core.lua` | EffectRunner: classify (incl. Lighting post-effects), cycleAction, live fire, crossing-pointer playback (25 cases) |
 | `test_effect_exporter.lua` | EffectTracks source builder; loadstring round-trip; omit-if-empty (13 cases) |
 | `test_ui_effects.lua` | Effect track bridge integration: track, cycle, add/delete events, fire, untrack (18 cases) |
 | `test_ui_simple.lua` | Simple Mode bridge integration: mode toggle, Add/Insert/Delete Frame management, subtitle-event shift on Insert/Delete Frame (shiftFrames regression), Camera View capture-on-add (folder required), Play/Stop toggle, manipulable camera object (spawn position away from origin + non-degenerate LookVector, FOV, frustum gizmo, Look Through guard/snap/free-fly-mirrors-to-gizmo/restore/cycle-no-flip + Focus-in-front, capture-from-gizmo, no-capture while Look Through active), frame selection guard (Delete+Duplicate no-op at empty frame), folder auto-track/untrack, FPS box round-trip, auto-capture-on-navigate, onion skin toggle, frameCount round-trip regression, save/load slot round-trip regression (77–79 cases; several blocks conditional on session state) |
@@ -230,16 +230,17 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 | `test_ui_playback.lua` | Playback tab bridge integration: mode switch, scene list, rig modes (all 5), FPS/Loop/MovieMode clamping + round-trip, snippet generation (scene name, CutscenePlayer, mode strings, params), multi-rig snippet, partial param update, frameCount round-trip regression (52 cases) |
 | `test_easing_core.lua` | Recorder easing CRUD (rig/prop/camera), shiftFrames/deleteRigKeyframe/deletePropKeyframe include easingTrack, easedAlpha boundary values (Linear/EaseIn/EaseOut/EaseInOut/Constant/Bounce), toSortedKFs backward compat (20 cases, headless) |
 | `test_ui_easing.lua` | Live bridge: rig easing all-6-styles round-trip, camera easing CRUD, simple mode easing state, capture stamps easing, frame navigation syncs display (23 cases) |
-| `test_spawned_effects_core.lua` | SpawnedEffectRunner PRESETS/PROPS/buildParams; Recorder spawnedEffects CRUD: add/update/delete/getById, clearSession reset, id preservation on restore; Sound preset/buildParams/CRUD; shiftFrames/deleteFrameAt include spawnedEffects + subtitles (72 cases, headless) |
-| `test_spawned_effects_exporter.lua` | buildSpawnedEffectsSource: empty, single Explosion, Smoke, multi-entry; loadstring round-trip preserving all fields; default field fallbacks; Sound entry round-trip; mixed Explosion+Sound (61 cases, headless) |
+| `test_spawned_effects_core.lua` | SpawnedEffectRunner PRESETS/PROPS/buildParams; Recorder spawnedEffects CRUD: add/update/delete/getById, clearSession reset, id preservation on restore; Sound + Fade presets/buildParams/CRUD; shiftFrames/deleteFrameAt include spawnedEffects + subtitles (77 cases, headless) |
+| `test_spawned_effects_exporter.lua` | buildSpawnedEffectsSource: empty, single Explosion, Smoke, multi-entry; loadstring round-trip preserving all fields; default field fallbacks; Sound + Fade entry round-trips; mixed Explosion+Sound (70 cases, headless) |
 | `test_subtitle_core.lua` | Subtitle Recorder CRUD, style management, getActiveSubtitleAt stepped lookup, empty-text clear marker (41 cases, headless) |
 | `test_subtitle_exporter.lua` | buildSubtitleTrackSource output structure and round-trip (32 cases, headless) |
 | `test_cutscene_client_core.lua` | CutscenePlayer client sampling: eased keyframe interpolation, Constant/missing-easing fallback, camera cut hold/jump/resume, effect-event flattening + crossing-window single-fire, duration includes event-only tails (20 cases, headless) |
 | `test_prop_attach.lua` | Prop attachment authoring aid: auto-track setup, attach/detach bridge round-trip, Heartbeat follow with frozen offset (translation + rotation), guards (11 cases, live) |
 | `test_gizmo_scale.lua` | Gizmo distance scaling: natural size at 20 studs, grows with distance, clamps 0.5×/3× (8 cases, live) |
+| `test_trigger_pads.lua` | Auto-pads: toggle round-trip, pad creation (label/attribute/neon), idempotent re-ensure keeps moved position + colour, listener deployment (12 cases, live) |
 | `test_cutscene_effects_core.lua` | CutsceneServer client-fired effects: remote-safe array reshaping, client event-list build, crossing-window single-fire, skipEffects gate (15 cases, headless) |
 
-Suite total: **~846 cases** across 33 runnable files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive; exact total varies with session-state-conditional blocks). Note: `test_ui_playback` test 19 now asserts fps is absent from snippet; `test_ui_simple` insert-frame tests now assert Duplicate (cursor to frame+1, frame+1 has data). Test files must end with the standard `=== N passed, M failed ===` summary line — `run_tests.py` parses it for the counts (a file missing it reports 0/0).
+Suite total: **~873 cases** across 34 runnable files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive; exact total varies with session-state-conditional blocks). Note: `test_ui_playback` test 19 now asserts fps is absent from snippet; `test_ui_simple` insert-frame tests now assert Duplicate (cursor to frame+1, frame+1 has data). Test files must end with the standard `=== N passed, M failed ===` summary line — `run_tests.py` parses it for the counts (a file missing it reports 0/0).
 
 **Test isolation:** UI test files that need deterministic rig availability call `scanFigures` at their start (bridge command on `__MultiAnimTestBridge`). This sets `legacyFiguresName = "FIGURES"`, rescans `Workspace.FIGURES`, normalises `frameCount` to ≥120, and sets `mode = "advanced"`. Required because Simple Mode resets `frameCount` to 1 for empty sessions — without this, parking-frame arithmetic (`PARK = frameCount - N`) goes negative and all subsequent frame operations clamp to frame 1. `test_ui_easing.lua` was also rewritten from the old bridge protocol (`MultiAnimTestBridge`, plain-Lua returns) to the current one (`__MultiAnimTestBridge`, JSON `{ok,result}`).
 

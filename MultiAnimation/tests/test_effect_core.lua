@@ -18,9 +18,11 @@ end
 
 -- ── Inline EffectRunner (mirrors core/EffectRunner.lua) ───────────────────────
 
+-- keep in sync with EffectRunner.ENABLED_CLASSES
 local ENABLED_CLASSES = {
     PointLight = true, SpotLight = true, SurfaceLight = true,
     Beam = true, Trail = true, Highlight = true,
+    ColorCorrectionEffect = true, BloomEffect = true, BlurEffect = true,
 }
 local ACTIONS = {
     emitter = { "emit", "on", "off" },
@@ -100,6 +102,9 @@ light.Parent = tmp
 ok("ParticleEmitter → emitter", classify(emitter) == "emitter")
 ok("Sound → sound", classify(sound) == "sound")
 ok("PointLight → enabled", classify(light) == "enabled")
+local ccFx = Instance.new("ColorCorrectionEffect")
+ok("ColorCorrectionEffect → enabled (fade-to-black support)", classify(ccFx) == "enabled")
+ccFx:Destroy()
 ok("BasePart itself is not an effect", classify(tmp) == nil)
 ok("findEffect on the effect returns it", findEffect(emitter) == emitter)
 ok("findEffect on the holder part finds a descendant effect", findEffect(tmp) ~= nil)

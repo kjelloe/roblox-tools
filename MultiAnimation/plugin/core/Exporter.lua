@@ -369,6 +369,14 @@ local function buildSpawnedEffectsSource(session)
                 fx.id, fx.frame, fx.effectType, fx.posX or 0, fx.posY or 0, fx.posZ or 0,
                 fx.soundId or "", fx.volume or 1, fx.maxDistance or 80
             ))
+        elseif fx.effectType == "Fade" then
+            add(string.format(
+                "        {id=%d, frame=%d, effectType=%q, posX=%.4f, posY=%.4f, posZ=%.4f," ..
+                " colorR=%d, colorG=%d, colorB=%d, imageId=%q, duration=%.2f, direction=%q},",
+                fx.id, fx.frame, fx.effectType, fx.posX or 0, fx.posY or 0, fx.posZ or 0,
+                fx.colorR or 0, fx.colorG or 0, fx.colorB or 0,
+                fx.imageId or "", fx.duration or 1, fx.direction or "out"
+            ))
         else
             add(string.format(
                 "        {id=%d, frame=%d, effectType=%q, posX=%.4f, posY=%.4f, posZ=%.4f," ..

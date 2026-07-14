@@ -150,7 +150,7 @@ Trigger one-shot effects — particle bursts, sound cues, light flashes — exac
 |------|---------------|---------|
 | Particle | `ParticleEmitter` | `emit` (burst) · `on` (enable continuous) · `off` |
 | Sound | `Sound` | `play` · `stop` |
-| Toggle | `PointLight`, `SpotLight`, `SurfaceLight`, `Beam`, `Trail`, `Highlight` | `on` · `off` |
+| Toggle | `PointLight`, `SpotLight`, `SurfaceLight`, `Beam`, `Trail`, `Highlight`, `ColorCorrectionEffect`, `BloomEffect`, `BlurEffect` | `on` · `off` |
 
 **Workflow**
 
@@ -177,6 +177,12 @@ Trigger one-shot effects — particle bursts, sound cues, light flashes — exac
 > **Tip:** effects are always one-shot — there is no interpolation between event
 > dots. To toggle a light on at frame 10 and off at frame 30, place an `on` event
 > at frame 10 and an `off` event at frame 30.
+
+> **Fade to black:** put three `ColorCorrectionEffect`s in Lighting at
+> `Brightness = -0.34` each, track all three, and switch them on across three
+> consecutive frames — a stepped fade that works in editor preview and in-game.
+> An instant red flash: a `Highlight` on the rig (red fill) toggled `on`.
+> Add `off` events at frame 1 so replays start clean.
 
 ---
 
@@ -543,9 +549,19 @@ Max Dist:   [80  ]
 [  Add to Frame  ]    [Cancel]
 ```
 
-- **Type** cycles through `Explosion` (orange burst), `Smoke` (gray column), and
-  `Sound` (plays a Roblox Sound asset at the world position with 3-D rolloff).
-  Each type loads its defaults automatically; only the relevant fields are shown.
+- **Type** cycles through `Explosion` (orange burst), `Smoke` (gray column),
+  `Sound` (plays a Roblox Sound asset at the world position with 3-D rolloff),
+  and `Fade` (full-screen fade). Each type loads its defaults automatically;
+  only the relevant fields are shown.
+- **Fade** fields: Color R/G/B (the colour faded to — default black), an
+  optional **Image ID** (`rbxassetid://` of an uploaded decal/PNG, shown over
+  the colour), **Duration** (seconds, default 1.0), and **Direction** —
+  `out` fades *to* the colour/image, `in` reveals the scene again. A fade has
+  no world position; its violet gizmo sits where your camera was when you
+  added it, purely as a click-handle for editing. Pair an `out` event with a
+  later `in` event to dip to black and back. A scene that *ends* faded-out
+  never leaves the screen stuck — the overlay is cleared automatically when
+  playback finishes or stops (in-game and in editor preview).
 - **Sound ID** — paste the `rbxassetid://` URI of any uploaded Roblox audio asset.
 - **Select Position** switches to a click-in-viewport picker — click anywhere in
   the scene to choose where the effect fires. You can re-click to move it.
@@ -702,6 +718,7 @@ Both R6 and R15 player characters are supported.
 | **◄ / ►** scene selector | Cycle through saved sessions. A yellow warning appears if the selected scene has not been exported yet. |
 | **Loop** | Restart automatically when the last frame is reached |
 | **Movie Mode** | Shows cinematic black bars (top/bottom 10%) during playback |
+| **Pads** | Auto-pads on export (default ON): every **⬆ Export** creates or updates a labelled neon trigger pad in `Workspace.AnimTriggerPads` and deploys the `AnimPadListener` LocalScript — step on a pad in Play mode and that scene plays (debounced; pad flashes amber). Existing pads keep the position/colour you gave them; only the label refreshes. Delete a pad to remove it; toggle OFF to stop creating them. |
 
 > **FPS:** playback speed is read from the scene's export data. To override it, add `fps = N` to the opts table in the generated snippet — the Playback tab no longer shows an FPS box.
 
