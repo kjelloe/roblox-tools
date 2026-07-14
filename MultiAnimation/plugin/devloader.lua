@@ -49,9 +49,14 @@ local root = CoreGui:FindFirstChild(SRC_NAME)
 if not root then
     -- devsync.py creates the folder on first push; wait for it indefinitely —
     -- a timeout here permanently killed hot-reload in sessions where the place
-    -- sat open longer than the timeout before the first push.
+    -- sat open longer than the timeout before the first push. Event-driven
+    -- rather than WaitForChild so idle sessions don't log "Infinite yield
+    -- possible" warnings.
     print("[DevLoader] waiting for first devsync push (run: python3 devsync.py)")
-    root = CoreGui:WaitForChild(SRC_NAME)
+    while not root do
+        local child = CoreGui.ChildAdded:Wait()
+        if child.Name == SRC_NAME then root = child end
+    end
 end
 
 root:GetAttributeChangedSignal("Version"):Connect(function()
