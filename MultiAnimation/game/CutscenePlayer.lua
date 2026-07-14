@@ -75,48 +75,101 @@ local function easedAlpha(t, easing)
 end
 
 -- Binary-search for the last keyframe at or before `time`.
+-- Returns (a, b, index-of-a); b is nil when clamped to an end.
 local function findKF(kfs, time)
-    if #kfs == 0 then return nil, nil end
+    if #kfs == 0 then return nil, nil, nil end
     local lo, hi = 1, #kfs
-    if time <= kfs[1].time then return kfs[1], nil end
-    if time >= kfs[#kfs].time then return kfs[#kfs], nil end
+    if time <= kfs[1].time then return kfs[1], nil, 1 end
+    if time >= kfs[#kfs].time then return kfs[#kfs], nil, #kfs end
     while lo + 1 < hi do
         local mid = math.floor((lo + hi) / 2)
         if kfs[mid].time <= time then lo = mid else hi = mid end
     end
-    return kfs[lo], kfs[hi]
+    return kfs[lo], kfs[hi], lo
 end
 
-local function sampleCFrame(kfs, time)
-    local a, b = findKF(kfs, time)
+-- ── Smooth interpolation (Catmull-Rom-style, C1-ish across keyframes) ─────────
+-- Piecewise-linear lerp makes each keyframe a visible velocity kink (flips and
+-- camera orbits read as jagged polylines). Smooth mode runs a cubic De
+-- Casteljau over CFrame:Lerp with tangent controls built by extrapolating the
+-- neighbour segments (unclamped Lerp extrapolates) — one construction that
+-- smooths positions and rotations alike. Keep rotation steps under ~120°.
+
+local function cubicCF(q1, b1, b2, q2, t)
+    local p01 = q1:Lerp(b1, t)
+    local p12 = b1:Lerp(b2, t)
+    local p23 = b2:Lerp(q2, t)
+    return p01:Lerp(p12, t):Lerp(p12:Lerp(p23, t), t)
+end
+
+local SMOOTH_K = 1 / 3
+
+local function smoothCF(q0, q1, q2, q3, t)
+    local b1 = q0:Lerp(q1, 1 + SMOOTH_K):Lerp(q1:Lerp(q2, SMOOTH_K), 0.5)
+    local b2 = q3:Lerp(q2, 1 + SMOOTH_K):Lerp(q2:Lerp(q1, SMOOTH_K), 0.5)
+    return cubicCF(q1, b1, b2, q2, t)
+end
+
+local function smoothV3(p0, p1, p2, p3, t)
+    local t2, t3 = t * t, t * t * t
+    return ((p1 * 2) + (p2 - p0) * t
+        + (p0 * 2 - p1 * 5 + p2 * 4 - p3) * t2
+        + (p1 * 3 - p0 - p2 * 3 + p3) * t3) * 0.5
+end
+
+local function sampleCFrame(kfs, time, smooth)
+    local a, b, i = findKF(kfs, time)
     if not a then return CFrame.identity end
     if not b then return a.data end
     local t = easedAlpha((time - a.time) / (b.time - a.time), a.easing)
+    if smooth then
+        local q0 = kfs[i - 1] or a
+        local q3 = kfs[i + 2] or b
+        return smoothCF(q0.data, a.data, b.data, q3.data, t)
+    end
     return lerpCFrame(a.data, b.data, t)
 end
 
-local function sampleJointPoses(kfs, time)
-    local a, b = findKF(kfs, time)
+local function sampleJointPoses(kfs, time, smooth)
+    local a, b, i = findKF(kfs, time)
     if not a then return {} end
     if not b then return a.poses end
     local t   = easedAlpha((time - a.time) / (b.time - a.time), a.easing)
+    local q0  = smooth and (kfs[i - 1] or a) or nil
+    local q3  = smooth and (kfs[i + 2] or b) or nil
     local out = {}
     for jointName, cfA in pairs(a.poses) do
         local cfB = b.poses[jointName]
-        out[jointName] = cfB and lerpCFrame(cfA, cfB, t) or cfA
+        if not cfB then
+            out[jointName] = cfA
+        elseif smooth then
+            local cf0 = q0.poses[jointName] or cfA
+            local cf3 = q3.poses[jointName] or cfB
+            out[jointName] = smoothCF(cf0, cfA, cfB, cf3, t)
+        else
+            out[jointName] = lerpCFrame(cfA, cfB, t)
+        end
     end
     return out
 end
 
-local function sampleScaleParts(kfs, time)
-    local a, b = findKF(kfs, time)
+local function sampleScaleParts(kfs, time, smooth)
+    local a, b, i = findKF(kfs, time)
     if not a then return {} end
     if not b then return a.data end
     local t   = easedAlpha((time - a.time) / (b.time - a.time), a.easing)
+    local q0  = smooth and (kfs[i - 1] or a) or nil
+    local q3  = smooth and (kfs[i + 2] or b) or nil
     local out = {}
     for pName, v3A in pairs(a.data) do
         local v3B = b.data[pName]
-        out[pName] = v3B and lerpV3(v3A, v3B, t) or v3A
+        if not v3B then
+            out[pName] = v3A
+        elseif smooth then
+            out[pName] = smoothV3(q0.data[pName] or v3A, v3A, v3B, q3.data[pName] or v3B, t)
+        else
+            out[pName] = lerpV3(v3A, v3B, t)
+        end
     end
     return out
 end
@@ -183,6 +236,7 @@ function CutscenePlayer.play(sceneName, rigMap, options)
     local loop       = options.loop        or false
     local movieMode  = options.movieMode   or false
     local resetOnEnd = options.resetOnEnd  or false
+    local smooth     = options.smooth ~= false   -- default ON; pass false for linear
 
     -- Grab modules; they live next to CutscenePlayer in ReplicatedStorage.
     local selfModule  = script  -- the ModuleScript itself (for sibling access)
@@ -484,18 +538,18 @@ function CutscenePlayer.play(sceneName, rigMap, options)
                 if not rd then continue end
 
                 if rd.rootKFs and #rd.rootKFs > 0 then
-                    local cf  = sampleCFrame(rd.rootKFs, t)
+                    local cf  = sampleCFrame(rd.rootKFs, t, smooth)
                     local hrp = rig:FindFirstChild("HumanoidRootPart")
                     if hrp then hrp.CFrame = cf end
                 end
 
                 if rd.jointKFs and #rd.jointKFs > 0 then
-                    local poses = sampleJointPoses(rd.jointKFs, t)
+                    local poses = sampleJointPoses(rd.jointKFs, t, smooth)
                     if poses then applyJoints(jointMaps[rigName] or {}, poses) end
                 end
 
                 if rd.scaleKFs and #rd.scaleKFs > 0 then
-                    local parts = sampleScaleParts(rd.scaleKFs, t)
+                    local parts = sampleScaleParts(rd.scaleKFs, t, smooth)
                     if parts then applyScale(rig, parts) end
                 end
             end
@@ -504,7 +558,7 @@ function CutscenePlayer.play(sceneName, rigMap, options)
             for propName, part in pairs(propInstances) do
                 local kfs = sceneData.props[propName]
                 if kfs and #kfs > 0 and part and part.Parent then
-                    part.CFrame = sampleCFrame(kfs, t)
+                    part.CFrame = sampleCFrame(kfs, t, smooth)
                 end
             end
 
@@ -512,11 +566,20 @@ function CutscenePlayer.play(sceneName, rigMap, options)
             -- interpolated toward — the previous shot holds until the cut lands
             -- (same semantics as the editor preview and CutsceneCamera).
             if #sceneData.camera > 0 then
-                local a, b = findKF(sceneData.camera, t)
+                local a, b, ci = findKF(sceneData.camera, t)
                 if a then
                     if b and not b.data.cut then
                         local frac = easedAlpha((t - a.time) / (b.time - a.time), a.data.easing)
-                        camera.CFrame      = lerpCFrame(a.data.cf, b.data.cf, frac)
+                        if smooth then
+                            -- never build tangents across a cut boundary
+                            local c0 = sceneData.camera[ci - 1]
+                            if not c0 or a.data.cut then c0 = a end
+                            local c3 = sceneData.camera[ci + 2]
+                            if not c3 or c3.data.cut then c3 = b end
+                            camera.CFrame = smoothCF(c0.data.cf, a.data.cf, b.data.cf, c3.data.cf, frac)
+                        else
+                            camera.CFrame = lerpCFrame(a.data.cf, b.data.cf, frac)
+                        end
                         camera.FieldOfView = lerp(a.data.fov or 70, b.data.fov or 70, frac)
                     else
                         camera.CFrame      = a.data.cf

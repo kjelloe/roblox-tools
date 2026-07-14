@@ -73,8 +73,26 @@ local function cameraKeyframes(cameraData)
     return list
 end
 
+-- ── Smooth interpolation (Catmull-Rom-style; same construction as
+-- CutscenePlayer/MultiAnimPlayer — keep the copies in sync) ──────────────────
+
+local SMOOTH_K = 1 / 3
+
+local function cubicCF(q1, b1, b2, q2, t)
+    local p01 = q1:Lerp(b1, t)
+    local p12 = b1:Lerp(b2, t)
+    local p23 = b2:Lerp(q2, t)
+    return p01:Lerp(p12, t):Lerp(p12:Lerp(p23, t), t)
+end
+
+local function smoothCF(q0, q1, q2, q3, t)
+    local b1 = q0:Lerp(q1, 1 + SMOOTH_K):Lerp(q1:Lerp(q2, SMOOTH_K), 0.5)
+    local b2 = q3:Lerp(q2, 1 + SMOOTH_K):Lerp(q2:Lerp(q1, SMOOTH_K), 0.5)
+    return cubicCF(q1, b1, b2, q2, t)
+end
+
 -- Camera pose at `elapsed` seconds: (cf, fov).  Clamps outside the range.
-local function sample(kfs, elapsed)
+local function sample(kfs, elapsed, smooth)
     if elapsed <= kfs[1].time then
         return kfs[1].cf, kfs[1].fov
     end
@@ -89,6 +107,15 @@ local function sample(kfs, elapsed)
                 return a.cf, a.fov   -- hold the shot until the cut lands
             end
             local t = easedAlpha((elapsed - a.time) / (b.time - a.time), a.easing)
+            if smooth then
+                -- never build tangents across a cut boundary
+                local q0 = kfs[i - 1]
+                if not q0 or a.cut then q0 = a end
+                local q3 = kfs[i + 2]
+                if not q3 or q3.cut then q3 = b end
+                return smoothCF(q0.cf, a.cf, b.cf, q3.cf, t),
+                       a.fov + (b.fov - a.fov) * t
+            end
             return a.cf:Lerp(b.cf, t), a.fov + (b.fov - a.fov) * t
         end
     end
@@ -253,6 +280,7 @@ local function playCamera(cameraData, startTime)
     stopPlayback()
     local kfs = cameraKeyframes(cameraData)
     if #kfs == 0 then return end
+    local smooth = cameraData.smooth ~= false   -- default ON
 
     local cam = workspace.CurrentCamera
     savedState = { camType = cam.CameraType, cf = cam.CFrame, fov = cam.FieldOfView }
@@ -267,7 +295,7 @@ local function playCamera(cameraData, startTime)
             cam.CFrame, cam.FieldOfView = kfs[1].cf, kfs[1].fov
             return
         end
-        cam.CFrame, cam.FieldOfView = sample(kfs, elapsed)
+        cam.CFrame, cam.FieldOfView = sample(kfs, elapsed, smooth)
         if elapsed > endTime then
             stopPlayback()
         end

@@ -415,6 +415,7 @@ player.play("Scene_001",
     { Rig1 = workspace.FIGURES.Rig1, Rig2 = workspace.FIGURES.Rig2 },
     { Block = workspace.Block },  -- omit to play rigs only (backward compatible)
     { resetOnEnd = true,          -- snap rigs/props back to frame 1 on finish
+      smooth = true,              -- default true: Catmull-Rom-style interpolation
       skipEffects = false }       -- true = suppress effect/spawned-effect firing
                                   -- (CutsceneServer sets this when clients fire
                                   -- them locally; duration still counts their tails)
@@ -432,6 +433,18 @@ end)
 ---
 
 ## Interpolation Rules
+
+### Smooth mode (default in all playback paths)
+
+Between keyframes, plain lerp gives each keyframe a velocity kink — flips and
+camera orbits read as jagged polylines. Smooth mode (on by default; pass
+`smooth = false` in the play opts for legacy linear) runs a cubic De Casteljau
+over `CFrame:Lerp` with tangent controls extrapolated from the neighbour
+segments (unclamped `Lerp` extrapolates), giving C1-ish continuity for
+positions **and** rotations in one construction; `Vector3` tracks (scale) use a
+standard Catmull-Rom. Keyframe values are still hit exactly; `Constant` easing
+still holds exactly; camera tangents never cross a `cut` boundary. Keep
+authored rotation steps under ~120° per keyframe.
 
 ### Easing
 

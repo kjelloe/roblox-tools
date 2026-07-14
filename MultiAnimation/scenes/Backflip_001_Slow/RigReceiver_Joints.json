@@ -138,1813 +138,6 @@
           "weight": 1
         }
       ],
-      "time": 0
-    },
-    {
-      "poses": [
-        {
-          "cframe": [
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1
-          ],
-          "children": [
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Neck",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "RootJoint",
-              "weight": 1
-            }
-          ],
-          "name": "HumanoidRootPart",
-          "weight": 1
-        }
-      ],
-      "time": 0.083333
-    },
-    {
-      "poses": [
-        {
-          "cframe": [
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1
-          ],
-          "children": [
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Neck",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "RootJoint",
-              "weight": 1
-            }
-          ],
-          "name": "HumanoidRootPart",
-          "weight": 1
-        }
-      ],
-      "time": 0.166667
-    },
-    {
-      "poses": [
-        {
-          "cframe": [
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1
-          ],
-          "children": [
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Neck",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "RootJoint",
-              "weight": 1
-            }
-          ],
-          "name": "HumanoidRootPart",
-          "weight": 1
-        }
-      ],
-      "time": 0.25
-    },
-    {
-      "poses": [
-        {
-          "cframe": [
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1
-          ],
-          "children": [
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Neck",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "RootJoint",
-              "weight": 1
-            }
-          ],
-          "name": "HumanoidRootPart",
-          "weight": 1
-        }
-      ],
-      "time": 0.333333
-    },
-    {
-      "poses": [
-        {
-          "cframe": [
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1
-          ],
-          "children": [
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Neck",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "RootJoint",
-              "weight": 1
-            }
-          ],
-          "name": "HumanoidRootPart",
-          "weight": 1
-        }
-      ],
-      "time": 0.416667
-    },
-    {
-      "poses": [
-        {
-          "cframe": [
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1
-          ],
-          "children": [
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Neck",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "RootJoint",
-              "weight": 1
-            }
-          ],
-          "name": "HumanoidRootPart",
-          "weight": 1
-        }
-      ],
-      "time": 0.5
-    },
-    {
-      "poses": [
-        {
-          "cframe": [
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1
-          ],
-          "children": [
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Neck",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "RootJoint",
-              "weight": 1
-            }
-          ],
-          "name": "HumanoidRootPart",
-          "weight": 1
-        }
-      ],
-      "time": 0.583333
-    },
-    {
-      "poses": [
-        {
-          "cframe": [
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1
-          ],
-          "children": [
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Neck",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "RootJoint",
-              "weight": 1
-            }
-          ],
-          "name": "HumanoidRootPart",
-          "weight": 1
-        }
-      ],
-      "time": 0.666667
-    },
-    {
-      "poses": [
-        {
-          "cframe": [
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1
-          ],
-          "children": [
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Neck",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "RootJoint",
-              "weight": 1
-            }
-          ],
-          "name": "HumanoidRootPart",
-          "weight": 1
-        }
-      ],
-      "time": 0.75
-    },
-    {
-      "poses": [
-        {
-          "cframe": [
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1
-          ],
-          "children": [
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Neck",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "RootJoint",
-              "weight": 1
-            }
-          ],
-          "name": "HumanoidRootPart",
-          "weight": 1
-        }
-      ],
-      "time": 0.833333
-    },
-    {
-      "poses": [
-        {
-          "cframe": [
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1
-          ],
-          "children": [
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Neck",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "RootJoint",
-              "weight": 1
-            }
-          ],
-          "name": "HumanoidRootPart",
-          "weight": 1
-        }
-      ],
-      "time": 0.916667
-    },
-    {
-      "poses": [
-        {
-          "cframe": [
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1
-          ],
-          "children": [
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Neck",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "RootJoint",
-              "weight": 1
-            }
-          ],
-          "name": "HumanoidRootPart",
-          "weight": 1
-        }
-      ],
-      "time": 1
-    },
-    {
-      "poses": [
-        {
-          "cframe": [
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1,
-            0,
-            0,
-            0,
-            1
-          ],
-          "children": [
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                0.766044,
-                0.642788,
-                0,
-                -0.642788,
-                0.766044,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                0.642788,
-                -0.766044,
-                0,
-                0.766044,
-                0.642788,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Left Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Neck",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                0.766044,
-                -0.642788,
-                0,
-                0.642788,
-                0.766044,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Hip",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                0.642788,
-                0.766044,
-                0,
-                -0.766044,
-                0.642788,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "Right Shoulder",
-              "weight": 1
-            },
-            {
-              "cframe": [
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1
-              ],
-              "children": [],
-              "name": "RootJoint",
-              "weight": 1
-            }
-          ],
-          "name": "HumanoidRootPart",
-          "weight": 1
-        }
-      ],
       "time": 1.083333
     },
     {
@@ -1967,14 +160,14 @@
           "children": [
             {
               "cframe": [
-                -2e-06,
-                -1e-06,
                 0,
-                0.634633,
-                0.772814,
                 0,
-                -0.772814,
-                0.634633,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -1986,14 +179,14 @@
             },
             {
               "cframe": [
-                -1e-06,
-                1e-06,
                 0,
-                0.935259,
-                0.353964,
                 0,
-                -0.353964,
-                0.935259,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2024,14 +217,14 @@
             },
             {
               "cframe": [
-                2e-06,
-                -1e-06,
                 0,
-                0.634633,
-                -0.772814,
                 0,
-                0.772814,
-                0.634633,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2043,14 +236,14 @@
             },
             {
               "cframe": [
-                1e-06,
-                1e-06,
                 0,
-                0.935259,
-                -0.353964,
                 0,
-                0.353964,
-                0.935259,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2106,14 +299,14 @@
           "children": [
             {
               "cframe": [
-                -2e-06,
-                -3e-06,
                 0,
-                0.412871,
-                0.910789,
                 0,
-                -0.910789,
-                0.412871,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2125,14 +318,14 @@
             },
             {
               "cframe": [
-                -1e-06,
-                -2e-06,
                 0,
-                0.856739,
-                0.51575,
                 0,
-                -0.51575,
-                0.856739,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2163,14 +356,14 @@
             },
             {
               "cframe": [
-                2e-06,
-                -3e-06,
                 0,
-                0.412871,
-                -0.910789,
                 0,
-                0.910789,
-                0.412871,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2182,14 +375,14 @@
             },
             {
               "cframe": [
-                1e-06,
-                -2e-06,
                 0,
-                0.856739,
-                -0.51575,
                 0,
-                0.51575,
-                0.856739,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2245,14 +438,14 @@
           "children": [
             {
               "cframe": [
-                2e-06,
-                6e-06,
                 0,
-                0.183169,
-                0.983081,
                 0,
-                -0.983081,
-                0.183169,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2264,14 +457,14 @@
             },
             {
               "cframe": [
-                -1e-06,
-                4e-06,
                 0,
-                0.759767,
-                0.650196,
                 0,
-                -0.650196,
-                0.759767,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2284,7 +477,7 @@
             {
               "cframe": [
                 0,
-                -1e-06,
+                0,
                 0,
                 1,
                 0,
@@ -2302,14 +495,14 @@
             },
             {
               "cframe": [
-                -2e-06,
-                6e-06,
                 0,
-                0.183169,
-                -0.983081,
                 0,
-                0.983081,
-                0.183169,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2321,14 +514,14 @@
             },
             {
               "cframe": [
-                1e-06,
-                4e-06,
                 0,
-                0.759767,
-                -0.650196,
                 0,
-                0.650196,
-                0.759767,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2385,13 +578,13 @@
             {
               "cframe": [
                 0,
-                1e-06,
                 0,
-                -0.027373,
-                0.999625,
                 0,
-                -0.999625,
-                -0.027373,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2404,13 +597,13 @@
             {
               "cframe": [
                 0,
-                1e-06,
                 0,
-                0.657495,
-                0.753459,
                 0,
-                -0.753459,
-                0.657495,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2442,13 +635,13 @@
             {
               "cframe": [
                 0,
-                1e-06,
                 0,
-                -0.027373,
-                -0.999625,
                 0,
-                0.999625,
-                -0.027373,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2461,13 +654,13 @@
             {
               "cframe": [
                 0,
-                1e-06,
                 0,
-                0.657495,
-                -0.753459,
                 0,
-                0.753459,
-                0.657495,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2523,14 +716,14 @@
           "children": [
             {
               "cframe": [
-                -1e-06,
-                4e-06,
                 0,
-                -0.199668,
-                0.979864,
                 0,
-                -0.979864,
-                -0.199668,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2543,13 +736,13 @@
             {
               "cframe": [
                 0,
-                1e-06,
                 0,
-                0.563082,
-                0.826401,
                 0,
-                -0.826401,
-                0.563082,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2562,7 +755,7 @@
             {
               "cframe": [
                 0,
-                2e-06,
+                0,
                 0,
                 1,
                 0,
@@ -2580,14 +773,14 @@
             },
             {
               "cframe": [
-                1e-06,
-                4e-06,
                 0,
-                -0.199668,
-                -0.979864,
                 0,
-                0.979864,
-                -0.199668,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2600,13 +793,13 @@
             {
               "cframe": [
                 0,
-                1e-06,
                 0,
-                0.563082,
-                -0.826401,
                 0,
-                0.826401,
-                0.563082,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2662,14 +855,14 @@
           "children": [
             {
               "cframe": [
-                5e-06,
-                -1e-06,
                 0,
-                -0.324089,
-                0.946027,
                 0,
-                -0.946027,
-                -0.324089,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2681,14 +874,14 @@
             },
             {
               "cframe": [
-                -2e-06,
-                2e-06,
                 0,
-                0.487656,
-                0.873036,
                 0,
-                -0.873036,
-                0.487656,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2719,14 +912,14 @@
             },
             {
               "cframe": [
-                -5e-06,
-                -1e-06,
                 0,
-                -0.324089,
-                -0.946027,
                 0,
-                0.946027,
-                -0.324089,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2738,14 +931,14 @@
             },
             {
               "cframe": [
-                2e-06,
-                2e-06,
                 0,
-                0.487656,
-                -0.873036,
                 0,
-                0.873036,
-                0.487656,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2801,14 +994,14 @@
           "children": [
             {
               "cframe": [
-                2e-06,
-                1e-06,
                 0,
-                -0.398154,
-                0.917319,
                 0,
-                -0.917319,
-                -0.398154,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2820,14 +1013,14 @@
             },
             {
               "cframe": [
-                -1e-06,
                 0,
                 0,
-                0.439262,
-                0.898359,
                 0,
-                -0.898359,
-                0.439262,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2840,7 +1033,7 @@
             {
               "cframe": [
                 0,
-                4e-06,
+                0,
                 0,
                 1,
                 0,
@@ -2858,14 +1051,14 @@
             },
             {
               "cframe": [
-                -2e-06,
-                1e-06,
                 0,
-                -0.398154,
-                -0.917319,
                 0,
-                0.917319,
-                -0.398154,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2877,14 +1070,14 @@
             },
             {
               "cframe": [
-                1e-06,
                 0,
                 0,
-                0.439262,
-                -0.898359,
                 0,
-                0.898359,
-                0.439262,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2940,14 +1133,14 @@
           "children": [
             {
               "cframe": [
-                1e-06,
-                1e-06,
                 0,
-                -0.422618,
-                0.906308,
                 0,
-                -0.906308,
-                -0.422618,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2959,14 +1152,14 @@
             },
             {
               "cframe": [
-                -2e-06,
                 0,
                 0,
-                0.422618,
-                0.906308,
                 0,
-                -0.906308,
-                0.422618,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -2997,14 +1190,14 @@
             },
             {
               "cframe": [
-                -1e-06,
-                1e-06,
                 0,
-                -0.422618,
-                -0.906308,
                 0,
-                0.906308,
-                -0.422618,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3016,14 +1209,14 @@
             },
             {
               "cframe": [
-                2e-06,
                 0,
                 0,
-                0.422618,
-                -0.906308,
                 0,
-                0.906308,
-                0.422618,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3079,14 +1272,14 @@
           "children": [
             {
               "cframe": [
-                2e-06,
-                -1e-06,
                 0,
-                -0.398154,
-                0.917319,
                 0,
-                -0.917319,
-                -0.398154,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3098,14 +1291,14 @@
             },
             {
               "cframe": [
-                -1e-06,
-                -2e-06,
                 0,
-                0.439262,
-                0.898359,
                 0,
-                -0.898359,
-                0.439262,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3136,14 +1329,14 @@
             },
             {
               "cframe": [
-                -2e-06,
-                -1e-06,
                 0,
-                -0.398154,
-                -0.917319,
                 0,
-                0.917319,
-                -0.398154,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3155,14 +1348,14 @@
             },
             {
               "cframe": [
-                1e-06,
-                -2e-06,
                 0,
-                0.439262,
-                -0.898359,
                 0,
-                0.898359,
-                0.439262,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3218,14 +1411,14 @@
           "children": [
             {
               "cframe": [
-                -1e-06,
                 0,
                 0,
-                -0.324089,
-                0.946027,
                 0,
-                -0.946027,
-                -0.324089,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3240,11 +1433,11 @@
                 0,
                 0,
                 0,
-                0.487656,
-                0.873036,
+                1,
                 0,
-                -0.873036,
-                0.487656,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3257,7 +1450,7 @@
             {
               "cframe": [
                 0,
-                2e-06,
+                0,
                 0,
                 1,
                 0,
@@ -3275,14 +1468,14 @@
             },
             {
               "cframe": [
-                1e-06,
                 0,
                 0,
-                -0.324089,
-                -0.946027,
                 0,
-                0.946027,
-                -0.324089,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3297,11 +1490,11 @@
                 0,
                 0,
                 0,
-                0.487656,
-                -0.873036,
+                1,
                 0,
-                0.873036,
-                0.487656,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3357,14 +1550,14 @@
           "children": [
             {
               "cframe": [
-                -1e-06,
-                1e-06,
                 0,
-                -0.199668,
-                0.979864,
                 0,
-                -0.979864,
-                -0.199668,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3377,13 +1570,13 @@
             {
               "cframe": [
                 0,
-                1e-06,
                 0,
-                0.563082,
-                0.826401,
                 0,
-                -0.826401,
-                0.563082,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3414,14 +1607,14 @@
             },
             {
               "cframe": [
-                1e-06,
-                1e-06,
                 0,
-                -0.199668,
-                -0.979864,
                 0,
-                0.979864,
-                -0.199668,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3434,13 +1627,13 @@
             {
               "cframe": [
                 0,
-                1e-06,
                 0,
-                0.563082,
-                -0.826401,
                 0,
-                0.826401,
-                0.563082,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3497,13 +1690,13 @@
             {
               "cframe": [
                 0,
-                1e-06,
                 0,
-                -0.027373,
-                0.999625,
                 0,
-                -0.999625,
-                -0.027373,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3516,13 +1709,13 @@
             {
               "cframe": [
                 0,
-                1e-06,
                 0,
-                0.657495,
-                0.753459,
                 0,
-                -0.753459,
-                0.657495,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3554,13 +1747,13 @@
             {
               "cframe": [
                 0,
-                1e-06,
                 0,
-                -0.027373,
-                -0.999625,
                 0,
-                0.999625,
-                -0.027373,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3573,13 +1766,13 @@
             {
               "cframe": [
                 0,
-                1e-06,
                 0,
-                0.657495,
-                -0.753459,
                 0,
-                0.753459,
-                0.657495,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3635,14 +1828,14 @@
           "children": [
             {
               "cframe": [
-                2e-06,
-                -2e-06,
                 0,
-                0.183169,
-                0.983081,
                 0,
-                -0.983081,
-                0.183169,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3654,14 +1847,14 @@
             },
             {
               "cframe": [
-                2e-06,
-                1e-06,
                 0,
-                0.759767,
-                0.650196,
                 0,
-                -0.650196,
-                0.759767,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3675,7 +1868,7 @@
               "cframe": [
                 0,
                 0,
-                -4e-06,
+                0,
                 1,
                 0,
                 0,
@@ -3692,14 +1885,14 @@
             },
             {
               "cframe": [
-                -2e-06,
-                -2e-06,
                 0,
-                0.183169,
-                -0.983081,
                 0,
-                0.983081,
-                0.183169,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3711,14 +1904,14 @@
             },
             {
               "cframe": [
-                -2e-06,
-                1e-06,
                 0,
-                0.759767,
-                -0.650196,
                 0,
-                0.650196,
-                0.759767,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3775,13 +1968,13 @@
             {
               "cframe": [
                 0,
-                -1e-06,
                 0,
-                0.412871,
-                0.91079,
                 0,
-                -0.91079,
-                0.412871,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3793,14 +1986,14 @@
             },
             {
               "cframe": [
-                1e-06,
                 0,
                 0,
-                0.856739,
-                0.51575,
                 0,
-                -0.51575,
-                0.856739,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3832,13 +2025,13 @@
             {
               "cframe": [
                 0,
-                -1e-06,
                 0,
-                0.412871,
-                -0.91079,
                 0,
-                0.91079,
-                0.412871,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3850,14 +2043,14 @@
             },
             {
               "cframe": [
-                -1e-06,
                 0,
                 0,
-                0.856739,
-                -0.51575,
                 0,
-                0.51575,
-                0.856739,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3913,14 +2106,14 @@
           "children": [
             {
               "cframe": [
-                -2e-06,
-                -1e-06,
                 0,
-                0.634633,
-                0.772814,
                 0,
-                -0.772814,
-                0.634633,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3932,14 +2125,14 @@
             },
             {
               "cframe": [
-                3e-06,
-                -2e-06,
                 0,
-                0.935259,
-                0.353964,
                 0,
-                -0.353964,
-                0.935259,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3953,7 +2146,7 @@
               "cframe": [
                 0,
                 0,
-                -1e-06,
+                0,
                 1,
                 0,
                 0,
@@ -3970,14 +2163,14 @@
             },
             {
               "cframe": [
-                2e-06,
-                -1e-06,
                 0,
-                0.634633,
-                -0.772814,
                 0,
-                0.772814,
-                0.634633,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -3989,14 +2182,14 @@
             },
             {
               "cframe": [
-                -3e-06,
-                -2e-06,
                 0,
-                0.935259,
-                -0.353964,
                 0,
-                0.353964,
-                0.935259,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -4052,14 +2245,14 @@
           "children": [
             {
               "cframe": [
-                -1e-06,
                 0,
                 0,
-                0.819152,
-                0.573576,
                 0,
-                -0.573576,
-                0.819152,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -4071,14 +2264,14 @@
             },
             {
               "cframe": [
-                2e-06,
                 0,
                 0,
-                0.984808,
-                0.173648,
                 0,
-                -0.173648,
-                0.984808,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -4109,14 +2302,14 @@
             },
             {
               "cframe": [
-                1e-06,
                 0,
                 0,
-                0.819152,
-                -0.573576,
                 0,
-                0.573576,
-                0.819152,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -4128,14 +2321,14 @@
             },
             {
               "cframe": [
-                -2e-06,
                 0,
                 0,
-                0.984808,
-                -0.173648,
                 0,
-                0.173648,
-                0.984808,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -4210,14 +2403,14 @@
             },
             {
               "cframe": [
-                2e-06,
                 0,
                 0,
-                0.984808,
-                0.173648,
                 0,
-                -0.173648,
-                0.984808,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -4267,14 +2460,14 @@
             },
             {
               "cframe": [
-                -2e-06,
                 0,
                 0,
-                0.984808,
-                -0.173648,
                 0,
-                0.173648,
-                0.984808,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -4330,7 +2523,7 @@
           "children": [
             {
               "cframe": [
-                4e-06,
+                0,
                 0,
                 0,
                 1,
@@ -4349,14 +2542,14 @@
             },
             {
               "cframe": [
-                -2e-06,
-                -1e-06,
                 0,
-                0.984808,
-                -0.173648,
                 0,
-                0.173648,
-                0.984808,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -4369,7 +2562,7 @@
             {
               "cframe": [
                 0,
-                -4e-06,
+                0,
                 0,
                 1,
                 0,
@@ -4387,7 +2580,7 @@
             },
             {
               "cframe": [
-                -4e-06,
+                0,
                 0,
                 0,
                 1,
@@ -4406,14 +2599,14 @@
             },
             {
               "cframe": [
-                2e-06,
-                -1e-06,
                 0,
-                0.984808,
-                0.173648,
                 0,
-                -0.173648,
-                0.984808,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -4469,8 +2662,8 @@
           "children": [
             {
               "cframe": [
-                -4e-06,
-                -2e-06,
+                0,
+                0,
                 0,
                 1,
                 0,
@@ -4488,14 +2681,14 @@
             },
             {
               "cframe": [
-                -2e-06,
-                -2e-06,
                 0,
-                0.906308,
-                -0.422618,
                 0,
-                0.422618,
-                0.906308,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -4526,8 +2719,8 @@
             },
             {
               "cframe": [
-                4e-06,
-                -2e-06,
+                0,
+                0,
                 0,
                 1,
                 0,
@@ -4545,14 +2738,14 @@
             },
             {
               "cframe": [
-                2e-06,
-                -2e-06,
                 0,
-                0.906308,
-                0.422618,
                 0,
-                -0.422618,
-                0.906308,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -4627,14 +2820,14 @@
             },
             {
               "cframe": [
-                2e-06,
-                2e-06,
                 0,
-                0.766044,
-                -0.642788,
                 0,
-                0.642788,
-                0.766044,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -4647,7 +2840,7 @@
             {
               "cframe": [
                 0,
-                4e-06,
+                0,
                 0,
                 1,
                 0,
@@ -4684,14 +2877,14 @@
             },
             {
               "cframe": [
-                -2e-06,
-                2e-06,
                 0,
-                0.766044,
-                0.642788,
                 0,
-                -0.642788,
-                0.766044,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -4748,7 +2941,7 @@
             {
               "cframe": [
                 0,
-                -4e-06,
+                0,
                 0,
                 1,
                 0,
@@ -4767,13 +2960,13 @@
             {
               "cframe": [
                 0,
-                -1e-06,
                 0,
-                0.573577,
-                -0.819152,
                 0,
-                0.819152,
-                0.573577,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -4786,8 +2979,8 @@
             {
               "cframe": [
                 0,
-                -2e-06,
-                -4e-06,
+                0,
+                0,
                 1,
                 0,
                 0,
@@ -4805,7 +2998,7 @@
             {
               "cframe": [
                 0,
-                -4e-06,
+                0,
                 0,
                 1,
                 0,
@@ -4824,13 +3017,13 @@
             {
               "cframe": [
                 0,
-                -1e-06,
                 0,
-                0.573577,
-                0.819152,
                 0,
-                -0.819152,
-                0.573577,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -4886,8 +3079,8 @@
           "children": [
             {
               "cframe": [
-                2e-06,
-                4e-06,
+                0,
+                0,
                 0,
                 1,
                 0,
@@ -4905,14 +3098,14 @@
             },
             {
               "cframe": [
-                3e-06,
-                5e-06,
                 0,
-                0.374607,
-                -0.927184,
                 0,
-                0.927184,
-                0.374607,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -4926,7 +3119,7 @@
               "cframe": [
                 0,
                 0,
-                4e-06,
+                0,
                 1,
                 0,
                 0,
@@ -4943,8 +3136,8 @@
             },
             {
               "cframe": [
-                -2e-06,
-                4e-06,
+                0,
+                0,
                 0,
                 1,
                 0,
@@ -4962,14 +3155,14 @@
             },
             {
               "cframe": [
-                -3e-06,
-                5e-06,
                 0,
-                0.374607,
-                0.927184,
                 0,
-                -0.927184,
-                0.374607,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -5044,14 +3237,14 @@
             },
             {
               "cframe": [
-                -1e-06,
-                -2e-06,
                 0,
-                0.207912,
-                -0.978148,
                 0,
-                0.978148,
-                0.207912,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -5065,7 +3258,7 @@
               "cframe": [
                 0,
                 0,
-                -4e-06,
+                0,
                 1,
                 0,
                 0,
@@ -5101,14 +3294,14 @@
             },
             {
               "cframe": [
-                1e-06,
-                -2e-06,
                 0,
-                0.207912,
-                0.978148,
                 0,
-                -0.978148,
-                0.207912,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -5165,7 +3358,7 @@
             {
               "cframe": [
                 0,
-                -4e-06,
+                0,
                 0,
                 1,
                 0,
@@ -5184,13 +3377,13 @@
             {
               "cframe": [
                 0,
-                -3e-06,
                 0,
-                0.069757,
-                -0.997564,
                 0,
-                0.997564,
-                0.069757,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -5222,7 +3415,7 @@
             {
               "cframe": [
                 0,
-                -4e-06,
+                0,
                 0,
                 1,
                 0,
@@ -5241,13 +3434,13 @@
             {
               "cframe": [
                 0,
-                -3e-06,
                 0,
-                0.069757,
-                0.997564,
                 0,
-                -0.997564,
-                0.069757,
+                1,
+                0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -5325,11 +3518,11 @@
                 0,
                 0,
                 0,
-                0,
-                -1,
-                0,
                 1,
                 0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -5382,11 +3575,11 @@
                 0,
                 0,
                 0,
-                0,
                 1,
                 0,
-                -1,
                 0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -5464,11 +3657,11 @@
                 0,
                 0,
                 0,
-                0,
-                -1,
-                0,
                 1,
                 0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -5521,11 +3714,11 @@
                 0,
                 0,
                 0,
-                0,
                 1,
                 0,
-                -1,
                 0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -5603,11 +3796,11 @@
                 0,
                 0,
                 0,
-                0,
-                -1,
-                0,
                 1,
                 0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -5660,11 +3853,11 @@
                 0,
                 0,
                 0,
-                0,
                 1,
                 0,
-                -1,
                 0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -5742,11 +3935,11 @@
                 0,
                 0,
                 0,
-                0,
-                -1,
-                0,
                 1,
                 0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -5799,11 +3992,11 @@
                 0,
                 0,
                 0,
-                0,
                 1,
                 0,
-                -1,
                 0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -5881,11 +4074,11 @@
                 0,
                 0,
                 0,
-                0,
-                -1,
-                0,
                 1,
                 0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -5938,11 +4131,11 @@
                 0,
                 0,
                 0,
-                0,
                 1,
                 0,
-                -1,
                 0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -6020,11 +4213,11 @@
                 0,
                 0,
                 0,
-                0,
-                -1,
-                0,
                 1,
                 0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -6077,11 +4270,11 @@
                 0,
                 0,
                 0,
-                0,
                 1,
                 0,
-                -1,
                 0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -6159,11 +4352,11 @@
                 0,
                 0,
                 0,
-                0,
-                -1,
-                0,
                 1,
                 0,
+                0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -6216,11 +4409,11 @@
                 0,
                 0,
                 0,
-                0,
                 1,
                 0,
-                -1,
                 0,
+                0,
+                1,
                 0,
                 0,
                 0,
@@ -6255,8 +4448,147 @@
         }
       ],
       "time": 3.666667
+    },
+    {
+      "poses": [
+        {
+          "cframe": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "children": [
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Left Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Neck",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Hip",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "Right Shoulder",
+              "weight": 1
+            },
+            {
+              "cframe": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1
+              ],
+              "children": [],
+              "name": "RootJoint",
+              "weight": 1
+            }
+          ],
+          "name": "HumanoidRootPart",
+          "weight": 1
+        }
+      ],
+      "time": 3.75
     }
   ],
   "loop": false,
-  "name": "Stuntman_Joints"
+  "name": "RigReceiver_Joints"
 }

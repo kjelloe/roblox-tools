@@ -411,6 +411,9 @@ mcp scene push Scene_001             # rebuild in ServerStorage from disk
 mcp scene push Scene_001 --as Copy   # push under a different name
 ```
 
+Pulls transfer the scene JSON in 90 k-char slices — tool responses truncate
+at ~100 k chars, which silently broke dense scenes (45+ keyframes) before.
+
 On-disk format per scene: `<Rig>_Joints.json` (keyframes sorted by time, pose
 tree nested, CFrames as 12-number arrays rounded to 6 decimals), track
 ModuleScripts as verbatim `.lua`, plus `manifest.json`. Round-trip verified
@@ -426,6 +429,7 @@ the live panel: `ping`, `getRigs`, `getActiveRigs`, `setActiveRig`, `setFrame`,
 spawned effects (`addSpawnedEffect`/`getSpawnedEffects`/`deleteSpawnedEffect` —
 same path as the overlay's Add to Frame, including gizmo and preview fire),
 prop attachments (`attachProp`/`detachProp`/`getPropAttachments`),
+`simplePoseToEnd` (selection-scoped pose hold),
 subtitles, sessions, playback tab, and `exportScene` (same path as the Export
 button). Payloads cross the VM boundary as JSON strings. The full command list
 is the `cmds` table in `init.server.lua`.

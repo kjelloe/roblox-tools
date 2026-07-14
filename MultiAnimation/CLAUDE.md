@@ -125,7 +125,7 @@ python3 devsync.py uninstall   # back to build.py + manual reload
 ### Other dev scripts
 
 ```bash
-python3 run_tests.py [pattern] [-v]   # full suite (~873 cases, 34 files), or `mcp test`
+python3 run_tests.py [pattern] [-v]   # full suite (~891 cases, 36 files), or `mcp test`
 python3 export.py                     # package plugin + game scripts for distribution → export/
 python3 watch.py                      # auto-build on save (when not using devsync)
 python3 hotpatch.py game/MultiAnimPlayer.lua   # push one game/ module, or `mcp deploy`
@@ -237,10 +237,12 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 | `test_cutscene_client_core.lua` | CutscenePlayer client sampling: eased keyframe interpolation, Constant/missing-easing fallback, camera cut hold/jump/resume, effect-event flattening + crossing-window single-fire, duration includes event-only tails (20 cases, headless) |
 | `test_prop_attach.lua` | Prop attachment authoring aid: auto-track setup, attach/detach bridge round-trip, Heartbeat follow with frozen offset (translation + rotation), guards (11 cases, live) |
 | `test_gizmo_scale.lua` | Gizmo distance scaling: natural size at 20 studs, grows with distance, clamps 0.5×/3× (8 cases, live) |
+| `test_smooth_interp.lua` | Smooth-mode math: endpoint exactness, linear-data invariance, velocity continuity across keyframes vs linear kink, rotation midpoint/ladder monotonicity, Constant hold (11 cases, headless) |
+| `test_pose_to_end.lua` | Pose→End: limb-joint + prop propagation to following frames, earlier frames untouched, empty-selection guard (7 cases, live) |
 | `test_trigger_pads.lua` | Auto-pads: toggle round-trip, pad creation (label/attribute/neon), idempotent re-ensure keeps moved position + colour, listener deployment (12 cases, live) |
 | `test_cutscene_effects_core.lua` | CutsceneServer client-fired effects: remote-safe array reshaping, client event-list build, crossing-window single-fire, skipEffects gate (15 cases, headless) |
 
-Suite total: **~873 cases** across 34 runnable files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive; exact total varies with session-state-conditional blocks). Note: `test_ui_playback` test 19 now asserts fps is absent from snippet; `test_ui_simple` insert-frame tests now assert Duplicate (cursor to frame+1, frame+1 has data). Test files must end with the standard `=== N passed, M failed ===` summary line — `run_tests.py` parses it for the counts (a file missing it reports 0/0).
+Suite total: **~891 cases** across 36 runnable files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive; exact total varies with session-state-conditional blocks). Note: `test_ui_playback` test 19 now asserts fps is absent from snippet; `test_ui_simple` insert-frame tests now assert Duplicate (cursor to frame+1, frame+1 has data). Test files must end with the standard `=== N passed, M failed ===` summary line — `run_tests.py` parses it for the counts (a file missing it reports 0/0).
 
 **Test isolation:** UI test files that need deterministic rig availability call `scanFigures` at their start (bridge command on `__MultiAnimTestBridge`). This sets `legacyFiguresName = "FIGURES"`, rescans `Workspace.FIGURES`, normalises `frameCount` to ≥120, and sets `mode = "advanced"`. Required because Simple Mode resets `frameCount` to 1 for empty sessions — without this, parking-frame arithmetic (`PARK = frameCount - N`) goes negative and all subsequent frame operations clamp to frame 1. `test_ui_easing.lua` was also rewritten from the old bridge protocol (`MultiAnimTestBridge`, plain-Lua returns) to the current one (`__MultiAnimTestBridge`, JSON `{ok,result}`).
 

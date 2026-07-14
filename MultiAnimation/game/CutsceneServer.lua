@@ -7,7 +7,8 @@
 --
 -- ServerScript usage:
 --   local Cutscene = require(game.ServerStorage.MultiAnimationData.CutsceneServer)
---   Cutscene.play("Scene_001", { Rig1 = workspace.FIGURES.Rig1, ... }, propMap?)
+--   Cutscene.play("Scene_001", { Rig1 = workspace.FIGURES.Rig1, ... }, propMap?, opts?)
+--     opts.smooth (default true) — Catmull-Rom-style interpolation; false = linear
 --   Cutscene.stop()
 --   Cutscene.onFinished(function(sceneName) ... end)
 --
@@ -125,11 +126,13 @@ end
 
 local _userFinished = nil
 
-function CutsceneServer.play(sceneName, rigMap, propMap)
+function CutsceneServer.play(sceneName, rigMap, propMap, opts)
     local player = require(script.Parent.MultiAnimPlayer)
     publishCameraModule()
 
+    local smooth = not (opts and opts.smooth == false)   -- default ON
     local cameraData   = loadCameraData(sceneName)
+    if cameraData then cameraData.smooth = smooth end
     local subtitleData = loadSubtitleData(sceneName)
     local effectData   = loadEffectData(sceneName)
     local startTime    = workspace:GetServerTimeNow() + START_LEAD
@@ -148,7 +151,8 @@ function CutsceneServer.play(sceneName, rigMap, propMap)
     -- When clients received effectData they fire effects locally (server-side
     -- ParticleEmitter:Emit does not replicate) — suppress the server copies.
     task.delay(math.max(0, startTime - workspace:GetServerTimeNow()), function()
-        player.play(sceneName, rigMap, propMap, { skipEffects = effectData ~= nil })
+        player.play(sceneName, rigMap, propMap,
+            { skipEffects = effectData ~= nil, smooth = smooth })
     end)
 
     return startTime

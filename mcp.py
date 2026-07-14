@@ -1054,7 +1054,11 @@ for _, child in ipairs(scene:GetChildren()) do
 end
 table.sort(out.kfs, function(a, b) return a.name < b.name end)
 table.sort(out.modules, function(a, b) return a.name < b.name end)
-return HttpService:JSONEncode(out)
+-- Tool responses truncate at ~100k chars; return one slice per call and let
+-- the Python side reassemble ("<total>|<slice>").
+local json = HttpService:JSONEncode(out)
+local off = %d
+return #json .. "|" .. string.sub(json, off, off + 89999)
 """
 
 _SCENE_PUSH_LUA = """
@@ -1149,13 +1153,21 @@ return #t > 0 and table.concat(t, "\\n") or "(no scenes)"
         if not rest:
             sys.exit("Usage: mcp.py scene pull <SceneName>")
         name = rest[0]
-        lua = _SCENE_PULL_LUA % (_lua_str(name), _lua_str(name))
-        texts, err = call_mcp("execute_luau", {"code": lua, "datamodel_type": "Edit"}, timeout=30)
-        if err:
-            _print(texts)
-            sys.stderr.write(f"[mcp error] {err}\n")
-            sys.exit(1)
-        data = json.loads("\n".join(texts))
+        parts, off, total = [], 1, None
+        while total is None or off <= total:
+            lua = _SCENE_PULL_LUA % (_lua_str(name), _lua_str(name), off)
+            texts, err = call_mcp("execute_luau", {"code": lua, "datamodel_type": "Edit"},
+                                  timeout=30)
+            if err:
+                _print(texts)
+                sys.stderr.write(f"[mcp error] {err}\n")
+                sys.exit(1)
+            payload = "\n".join(texts)
+            head, slice_ = payload.split("|", 1)
+            total = int(head)
+            parts.append(slice_)
+            off += 90000
+        data = json.loads("".join(parts))
 
         out_dir = os.path.join(SCENES_DIR, name)
         os.makedirs(out_dir, exist_ok=True)

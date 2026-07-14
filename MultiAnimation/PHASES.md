@@ -1296,3 +1296,58 @@ Bridge: `setAutoPads`/`getAutoPads`/`ensureTriggerPad`.
 **Backflip direction fix:** the flip rotated forward (pitch sign inverted) —
 frames 14–29 re-posed with positive pitch: proper backflip, lands on feet,
 falls backward onto his back. Both variants re-exported and re-pulled.
+
+**Smoothing round (same day):** the 90°-per-keyframe flip read as jagged —
+piecewise-linear CFrame lerp makes large rotation steps visible. Re-authored
+with 8 keyframes at 45°/step (three `simpleInsertFrame` duplications opened the
+gap; the frame-shift machinery auto-migrated the RedFlash event to the new
+landing frame and the Fade event to F28 — first in-anger validation of
+spawned/effect-event shift sync). Height arc made parabolic; fps doubled
+(fast 12→24, slow 1→2). Authoring heuristic: keep per-keyframe rotation steps
+at ≤45° for full rotations; ≥90° steps look mechanical at viewing speeds.
+
+---
+
+## Smooth interpolation mode (2026-07-15)
+
+45° steps still read jagged at 2 fps — root cause is linear per-segment lerp
+(velocity kink at every keyframe). All playback paths (CutscenePlayer,
+MultiAnimPlayer, CutsceneCamera) now interpolate smoothly **by default**:
+cubic De Casteljau over `CFrame:Lerp` with tangent controls extrapolated from
+neighbour segments (unclamped Lerp extrapolates) — one construction covering
+positions and rotations; Vector3/scale uses standard Catmull-Rom. Properties:
+keyframes hit exactly, C1-ish velocity continuity, `Constant` easing holds
+exactly, camera tangents never cross a `cut`, uniform linear data stays
+linear. Opt out with `smooth = false` in play opts (CutscenePlayer /
+MultiAnimPlayer / CutsceneServer). Editor Preview remains linear — noted as a
+follow-up (Interpolator parity). `tests/test_smooth_interp.lua` (11 cases,
+headless: endpoints, line invariance, boundary velocity continuity vs the
+linear kink, rotation midpoints, 45°-ladder monotonicity, Constant hold).
+Suite ~884.
+
+---
+
+## Pose→End button + fixes (2026-07-15)
+
+**Pose→End (Simple Mode action row):** selection-scoped pose hold — a selected
+rig part propagates just that limb's joint, a rig Model/HumanoidRootPart the
+whole rig (joints + root), a tracked prop its CFrame. Takes the LIVE viewport
+pose (no capture needed first) and overwrites every following keyframe;
+earlier frames untouched, no new frames created. Bridge `simplePoseToEnd`;
+`tests/test_pose_to_end.lua` (7 cases, live). The button additions hit the
+Panel.new 200-register ceiling (crashed plugin boot: "Out of local registers…
+subNumRow") — wrapped in a do…end block per the documented convention.
+
+**Remap-dialog crash fixed:** `showNameRemapDialog` used `C.text` — a colour
+key that never existed (`C.btnText`) — crashing the first time a user opened
+the rename-remap flow.
+
+**Cross-scene tag contamination (user-flow finding):** selecting a folder in
+the Tag row tags it with the CURRENT scene name — picking HandoffTest while
+the scene box said Backflip_001 pulled the Handoff rigs into the Backflip
+session (captured on every navigation, exported as extra KFS, and the scene's
+Crate track would have animated the Handoff crate). Stray tags removed, scene
+rebuilt clean. Workflow rule: set the scene name FIRST, then pick the folder.
+
+**`mcp scene pull` chunking:** tool responses truncate at ~100 k chars — dense
+scenes (45+ keyframes) broke the pull. Now transfers the JSON in 90 k slices.

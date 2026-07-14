@@ -2311,6 +2311,109 @@ panel.onSimpleCamDeleteFrom:Connect(function()
     end)
 end)
 
+-- Pose→End: propagate the LIVE pose of the selected rigs/parts/props from the
+-- current frame onto every following frame that already has data for that
+-- track. Selection scope: tracked prop → its CFrame track; rig part → just
+-- that limb's joint; rig Model or HumanoidRootPart → the whole rig
+-- (joints + root). No new keyframes are created.
+local function doSimplePoseToEnd()
+    local frame   = timeline:getCurrent()
+    local session = recorder:getSession()
+    local applied = {}
+
+    local function rigOf(inst)
+        local cur = inst
+        while cur and cur ~= workspace do
+            for name, model in pairs(allRigs) do
+                if cur == model then return name, model end
+            end
+            cur = cur.Parent
+        end
+        return nil
+    end
+
+    local function framesFrom(track)
+        local out = {}
+        for f in pairs(track or {}) do
+            if f >= frame then table.insert(out, f) end
+        end
+        return out
+    end
+
+    local function wholeRig(name, model)
+        local rd = session.rigs[name]
+        if not rd then return end
+        local jd  = JointCapture.capture(model)
+        local hrp = model:FindFirstChild("HumanoidRootPart")
+        for _, f in ipairs(framesFrom(rd.jointTrack)) do
+            local copy = {}
+            for k, v in pairs(jd) do copy[k] = v end
+            rd.jointTrack[f] = copy
+        end
+        if hrp then
+            for _, f in ipairs(framesFrom(rd.rootTrack)) do
+                rd.rootTrack[f] = hrp.CFrame
+            end
+        end
+        table.insert(applied, name)
+    end
+
+    for _, inst in ipairs(Selection:Get()) do
+        local propName
+        for n, p in pairs(allProps) do
+            if p == inst then propName = n break end
+        end
+        if propName then
+            local pd = session.props and session.props[propName]
+            if pd then
+                for _, f in ipairs(framesFrom(pd.propTrack)) do
+                    pd.propTrack[f] = inst.CFrame
+                end
+                table.insert(applied, propName)
+            end
+        elseif inst:IsA("Model") then
+            local name, model = rigOf(inst)
+            if name then wholeRig(name, model) end
+        elseif inst:IsA("BasePart") then
+            local name, model = rigOf(inst)
+            if name then
+                if inst.Name == "HumanoidRootPart" then
+                    wholeRig(name, model)
+                else
+                    local motorName
+                    for _, m in ipairs(model:GetDescendants()) do
+                        if m:IsA("Motor6D") and m.Part1 == inst then
+                            motorName = m.Name
+                            break
+                        end
+                    end
+                    local rd = session.rigs[name]
+                    if motorName and rd then
+                        local cf = JointCapture.capture(model)[motorName]
+                        if cf then
+                            for _, f in ipairs(framesFrom(rd.jointTrack)) do
+                                rd.jointTrack[f][motorName] = cf
+                            end
+                            table.insert(applied, name .. "." .. inst.Name)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if #applied == 0 then
+        panel:showSimpleNotice("Select a rig, rig part, or tracked prop first")
+        return false
+    end
+    panel:showSimpleNotice("Pose held from frame " .. frame .. " to end: "
+        .. table.concat(applied, ", "))
+    scheduleAutoSave()
+    return true
+end
+
+panel.onSimplePoseToEnd:Connect(doSimplePoseToEnd)
+
 -- Attach button: select a tracked prop + a target part (Ctrl+click) → attach;
 -- select only the attached prop → detach.
 panel.onSimplePropAttach:Connect(function()
@@ -3907,6 +4010,10 @@ local testBridge = TestBridge.start({
     ensureTriggerPad = function(a)
         local pad = ensureTriggerPad(a.scene)
         return pad and pad:GetFullName() or false
+    end,
+
+    simplePoseToEnd = function()
+        return doSimplePoseToEnd()
     end,
 
     attachProp = function(a)

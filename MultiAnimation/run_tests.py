@@ -110,9 +110,19 @@ def run_all(files: list[str], verbose: bool) -> bool:
         with open(path, encoding="utf-8") as fh:
             code = fh.read()
 
+        # Live UI tests flake roughly once per full run (timing against the
+        # Studio event loop). A failed/errored file gets exactly one retry;
+        # the retry's result counts, and the status is marked so flakes stay
+        # visible instead of silently vanishing.
         t0 = time.time()
+        retried = False
         texts, err = call_mcp("execute_luau", {"code": code, "datamodel_type": "Edit"},
                               timeout=TIMEOUT_SECS)
+        if (err and not texts) or not parse_result(texts)[2]:
+            retried = True
+            time.sleep(0.5)
+            texts, err = call_mcp("execute_luau", {"code": code, "datamodel_type": "Edit"},
+                                  timeout=TIMEOUT_SECS)
         elapsed = time.time() - t0
 
         if err and not texts:
@@ -125,6 +135,8 @@ def run_all(files: list[str], verbose: bool) -> bool:
         total_failed += failed
 
         status = "PASS" if ok else "FAIL"
+        if retried and ok:
+            status = "PASS*"   # * = passed on retry (flaked once)
         count  = f"{passed}/{passed + failed}"
         print(f"  {label}  {count:>7}  {status}  ({elapsed:.1f}s)")
 

@@ -8,7 +8,9 @@
 --       sceneName  string         — matches the scene name used at export time
 --       rigMap     {[name]=Model} — keys match rig names from the plugin session
 --       propMap    {[name]=BasePart}? — optional; keys match tracked prop names
---       opts       { resetOnEnd?, skipEffects? } — skipEffects suppresses
+--       opts       { resetOnEnd?, skipEffects?, smooth? } — smooth (default
+--                  true) uses Catmull-Rom-style interpolation across
+--                  keyframes; pass false for legacy linear. skipEffects suppresses
 --                  effect-track and spawned-effect firing (used by
 --                  CutsceneServer when clients fire them locally instead);
 --                  playback duration still includes their tail times
@@ -127,19 +129,44 @@ local function toSortedKFs(frameTable, fps, buildFn, easingsTable)
     return out
 end
 
--- Find the pair of entries that straddle elapsed time.
+-- Find the pair of entries that straddle elapsed time (+ index of `before`).
 local function surrounding(list, elapsed)
-    local before = list[1]
-    local after  = list[#list]
+    local bi = 1
     for i = 1, #list do
-        if list[i].time <= elapsed then before = list[i] end
-        if list[i].time >= elapsed then after = list[i]; break end
+        if list[i].time <= elapsed then bi = i else break end
     end
-    return before, after
+    local before = list[bi]
+    local after  = list[math.min(bi + 1, #list)]
+    return before, after, bi
 end
 
 local function lerpCF(a, b, t) return a:Lerp(b, t) end
 local function lerpV3(a, b, t) return a:Lerp(b, t) end
+
+-- ── Smooth interpolation (Catmull-Rom-style; same construction as
+-- CutscenePlayer — keep the two copies in sync) ───────────────────────────────
+
+local SMOOTH_K = 1 / 3
+
+local function cubicCF(q1, b1, b2, q2, t)
+    local p01 = q1:Lerp(b1, t)
+    local p12 = b1:Lerp(b2, t)
+    local p23 = b2:Lerp(q2, t)
+    return p01:Lerp(p12, t):Lerp(p12:Lerp(p23, t), t)
+end
+
+local function smoothCF(q0, q1, q2, q3, t)
+    local b1 = q0:Lerp(q1, 1 + SMOOTH_K):Lerp(q1:Lerp(q2, SMOOTH_K), 0.5)
+    local b2 = q3:Lerp(q2, 1 + SMOOTH_K):Lerp(q2:Lerp(q1, SMOOTH_K), 0.5)
+    return cubicCF(q1, b1, b2, q2, t)
+end
+
+local function smoothV3(p0, p1, p2, p3, t)
+    local t2, t3 = t * t, t * t * t
+    return ((p1 * 2) + (p2 - p0) * t
+        + (p0 * 2 - p1 * 5 + p2 * 4 - p3) * t2
+        + (p1 * 3 - p0 - p2 * 3 + p3) * t3) * 0.5
+end
 
 local function alpha(before, after, elapsed)
     return math.clamp((elapsed - before.time) / (after.time - before.time), 0, 1)
@@ -414,6 +441,7 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap, opts)
     local nextEffectIdx = 1
     local nextSpawnedFxIdx = 1
     local skipEffects = opts and opts.skipEffects
+    local smooth = not (opts and opts.smooth == false)   -- default ON
 
     _heartbeat = RunService.Heartbeat:Connect(function()
         if done then return end
@@ -436,13 +464,21 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap, opts)
         for _, state in pairs(rigStates) do
             -- Joint poses via Motor6D.Transform
             if #state.jointKFs > 1 then
-                local b, a = surrounding(state.jointKFs, elapsed)
+                local b, a, bi = surrounding(state.jointKFs, elapsed)
                 if b ~= a and a.time > b.time then
                     local t = easedAlpha(alpha(b, a, elapsed), b.easing)
+                    local kq0 = state.jointKFs[bi - 1] or b
+                    local kq3 = state.jointKFs[bi + 2] or a
                     for jName, motor in pairs(state.joints) do
                         local cfB = b.poses[jName]
                         if cfB then
-                            motor.Transform = lerpCF(cfB, a.poses[jName] or cfB, t)
+                            local cfA = a.poses[jName] or cfB
+                            if smooth then
+                                motor.Transform = smoothCF(kq0.poses[jName] or cfB, cfB, cfA,
+                                    kq3.poses[jName] or cfA, t)
+                            else
+                                motor.Transform = lerpCF(cfB, cfA, t)
+                            end
                         end
                     end
                 else
@@ -460,12 +496,22 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap, opts)
 
             -- Scale
             if #state.scaleKFs > 0 then
-                local b, a = surrounding(state.scaleKFs, elapsed)
+                local b, a, bi = surrounding(state.scaleKFs, elapsed)
                 if b ~= a and a.time > b.time then
                     local t = easedAlpha(alpha(b, a, elapsed), b.easing)
+                    local kq0 = state.scaleKFs[bi - 1] or b
+                    local kq3 = state.scaleKFs[bi + 2] or a
                     for pName, sizeB in pairs(b.data) do
                         local part = state.model:FindFirstChild(pName)
-                        if part then part.Size = lerpV3(sizeB, a.data[pName] or sizeB, t) end
+                        if part then
+                            local sizeA = a.data[pName] or sizeB
+                            if smooth then
+                                part.Size = smoothV3(kq0.data[pName] or sizeB, sizeB, sizeA,
+                                    kq3.data[pName] or sizeA, t)
+                            else
+                                part.Size = lerpV3(sizeB, sizeA, t)
+                            end
+                        end
                     end
                 else
                     for pName, sizeB in pairs(b.data) do
@@ -477,10 +523,17 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap, opts)
 
             -- Root position
             if #state.rootKFs > 0 then
-                local b, a = surrounding(state.rootKFs, elapsed)
+                local b, a, bi = surrounding(state.rootKFs, elapsed)
                 local cf
                 if b ~= a and a.time > b.time then
-                    cf = lerpCF(b.data, a.data, easedAlpha(alpha(b, a, elapsed), b.easing))
+                    local t = easedAlpha(alpha(b, a, elapsed), b.easing)
+                    if smooth then
+                        local kq0 = state.rootKFs[bi - 1] or b
+                        local kq3 = state.rootKFs[bi + 2] or a
+                        cf = smoothCF(kq0.data, b.data, a.data, kq3.data, t)
+                    else
+                        cf = lerpCF(b.data, a.data, t)
+                    end
                 else
                     cf = b.data
                 end
@@ -492,10 +545,17 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap, opts)
         -- Props
         for _, state in pairs(propStates) do
             if #state.kfs > 0 then
-                local b, a = surrounding(state.kfs, elapsed)
+                local b, a, bi = surrounding(state.kfs, elapsed)
                 if state.part and state.part.Parent then
                     if b ~= a and a.time > b.time then
-                        state.part.CFrame = lerpCF(b.data, a.data, easedAlpha(alpha(b, a, elapsed), b.easing))
+                        local t = easedAlpha(alpha(b, a, elapsed), b.easing)
+                        if smooth then
+                            local kq0 = state.kfs[bi - 1] or b
+                            local kq3 = state.kfs[bi + 2] or a
+                            state.part.CFrame = smoothCF(kq0.data, b.data, a.data, kq3.data, t)
+                        else
+                            state.part.CFrame = lerpCF(b.data, a.data, t)
+                        end
                     else
                         state.part.CFrame = b.data
                     end

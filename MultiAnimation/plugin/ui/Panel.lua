@@ -803,6 +803,13 @@ function Panel.new(widget)
     simpleAttachBtn.MouseButton1Click:Connect(function()
         if not self._isPlaying then eSimpleAttach:Fire() end
     end)
+    do -- Pose→End (do-block: Panel.new is at the 200-local-register ceiling)
+        local ePoseEnd = mkEvent("onSimplePoseToEnd")
+        local poseEndBtn = btn(simpleActionRow, "Pose→End", 8)
+        poseEndBtn.MouseButton1Click:Connect(function()
+            if not self._isPlaying then ePoseEnd:Fire() end
+        end)
+    end
     simpleEaseBtn.MouseButton1Click:Connect(function()
         if self._isPlaying then return end
         local absPos = simpleEaseBtn.AbsolutePosition
@@ -2652,7 +2659,7 @@ function Panel.new(widget)
                 cycleBtn.Position         = UDim2.new(0.44, 16, 0, 1)
                 cycleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
                 cycleBtn.BorderSizePixel  = 0
-                cycleBtn.TextColor3       = C.text
+                cycleBtn.TextColor3       = C.btnText
                 cycleBtn.Text             = entry.candidates[1]
                 cycleBtn.TextSize         = 10
                 cycleBtn.Font             = Enum.Font.Gotham
