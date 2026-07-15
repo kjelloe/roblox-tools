@@ -1380,3 +1380,35 @@ session — authoring afterwards without a devsync reset exports the leftovers
 session (push) between test runs and authoring. (2) `test_ui_easing` assumed
 the panel's simple-easing state was Linear — it now normalises it at start and
 restores it at the end, making the file retry-safe.
+
+---
+
+## Test-coverage hardening (2026-07-16)
+
+Coverage review outcome — two structural guards added:
+
+**Copy-sync pre-flight (`run_tests.py`):** the deliberately duplicated
+functions (`easedAlpha`, `cubicCF`, `smoothCF`, `smoothV3` across the three
+game players; `LEGACY_POSE_TO_JOINT` across player + data-server) were only
+guarded by "keep in sync" comments — a fix applied to one copy could silently
+miss the others. The suite now extracts and diffs the copies locally (no
+Studio) and fails the run on drift.
+
+**`test_platform_canary.lua` (15 cases):** named assertions for every Roblox
+API behaviour the plugin depends on — Pose.CFrame (already renamed once),
+easing enums incl. Elastic, CFrame:Lerp extrapolation (smooth-mode tangents),
+TweenService:GetValue, the Motor6D contract, ChangeHistoryService undo
+signals, CollectionService tagging, ScreenGui/StringValue/JSON primitives,
+effect-lane classes, WeldConstraint. After a Studio update, this file fails
+first and by name instead of leaving mysterious downstream breakage. Its very
+first run caught a semantics detail: GetTagged only returns DataModel members
+— the probable mechanism of the old test_tag_scene flake.
+
+**Cross-file state leak found and fixed:** `test_ui_easing` ended with the
+panel's simple-easing at EaseOut (its last assertion navigates to an EaseOut
+frame); the next full-suite run's `test_pose_to_end` (alphabetically earlier)
+then stamped EaseOut onto Rig1's captures, failing ui_easing's default-Linear
+assertion — a two-run, two-file interaction that explains much of the
+recurring once-per-run flake. The file now restores Linear in its cleanup.
+Convention reinforced: UI test files must restore any panel state they change
+— captures stamp the current easing.

@@ -164,6 +164,58 @@ def run_all(files: list[str], verbose: bool) -> bool:
 
     return total_failed == 0 and not any_error
 
+# ── copy-sync pre-flight (pure local, no Studio) ──────────────────────────────
+# Several functions are deliberately duplicated across game modules ("keep in
+# sync" comments) because game/ modules cannot require each other at runtime.
+# Nothing enforced the sync until now: a fix applied to one copy silently
+# missed the others. Fails the run before any Studio call if copies drift.
+
+GAME_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "game")
+
+_SYNCED_FUNCTIONS = {
+    "easedAlpha": ["MultiAnimPlayer.lua", "CutscenePlayer.lua", "CutsceneCamera.lua"],
+    "cubicCF":    ["MultiAnimPlayer.lua", "CutscenePlayer.lua", "CutsceneCamera.lua"],
+    "smoothCF":   ["MultiAnimPlayer.lua", "CutscenePlayer.lua", "CutsceneCamera.lua"],
+    "smoothV3":   ["MultiAnimPlayer.lua", "CutscenePlayer.lua"],
+}
+_SYNCED_TABLES = {
+    "LEGACY_POSE_TO_JOINT": ["MultiAnimPlayer.lua", "MultiAnimDataServer.lua"],
+}
+
+def _extract_block(source: str, header_re: str) -> str | None:
+    """Grab a top-level block from its header line to the first column-0 `end`/`}`."""
+    m = re.search(header_re, source, re.M)
+    if not m:
+        return None
+    lines = source[m.start():].splitlines()
+    block = []
+    for line in lines:
+        block.append(line)
+        if line in ("end", "}"):
+            break
+    return " ".join(" ".join(block).split())   # whitespace-normalised
+
+def check_copy_sync() -> bool:
+    ok = True
+    def compare(name, files, header_re):
+        nonlocal ok
+        blocks = {}
+        for fname in files:
+            with open(os.path.join(GAME_DIR, fname), encoding="utf-8") as f:
+                blocks[fname] = _extract_block(f.read(), header_re)
+        ref_file = files[0]
+        for fname in files[1:]:
+            if blocks[fname] != blocks[ref_file]:
+                print(f"  *** COPY DRIFT: {name} differs between {ref_file} and {fname} ***")
+                ok = False
+    for name, files in _SYNCED_FUNCTIONS.items():
+        compare(name, files, rf"^local function {name}\(")
+    for name, files in _SYNCED_TABLES.items():
+        compare(name, files, rf"^local {name} = {{")
+    if not ok:
+        print("  *** keep-in-sync copies have drifted — fix before trusting the suite ***\n")
+    return ok
+
 # ── build version pre-flight ───────────────────────────────────────────────────
 
 _VERSION_CHECK_CODE = """
@@ -208,9 +260,10 @@ def main():
         print(f"No test files match pattern '{pattern}' in {TESTS_DIR}")
         sys.exit(1)
 
+    sync_ok = check_copy_sync()
     check_plugin_version()
     ok = run_all(files, verbose)
-    sys.exit(0 if ok else 1)
+    sys.exit(0 if (ok and sync_ok) else 1)
 
 if __name__ == "__main__":
     main()

@@ -24,8 +24,7 @@ end
 
 local bridge = game:GetService("CoreGui"):FindFirstChild("__MultiAnimTestBridge")
 ok("TestBridge present (is the plugin running?)", bridge ~= nil)
-if not bridge then call("setSimpleEasing", { easing = "Linear" })   -- leave clean state
-return finish() end
+if not bridge then return finish() end
 
 local function call(cmd, args)
     local resJson = bridge:Invoke(cmd, args and HttpService:JSONEncode(args) or nil)
@@ -147,7 +146,9 @@ call("simpleNavigate", { frame = 1 })
 r = call("getSimpleEasing")
 ok("navigation syncs easing display", r.ok and r.result == "EaseOut", r.ok and r.result or r.err)
 
--- Cleanup
+-- Cleanup: restore Linear so later suite files (and the next run of this
+-- file) don't inherit a non-Linear panel easing — captures stamp it.
+call("setSimpleEasing", { easing = "Linear" })
 call("setMode", { mode = "advanced" })
 
 return finish()
