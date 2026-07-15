@@ -170,17 +170,53 @@ def run_all(files: list[str], verbose: bool) -> bool:
 # Nothing enforced the sync until now: a fix applied to one copy silently
 # missed the others. Fails the run before any Studio call if copies drift.
 
-GAME_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "game")
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-_SYNCED_FUNCTIONS = {
-    "easedAlpha": ["MultiAnimPlayer.lua", "CutscenePlayer.lua", "CutsceneCamera.lua"],
-    "cubicCF":    ["MultiAnimPlayer.lua", "CutscenePlayer.lua", "CutsceneCamera.lua"],
-    "smoothCF":   ["MultiAnimPlayer.lua", "CutscenePlayer.lua", "CutsceneCamera.lua"],
-    "smoothV3":   ["MultiAnimPlayer.lua", "CutscenePlayer.lua"],
+# Each entry: canonical name → list of (relative path, header regex). The first
+# file is the reference. Test inline copies are included: headless tests
+# exercise their own copies of module logic, so an un-mirrored fix would pass
+# tests while the real module (or the test) lies.
+_SYNCED_BLOCKS = {
+    "easedAlpha": [
+        ("game/MultiAnimPlayer.lua",          r"^local function easedAlpha\("),
+        ("game/CutscenePlayer.lua",           r"^local function easedAlpha\("),
+        ("game/CutsceneCamera.lua",           r"^local function easedAlpha\("),
+        ("tests/test_easing_core.lua",        r"^local function easedAlpha\("),
+    ],
+    "cubicCF": [
+        ("game/MultiAnimPlayer.lua",          r"^local function cubicCF\("),
+        ("game/CutscenePlayer.lua",           r"^local function cubicCF\("),
+        ("game/CutsceneCamera.lua",           r"^local function cubicCF\("),
+        ("tests/test_smooth_interp.lua",      r"^local function cubicCF\("),
+    ],
+    "smoothCF": [
+        ("game/MultiAnimPlayer.lua",          r"^local function smoothCF\("),
+        ("game/CutscenePlayer.lua",           r"^local function smoothCF\("),
+        ("game/CutsceneCamera.lua",           r"^local function smoothCF\("),
+        ("tests/test_smooth_interp.lua",      r"^local function smoothCF\("),
+    ],
+    "smoothV3": [
+        ("game/MultiAnimPlayer.lua",          r"^local function smoothV3\("),
+        ("game/CutscenePlayer.lua",           r"^local function smoothV3\("),
+        ("tests/test_smooth_interp.lua",      r"^local function smoothV3\("),
+    ],
+    "LEGACY_POSE_TO_JOINT": [
+        ("game/MultiAnimPlayer.lua",          r"^local LEGACY_POSE_TO_JOINT = {"),
+        ("game/MultiAnimDataServer.lua",      r"^local LEGACY_POSE_TO_JOINT = {"),
+    ],
+    "SpawnedEffect PRESETS": [
+        ("plugin/core/SpawnedEffectRunner.lua", r"^SpawnedEffectRunner\.PRESETS = {"),
+        ("tests/test_spawned_effects_core.lua", r"^local PRESETS = {"),
+    ],
 }
-_SYNCED_TABLES = {
-    "LEGACY_POSE_TO_JOINT": ["MultiAnimPlayer.lua", "MultiAnimDataServer.lua"],
-}
+
+def _normalise(block: str) -> str:
+    """Comment- and whitespace-insensitive body (headers legitimately differ,
+    e.g. `SpawnedEffectRunner.PRESETS = {` vs the test's `local PRESETS = {`)."""
+    lines = block.splitlines()[1:]   # drop the header line
+    lines = [re.sub(r"--.*$", "", line) for line in lines]
+    body = re.sub(r"\s+", "", "\n".join(lines))
+    return re.sub(r",}", "}", body)   # trailing commas are cosmetic
 
 def _extract_block(source: str, header_re: str) -> str | None:
     """Grab a top-level block from its header line to the first column-0 `end`/`}`."""
@@ -191,27 +227,26 @@ def _extract_block(source: str, header_re: str) -> str | None:
     block = []
     for line in lines:
         block.append(line)
-        if line in ("end", "}"):
+        if line.rstrip() in ("end", "}"):
             break
-    return " ".join(" ".join(block).split())   # whitespace-normalised
+    return "\n".join(block)
 
 def check_copy_sync() -> bool:
     ok = True
-    def compare(name, files, header_re):
-        nonlocal ok
+    for name, entries in _SYNCED_BLOCKS.items():
         blocks = {}
-        for fname in files:
-            with open(os.path.join(GAME_DIR, fname), encoding="utf-8") as f:
-                blocks[fname] = _extract_block(f.read(), header_re)
-        ref_file = files[0]
-        for fname in files[1:]:
-            if blocks[fname] != blocks[ref_file]:
-                print(f"  *** COPY DRIFT: {name} differs between {ref_file} and {fname} ***")
+        for rel, header_re in entries:
+            with open(os.path.join(ROOT_DIR, rel), encoding="utf-8") as f:
+                raw = _extract_block(f.read(), header_re)
+            blocks[rel] = _normalise(raw) if raw is not None else None
+            if blocks[rel] is None:
+                print(f"  *** COPY SYNC: {name} not found in {rel} ***")
                 ok = False
-    for name, files in _SYNCED_FUNCTIONS.items():
-        compare(name, files, rf"^local function {name}\(")
-    for name, files in _SYNCED_TABLES.items():
-        compare(name, files, rf"^local {name} = {{")
+        ref = entries[0][0]
+        for rel, _ in entries[1:]:
+            if blocks[rel] is not None and blocks[ref] is not None and blocks[rel] != blocks[ref]:
+                print(f"  *** COPY DRIFT: {name} differs between {ref} and {rel} ***")
+                ok = False
     if not ok:
         print("  *** keep-in-sync copies have drifted — fix before trusting the suite ***\n")
     return ok

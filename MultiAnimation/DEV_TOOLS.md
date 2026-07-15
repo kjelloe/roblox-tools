@@ -67,6 +67,13 @@ FAIL on `ERROR` / `FAIL` / `Stack Begin`; TIMEOUT otherwise. Play mode is always
 exited afterwards, even on Ctrl+C. Requires a test script in ServerScriptService
 that prints the marker (e.g. `tests/test_player.lua`).
 
+`mcp playtest --client [--scene NAME]` runs the **client-path** harness: a
+temporary LocalScript plays the scene (default `Handoff_001`) through
+CutscenePlayer with movieMode — the full remote-fetch → rig-resolution →
+smooth-playback → teardown path — and reports PASS on clean completion. The
+server-side `__MultiAnimTest` is muted for the run and restored after; the
+LocalScript never persists in the place.
+
 ---
 
 The original specs for tools 3–5 follow.

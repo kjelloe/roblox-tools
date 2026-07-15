@@ -1412,3 +1412,15 @@ assertion — a two-run, two-file interaction that explains much of the
 recurring once-per-run flake. The file now restores Linear in its cleanup.
 Convention reinforced: UI test files must restore any panel state they change
 — captures stamp the current easing.
+
+**Gap closure (same day):** (1) `mcp playtest --client [--scene NAME]` — the
+first automated play-mode client test: a temporary LocalScript runs the scene
+through CutscenePlayer end-to-end (remote fetch, rig resolution, smooth
+playback, teardown) and reports PASS/FAIL; server test script muted+restored;
+nothing persists. (2) Copy-sync checker now also covers the test inline
+copies (comment/whitespace/trailing-comma-insensitive body compare) and the
+spawned-effect PRESETS plugin↔test pair — headless tests can no longer
+silently diverge from the code they claim to test. (3) New live tests:
+`test_cutscene_server_loaders.lua` (9 — exercises the REAL deployed module's
+loaders via loadstring shim) and `test_fade_runtime.lua` (7 — fade overlay
+timing, fade-in removal, image mode). Suite ~928.

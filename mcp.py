@@ -44,6 +44,10 @@ Playtest options:
     --no-deploy        skip the deploy step
     --timeout N        seconds to wait for a result marker (default 45)
     --marker STR       success marker to watch for (default "FINISHED")
+    --client           client-path harness: temporary LocalScript plays --scene
+                       via CutscenePlayer (marker "CLIENTTEST FINISHED";
+                       __MultiAnimTest muted for the run, restored after)
+    --scene NAME       scene for --client (default "Handoff_001")
 
 Examples:
     mcp.py luau "return workspace.Name"
@@ -747,10 +751,51 @@ def _console_lines() -> list[str]:
     return [l for l in lines if not l.startswith("(")]
 
 
+_CLIENT_PLAYTEST_LUA = """
+local sps = game:GetService("StarterPlayer"):FindFirstChildOfClass("StarterPlayerScripts")
+local old = sps:FindFirstChild("__ClientPlaytest")
+if old then old:Destroy() end
+local prevTest = game.ServerScriptService:FindFirstChild("__MultiAnimTest")
+local prevDisabled = prevTest and prevTest.Disabled or nil
+if prevTest then prevTest.Disabled = true end
+local ls = Instance.new("LocalScript")
+ls.Name = "__ClientPlaytest"
+ls.Source = [==[
+print("CLIENTTEST start")
+local RS = game:GetService("ReplicatedStorage")
+local okReq, CutscenePlayer = pcall(function()
+    return require(RS:WaitForChild("CutscenePlayer", 15))
+end)
+if not okReq then warn("CLIENTTEST ERROR: " .. tostring(CutscenePlayer)) return end
+task.wait(2)
+local ok, err = pcall(function()
+    local handle = CutscenePlayer.play(%s, {}, { movieMode = true })
+    handle.onComplete(function()
+        print("CLIENTTEST FINISHED")
+    end)
+end)
+if not ok then warn("CLIENTTEST ERROR: " .. tostring(err)) end
+]==]
+ls.Parent = sps
+return "client playtest installed (prev __MultiAnimTest Disabled=" .. tostring(prevDisabled) .. ")"
+"""
+
+_CLIENT_PLAYTEST_CLEANUP_LUA = """
+local sps = game:GetService("StarterPlayer"):FindFirstChildOfClass("StarterPlayerScripts")
+local ls = sps:FindFirstChild("__ClientPlaytest")
+if ls then ls:Destroy() end
+local prevTest = game.ServerScriptService:FindFirstChild("__MultiAnimTest")
+if prevTest then prevTest.Disabled = %s end
+return "client playtest cleaned"
+"""
+
+
 def cmd_playtest(argv: list[str]):
     timeout = 45
     marker = "FINISHED"
     do_deploy = True
+    client_mode = False
+    scene = "Handoff_001"
 
     i = 0
     while i < len(argv):
@@ -760,11 +805,33 @@ def cmd_playtest(argv: list[str]):
             marker = argv[i + 1]; i += 2
         elif argv[i] == "--no-deploy":
             do_deploy = False; i += 1
+        elif argv[i] == "--client":
+            client_mode = True; i += 1
+        elif argv[i] == "--scene" and i + 1 < len(argv):
+            scene = argv[i + 1]; i += 2
         else:
             print(f"Unknown playtest option: {argv[i]}", file=sys.stderr)
             sys.exit(1)
 
     fail_markers = ("ERROR", "FAIL", "Stack Begin")
+
+    prev_test_disabled = "false"
+    if client_mode:
+        # Client-path harness: temporary LocalScript plays `scene` via
+        # CutscenePlayer; the server-side __MultiAnimTest is muted for the run.
+        do_deploy = False
+        if marker == "FINISHED":
+            marker = "CLIENTTEST FINISHED"
+        print(f"[playtest] Installing client harness for scene '{scene}'...", flush=True)
+        texts, err = call_mcp("execute_luau",
+                              {"code": _CLIENT_PLAYTEST_LUA % _lua_str(scene),
+                               "datamodel_type": "Edit"}, timeout=15)
+        if err:
+            _print(texts)
+            sys.stderr.write(f"[mcp error] {err}\n")
+            sys.exit(1)
+        if texts and "Disabled=true" in texts[0]:
+            prev_test_disabled = "true"
 
     if do_deploy:
         print("[playtest] Deploying MultiAnimPlayer...", flush=True)
@@ -799,6 +866,10 @@ def cmd_playtest(argv: list[str]):
     finally:
         print("[playtest] Exiting play mode...", flush=True)
         call_mcp("start_stop_play", {"is_start": False}, timeout=20)
+        if client_mode:
+            call_mcp("execute_luau",
+                     {"code": _CLIENT_PLAYTEST_CLEANUP_LUA % prev_test_disabled,
+                      "datamodel_type": "Edit"}, timeout=15)
 
     if verdict is None:
         verdict = f"TIMEOUT (no '{marker}' within {timeout}s)"
