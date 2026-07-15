@@ -434,6 +434,13 @@ subtitles, sessions, playback tab, and `exportScene` (same path as the Export
 button). Payloads cross the VM boundary as JSON strings. The full command list
 is the `cmds` table in `init.server.lua`.
 
+**Authoring fidelity:** bridge-driven scene authoring (as used by the E2E
+tests and scripted scene builds) exercises the same handlers as the panel
+buttons — captures, exports, and events are byte-identical to hand-clicked
+output. The only synthetic element is pose input: scripts write part CFrames
+directly where a human drags with the rotate tool; the capture pipeline
+cannot distinguish the two.
+
 `tests/test_ui_bridge.lua` (18 cases) covers exclusive rig selection, frame
 clamping, and a keyframe add/delete round-trip at a parking frame — restoring
 the user's active rig and timeline position afterwards. The bridge is destroyed

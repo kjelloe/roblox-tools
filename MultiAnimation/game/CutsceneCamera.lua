@@ -47,6 +47,11 @@ local function easedAlpha(t, easing)
             t = t - 2.625/d1; return n1 * t * t + 0.984375
         end
     end
+    if easing == "Elastic" then
+        if t <= 0 then return 0 end
+        if t >= 1 then return 1 end
+        return 2 ^ (-10 * t) * math.sin((t * 10 - 0.75) * (2 * math.pi / 3)) + 1
+    end
     return t
 end
 

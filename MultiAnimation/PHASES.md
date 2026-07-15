@@ -1351,3 +1351,32 @@ rebuilt clean. Workflow rule: set the scene name FIRST, then pick the folder.
 
 **`mcp scene pull` chunking:** tool responses truncate at ~100 k chars — dense
 scenes (45+ keyframes) broke the pull. Now transfers the JSON in 90 k slices.
+
+---
+
+## Simple default + Elastic easing + session mirror + dense backflip (2026-07-15)
+
+**Simple Mode is now the boot default** (`panel:setMode("simple")` after the
+initial scan) — Advanced is an explicit choice.
+
+**Elastic easing** (7th style): native `PoseEasingStyle.Elastic` end-to-end —
+Panel dropdown, Interpolator (TweenService map), Exporter pose map, all three
+game-side `easedAlpha` copies (spring-out formula), MultiAnimDataServer enum
+parse. (+2 test_easing_core, +1 test_ui_easing style round-trip.)
+
+**Place-file session backup:** every save — autosave included — mirrors the
+session JSON into a `ServerStorage.MultiAnimSessions` StringValue (>190 k
+sessions skip the mirror with a warning); `deleteSession` removes the mirror;
+**loadNamed falls back to the mirror** when the plugin-settings slot is
+missing. Closes the slot-loss failure from 2026-07-14. (+3 test_ui_bridge.)
+
+**Backflip, manual-density edition:** per user feedback ("many frames with
+small adjustments"), re-authored at 32 flip steps of 11.25° + 16 fall steps
+(69 frames; fast 24 fps, slow 12 fps).
+
+**Test-hygiene findings:** (1) UI test runs park keyframes in the live
+session — authoring afterwards without a devsync reset exports the leftovers
+(FIGURES rigs leaked into the Backflip scene a second way). Rule: reset the
+session (push) between test runs and authoring. (2) `test_ui_easing` assumed
+the panel's simple-easing state was Linear — it now normalises it at start and
+restores it at the end, making the file retry-safe.

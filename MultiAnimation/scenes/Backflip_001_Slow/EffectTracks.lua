@@ -5,7 +5,7 @@ return {
             target = "Workspace.BackflipTest.Stuntman.RedFlash",
             events = {
                 [1] = {action = "off"},
-                [31] = {action = "on"},
+                [47] = {action = "on"},
             },
         },
     },

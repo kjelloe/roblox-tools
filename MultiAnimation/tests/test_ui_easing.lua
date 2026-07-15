@@ -24,7 +24,8 @@ end
 
 local bridge = game:GetService("CoreGui"):FindFirstChild("__MultiAnimTestBridge")
 ok("TestBridge present (is the plugin running?)", bridge ~= nil)
-if not bridge then return finish() end
+if not bridge then call("setSimpleEasing", { easing = "Linear" })   -- leave clean state
+return finish() end
 
 local function call(cmd, args)
     local resJson = bridge:Invoke(cmd, args and HttpService:JSONEncode(args) or nil)
@@ -42,6 +43,10 @@ ok("at least one active rig", r.ok and type(r.result) == "table" and #r.result >
 if not (r.ok and #r.result >= 1) then return finish() end
 local rigName = r.result[1]
 
+-- normalise ambient panel state: capture stamps the CURRENT simple easing,
+-- so a leftover non-Linear selection (from authoring or a prior run of this
+-- file) would poison the default-easing assertion.
+call("setSimpleEasing", { easing = "Linear" })
 call("setFrame", { frame = 1 })
 call("addKeyframe")
 
@@ -56,9 +61,9 @@ call("setEasing", { rig = rigName, frame = 1, easing = "Linear" })
 r = call("getEasing", { rig = rigName, frame = 1 })
 ok("rig easing reset to Linear", r.ok and r.result == "Linear", r.ok and r.result or r.err)
 
--- ── 2: All 6 easing styles round-trip ────────────────────────────────────────
+-- ── 2: All 7 easing styles round-trip ────────────────────────────────────────
 
-local styles = { "Linear", "EaseIn", "EaseOut", "EaseInOut", "Constant", "Bounce" }
+local styles = { "Linear", "EaseIn", "EaseOut", "EaseInOut", "Constant", "Bounce", "Elastic" }
 call("setFrame", { frame = 2 })
 call("addKeyframe")
 for _, style in ipairs(styles) do

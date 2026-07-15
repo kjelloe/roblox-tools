@@ -108,7 +108,9 @@ or `"cut"` (the previous shot holds until this frame, then jumps), `easing` is t
 interpolation curve for the segment starting at this frame (see Easing Styles below).
 
 **Easing styles:** `"Linear"` (default) · `"EaseIn"` (cubic in) · `"EaseOut"` (cubic out) ·
-`"EaseInOut"` (cubic symmetric) · `"Constant"` (hold — α always 0) · `"Bounce"`.
+`"EaseInOut"` (cubic symmetric) · `"Constant"` (hold — α always 0) · `"Bounce"` ·
+`"Elastic"` (spring overshoot; native `PoseEasingStyle.Elastic`, round-trips
+through KeyframeSequences).
 Easing at frame F applies to the segment from F toward the *next* keyframe. Absent entries
 or frames with no stored easing default to `"Linear"`.
 

@@ -541,17 +541,49 @@ local function deleteNamed(name)
     end
     pcall(function() plugin:SetSetting(DATA_PREFIX .. name, nil) end)
     pcall(function() plugin:SetSetting(INDEX_KEY, idx) end)
+    local folder = game:GetService("ServerStorage"):FindFirstChild("MultiAnimSessions")
+    local sv = folder and folder:FindFirstChild(name)
+    if sv then sv:Destroy() end
     print("[MultiAnimation] Deleted session '" .. name .. "'")
 end
 
+-- Place-file backup: mirror every save into a StringValue under
+-- ServerStorage.MultiAnimSessions. plugin:SetSetting slots are tied to the
+-- installed plugin file and have been lost to plugin reinstalls; the mirror
+-- travels with the place and is the loadNamed fallback.
+local function writeSessionMirror(name, data)
+    local json = HttpService:JSONEncode(data)
+    if #json > 190000 then
+        warn("[MultiAnimation] Session too large for the place-file mirror ("
+            .. math.floor(#json / 1000) .. " k) — plugin-settings copy only")
+        return
+    end
+    local ss = game:GetService("ServerStorage")
+    local folder = ss:FindFirstChild("MultiAnimSessions")
+    if not folder then
+        folder = Instance.new("Folder")
+        folder.Name = "MultiAnimSessions"
+        folder.Parent = ss
+    end
+    local sv = folder:FindFirstChild(name)
+    if not sv then
+        sv = Instance.new("StringValue")
+        sv.Name = name
+        sv.Parent = folder
+    end
+    sv.Value = json
+end
+
 local function saveNamed(name)
+    local data = serializeSession()
     local ok, err = pcall(function()
-        plugin:SetSetting(DATA_PREFIX .. name, serializeSession())
+        plugin:SetSetting(DATA_PREFIX .. name, data)
     end)
     if not ok then
         warn("[MultiAnimation] Save failed: " .. tostring(err))
         return
     end
+    pcall(writeSessionMirror, name, data)
     local idx = getIndex()
     for i = #idx, 1, -1 do
         if idx[i].name == name then table.remove(idx, i) end
@@ -738,6 +770,19 @@ end
 local function loadNamed(name)
     local ok, data = pcall(function() return plugin:GetSetting(DATA_PREFIX .. name) end)
     if not ok or not data or not data.rigs then
+        -- Plugin-settings slot missing (e.g. lost to a plugin reinstall) —
+        -- fall back to the place-file mirror.
+        local folder = game:GetService("ServerStorage"):FindFirstChild("MultiAnimSessions")
+        local sv = folder and folder:FindFirstChild(name)
+        if sv and sv:IsA("StringValue") and sv.Value ~= "" then
+            local okJ, decoded = pcall(HttpService.JSONDecode, HttpService, sv.Value)
+            if okJ and decoded and decoded.rigs then
+                data = decoded
+                print("[MultiAnimation] Loaded '" .. name .. "' from the place-file mirror")
+            end
+        end
+    end
+    if not data or not data.rigs then
         warn("[MultiAnimation] Save '" .. name .. "' not found")
         return false
     end
@@ -3461,6 +3506,9 @@ end
 -- ── Initial load ──────────────────────────────────────────────────────────────
 
 scanAndSetup()
+
+-- Simple Mode is the default; Advanced is an explicit choice.
+panel:setMode("simple")
 
 -- ── Test bridge ───────────────────────────────────────────────────────────────
 -- Lets tests/test_ui_*.lua drive the live panel from execute_luau.

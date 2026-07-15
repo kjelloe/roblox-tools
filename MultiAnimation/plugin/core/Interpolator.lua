@@ -11,6 +11,7 @@ local EASING_MAP = {
     EaseOut   = { Enum.EasingStyle.Cubic,  Enum.EasingDirection.Out   },
     EaseInOut = { Enum.EasingStyle.Cubic,  Enum.EasingDirection.InOut },
     Bounce    = { Enum.EasingStyle.Bounce, Enum.EasingDirection.Out   },
+    Elastic   = { Enum.EasingStyle.Elastic, Enum.EasingDirection.Out  },
 }
 
 local function easedAlpha(t, easing)

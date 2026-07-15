@@ -24,6 +24,7 @@ local POSE_EASING_TO_STR = {}
 POSE_EASING_TO_STR[Enum.PoseEasingStyle.Linear]   = { default = "Linear" }
 POSE_EASING_TO_STR[Enum.PoseEasingStyle.Constant] = { default = "Constant" }
 POSE_EASING_TO_STR[Enum.PoseEasingStyle.Bounce]   = { default = "Bounce" }
+POSE_EASING_TO_STR[Enum.PoseEasingStyle.Elastic]  = { default = "Elastic" }
 POSE_EASING_TO_STR[Enum.PoseEasingStyle.Cubic]    = {
     [Enum.PoseEasingDirection.In]    = "EaseIn",
     [Enum.PoseEasingDirection.Out]   = "EaseOut",

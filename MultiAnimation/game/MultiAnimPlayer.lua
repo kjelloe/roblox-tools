@@ -68,6 +68,7 @@ local POSE_EASING_TO_STR = {}
 POSE_EASING_TO_STR[Enum.PoseEasingStyle.Linear]   = { default = "Linear" }
 POSE_EASING_TO_STR[Enum.PoseEasingStyle.Constant]  = { default = "Constant" }
 POSE_EASING_TO_STR[Enum.PoseEasingStyle.Bounce]    = { default = "Bounce" }
+POSE_EASING_TO_STR[Enum.PoseEasingStyle.Elastic]   = { default = "Elastic" }
 POSE_EASING_TO_STR[Enum.PoseEasingStyle.Cubic]     = {
     [Enum.PoseEasingDirection.In]    = "EaseIn",
     [Enum.PoseEasingDirection.Out]   = "EaseOut",
@@ -191,6 +192,11 @@ local function easedAlpha(t, easing)
         else
             t = t - 2.625/d1; return n1 * t * t + 0.984375
         end
+    end
+    if easing == "Elastic" then
+        if t <= 0 then return 0 end
+        if t >= 1 then return 1 end
+        return 2 ^ (-10 * t) * math.sin((t * 10 - 0.75) * (2 * math.pi / 3)) + 1
     end
     return t
 end

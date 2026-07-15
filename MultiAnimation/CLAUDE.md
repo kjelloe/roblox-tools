@@ -125,7 +125,7 @@ python3 devsync.py uninstall   # back to build.py + manual reload
 ### Other dev scripts
 
 ```bash
-python3 run_tests.py [pattern] [-v]   # full suite (~891 cases, 36 files), or `mcp test`
+python3 run_tests.py [pattern] [-v]   # full suite (~897 cases, 36 files), or `mcp test`
 python3 export.py                     # package plugin + game scripts for distribution → export/
 python3 watch.py                      # auto-build on save (when not using devsync)
 python3 hotpatch.py game/MultiAnimPlayer.lua   # push one game/ module, or `mcp deploy`
@@ -228,7 +228,7 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 | `test_tag_scene.lua` | Tag-based scene organisation: getWorkspaceFolders, tagFolder rigs-only, getSceneTagged, scanByTag via doSimpleScan, clearSceneTags, empty-scene FIGURES fallback, AddTag idempotency; New-button name increment, getTagCounts, confirm overlay flow (20 cases) |
 | `test_player_rig_proxy.lua` | PlayerRigProxy: fixed pass-through, R6/R15 detection, clone/direct/teardown round-trips, R15 accepted, resolveAll mix, anchor CFs, camera subject set/restore, HRP unanchor (55 cases) |
 | `test_ui_playback.lua` | Playback tab bridge integration: mode switch, scene list, rig modes (all 5), FPS/Loop/MovieMode clamping + round-trip, snippet generation (scene name, CutscenePlayer, mode strings, params), multi-rig snippet, partial param update, frameCount round-trip regression (52 cases) |
-| `test_easing_core.lua` | Recorder easing CRUD (rig/prop/camera), shiftFrames/deleteRigKeyframe/deletePropKeyframe include easingTrack, easedAlpha boundary values (Linear/EaseIn/EaseOut/EaseInOut/Constant/Bounce), toSortedKFs backward compat (20 cases, headless) |
+| `test_easing_core.lua` | Recorder easing CRUD (rig/prop/camera), shiftFrames/deleteRigKeyframe/deletePropKeyframe include easingTrack, easedAlpha boundary values (all 7 styles incl. Elastic), toSortedKFs backward compat (22 cases, headless) |
 | `test_ui_easing.lua` | Live bridge: rig easing all-6-styles round-trip, camera easing CRUD, simple mode easing state, capture stamps easing, frame navigation syncs display (23 cases) |
 | `test_spawned_effects_core.lua` | SpawnedEffectRunner PRESETS/PROPS/buildParams; Recorder spawnedEffects CRUD: add/update/delete/getById, clearSession reset, id preservation on restore; Sound + Fade presets/buildParams/CRUD; shiftFrames/deleteFrameAt include spawnedEffects + subtitles (77 cases, headless) |
 | `test_spawned_effects_exporter.lua` | buildSpawnedEffectsSource: empty, single Explosion, Smoke, multi-entry; loadstring round-trip preserving all fields; default field fallbacks; Sound + Fade entry round-trips; mixed Explosion+Sound (70 cases, headless) |
@@ -242,7 +242,7 @@ Each phase has acceptance criteria in `PHASES.md`. Test strategy per phase:
 | `test_trigger_pads.lua` | Auto-pads: toggle round-trip, pad creation (label/attribute/neon), idempotent re-ensure keeps moved position + colour, listener deployment (12 cases, live) |
 | `test_cutscene_effects_core.lua` | CutsceneServer client-fired effects: remote-safe array reshaping, client event-list build, crossing-window single-fire, skipEffects gate (15 cases, headless) |
 
-Suite total: **~891 cases** across 36 runnable files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive; exact total varies with session-state-conditional blocks). Note: `test_ui_playback` test 19 now asserts fps is absent from snippet; `test_ui_simple` insert-frame tests now assert Duplicate (cursor to frame+1, frame+1 has data). Test files must end with the standard `=== N passed, M failed ===` summary line — `run_tests.py` parses it for the counts (a file missing it reports 0/0).
+Suite total: **~897 cases** across 36 runnable files (2 skipped headless: `test_player` → `mcp playtest`, `test_scrubber` → interactive; exact total varies with session-state-conditional blocks). Note: `test_ui_playback` test 19 now asserts fps is absent from snippet; `test_ui_simple` insert-frame tests now assert Duplicate (cursor to frame+1, frame+1 has data). Test files must end with the standard `=== N passed, M failed ===` summary line — `run_tests.py` parses it for the counts (a file missing it reports 0/0).
 
 **Test isolation:** UI test files that need deterministic rig availability call `scanFigures` at their start (bridge command on `__MultiAnimTestBridge`). This sets `legacyFiguresName = "FIGURES"`, rescans `Workspace.FIGURES`, normalises `frameCount` to ≥120, and sets `mode = "advanced"`. Required because Simple Mode resets `frameCount` to 1 for empty sessions — without this, parking-frame arithmetic (`PARK = frameCount - N`) goes negative and all subsequent frame operations clamp to frame 1. `test_ui_easing.lua` was also rewritten from the old bridge protocol (`MultiAnimTestBridge`, plain-Lua returns) to the current one (`__MultiAnimTestBridge`, JSON `{ok,result}`).
 

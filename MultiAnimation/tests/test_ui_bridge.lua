@@ -156,6 +156,19 @@ for _, n in ipairs((r.ok and r.result) or {}) do
 end
 ok("listSessions includes saved session", foundTemp)
 
+-- place-file mirror: every save is mirrored to a StringValue that travels
+-- with the place (survives plugin reinstalls; loadSession falls back to it)
+local mirrorFolder = game:GetService("ServerStorage"):FindFirstChild("MultiAnimSessions")
+local mirror = mirrorFolder and mirrorFolder:FindFirstChild(TEMP_SESSION)
+ok("save mirrored to ServerStorage.MultiAnimSessions", mirror ~= nil and mirror:IsA("StringValue"))
+ok("mirror holds parseable session JSON", (function()
+    if not mirror then return false end
+    local okJ, d = pcall(function()
+        return game:GetService("HttpService"):JSONDecode(mirror.Value)
+    end)
+    return okJ and d and d.rigs ~= nil
+end)())
+
 r = call("deleteSession", { name = TEMP_SESSION })
 ok("deleteSession succeeds", r.ok, r.err)
 
@@ -165,6 +178,8 @@ for _, n in ipairs((r.ok and r.result) or {}) do
     if n == TEMP_SESSION then stillThere = true end
 end
 ok("deleted session no longer in list", not stillThere)
+ok("mirror removed on delete",
+    not (mirrorFolder and mirrorFolder:FindFirstChild(TEMP_SESSION)))
 
 -- loadSession must report failure for a missing slot (it used to return true
 -- with an empty restore — an export after that silently wrote an empty scene).

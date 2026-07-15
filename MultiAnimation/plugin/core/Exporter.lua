@@ -20,6 +20,7 @@ local POSE_EASING_MAP = {
     EaseInOut = { Enum.PoseEasingStyle.Cubic,    Enum.PoseEasingDirection.InOut },
     Constant  = { Enum.PoseEasingStyle.Constant, Enum.PoseEasingDirection.Out   },
     Bounce    = { Enum.PoseEasingStyle.Bounce,   Enum.PoseEasingDirection.Out   },
+    Elastic   = { Enum.PoseEasingStyle.Elastic,  Enum.PoseEasingDirection.Out   },
 }
 
 -- ── helpers ───────────────────────────────────────────────────────────────────

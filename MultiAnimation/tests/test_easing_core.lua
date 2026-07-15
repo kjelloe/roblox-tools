@@ -104,6 +104,11 @@ local function easedAlpha(t, easing)
         elseif t < 2.5/d1 then t=t-2.25/d1; return n1*t*t+0.9375
         else t=t-2.625/d1; return n1*t*t+0.984375 end
     end
+    if easing == "Elastic" then
+        if t <= 0 then return 0 end
+        if t >= 1 then return 1 end
+        return 2 ^ (-10 * t) * math.sin((t * 10 - 0.75) * (2 * math.pi / 3)) + 1
+    end
     return t
 end
 
@@ -177,6 +182,12 @@ check("EaseInOut antisymmetry", math.abs(ein - eout) < 1e-6)
 local ok = true
 for i = 0, 10 do if easedAlpha(i/10, "Bounce") < 0 then ok = false end end
 check("Bounce non-negative", ok)
+
+-- 11b: Elastic endpoints exact, overshoots past 1 somewhere mid-curve
+check("Elastic endpoints exact", easedAlpha(0, "Elastic") == 0 and easedAlpha(1, "Elastic") == 1)
+local overshoot = false
+for i = 1, 19 do if easedAlpha(i/20, "Elastic") > 1 then overshoot = true end end
+check("Elastic overshoots past 1 (springy)", overshoot)
 
 -- 12: Bounce at t=1 approaches 1
 check("Bounce t=1 → ~1", math.abs(easedAlpha(1, "Bounce") - 0.984375) < 0.02

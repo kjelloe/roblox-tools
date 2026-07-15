@@ -44,6 +44,7 @@ local EASING_OPTIONS = {
     { text = "EaseInOut", easing = "EaseInOut" },
     { text = "Constant",  easing = "Constant"  },
     { text = "Bounce",    easing = "Bounce"    },
+    { text = "Elastic",   easing = "Elastic"   },
 }
 
 -- Simple Mode frame icon strip

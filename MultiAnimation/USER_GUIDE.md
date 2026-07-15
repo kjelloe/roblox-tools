@@ -38,7 +38,7 @@ while the panel is open.
 
 | Section | What's in it |
 |---|---|
-| **Mode toggle** | `Simple` / `Advanced` / `Playback` buttons, always visible — switches the whole panel layout without losing session data. See §11 Simple Mode, §12 Playback Tab. |
+| **Mode toggle** | `Simple` / `Advanced` / `Playback` buttons, always visible — switches the whole panel layout without losing session data. **Simple is the default on open**; Advanced is an explicit choice. See §11 Simple Mode, §12 Playback Tab. |
 | **RIGS IN SCENE** | One button per detected rig (exclusive select — exactly one active), plus `↺ Refresh`, `+ Rig`, `Save As`, `Load`, `New` |
 | **PROPS IN SCENE** | `Track Part` button + one toggle per tracked prop (multi-select), each with a `×` to untrack |
 | **TIMELINE** | One keyframe lane per rig (yellow dots), the Camera lane (orange/red dots), and one lane per prop (teal dots) |
@@ -189,8 +189,8 @@ Trigger one-shot effects — particle bursts, sound cues, light flashes — exac
 ## 7. Keyframe Easing
 
 Every keyframe stores an **easing curve** that shapes the interpolation from that
-keyframe toward the next one. The default is Linear (constant speed). Six styles
-are available:
+keyframe toward the next one. The default is Linear (constant speed). Seven
+styles are available:
 
 | Style | Effect |
 |---|---|
@@ -200,6 +200,7 @@ are available:
 | **EaseInOut** | Slow start *and* end, faster in the middle |
 | **Constant** | Hold the pose until the next keyframe (step / hold) |
 | **Bounce** | Overshoots and bounces near the target |
+| **Elastic** | Springs past the target and oscillates back (snappy game-feel) |
 
 **Advanced mode:** right-click any keyframe dot (rig, prop, camera, or effect lane)
 to open a context menu with all six easing options and a Delete option. The menu
@@ -295,11 +296,12 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
   both the Delete and Load list overlays closes them without doing anything.
 - Sessions survive closing/reopening the panel within a Studio session.
 
-> **Durability:** named saves live in Roblox's plugin-settings store, which is
-> tied to the installed plugin file — a plugin reinstall/update can orphan them.
-> For anything you can't afford to lose, also use **Export File** (saves the
-> session into the place as a StringValue) or keep the exported scene: it lives
-> in the place file, and `mcp scene pull` copies it to disk as git-diffable text.
+> **Durability:** every save (including autosave) is now mirrored automatically
+> into `ServerStorage.MultiAnimSessions` as a StringValue — it travels with the
+> place file, and **Load falls back to it** if the plugin-settings copy is ever
+> lost (e.g. after a plugin reinstall). Sessions over ~190 k keep only the
+> plugin-settings copy (a warning is printed). Exported scenes remain the other
+> durable layer (`mcp scene pull` for git-diffable text).
 
 ### Transferring sessions between PCs
 
