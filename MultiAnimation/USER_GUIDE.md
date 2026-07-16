@@ -101,7 +101,14 @@ Any single `BasePart` (block, boulder, projectile…) can be animated:
    you can keyframe Rig1 and two props in the same `K` press.
 3. Move/rotate the prop, keyframe, repeat. Position *and* rotation interpolate
    smoothly (rotation slerps, so tumbling looks right).
-4. The `×` on a prop button untracks it from the panel but keeps its recorded
+4. **Visual state animates too:** the prop's **Transparency, Color, and
+   Material** are captured with every keyframe. Transparency and colour fade
+   smoothly between keyframes (with the frame's easing); material switches
+   exactly at its keyframe. Example — a wall that appears at frame 5: set
+   Transparency 1 at frame 1, leave it until frame 4, set 0 at frame 5.
+   Space the keyframes further apart for a slower fade-in. (Only the tracked
+   part's properties animate — sub-parts of a model follow position only.)
+5. The `×` on a prop button untracks it from the panel but keeps its recorded
    data in the session (and in the export).
 
 ---
@@ -267,7 +274,7 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 | **Simple mode** `Attach` | Click | With a tracked prop + target part selected: attach the prop so it follows the part while you pose (grip offset frozen). With only an attached prop selected: detach. Authoring aid — never saved or exported. |
 | **Simple mode** `Camera View` | Click | ON: create/show the manipulable `SimpleCamera` part in the animation folder and arm camera capture on `+ Add Frame`. OFF: hide the part (kept in the folder for next toggle-on). Requires an animation folder to be selected first — shows a warning if none is set. |
 | **Simple mode** FOV box | Type + Tab/Enter | Set the `SimpleCamera`'s field of view (clamped 1–120) |
-| **Simple mode** `Look Through` | Click | Slave the viewport to the `SimpleCamera`'s view, then fly freely with Studio's normal edit-camera controls; toggle off to restore your original viewport exactly. Auto-capture on navigation is skipped while Look Through is active. |
+| **Simple mode** `Look Through` | Click | Slave the viewport to the `SimpleCamera`'s view, then fly freely with Studio's normal edit-camera controls; toggle off to restore your original viewport exactly. Flying to a new shot at a frame saves that frame's camera keyframe when you navigate away; an untouched camera never rewrites saved keyframes. |
 | **Simple mode** `Del Cam >=Here` | Click | Opens a confirm dialog then deletes all camera keyframes at the current frame and onwards — useful for extending a fixed frame-1 camera without accumulating stale keyframes. |
 | `SimpleCamera` part (viewport) | Move / rotate | Pose the camera like any rig or prop — captured the same way on step-forward; shows a wireframe FOV-frustum outline |
 | **Simple mode** `Onion Skin: OFF/ON` | Click | Toggle ghost poses: semi-transparent red = previous keyframe, blue = next keyframe; ghosts refresh on every frame change |
@@ -532,9 +539,12 @@ WASD/QE to move, scroll to zoom) — the camera part follows your viewport
 live. The FOV wireframe is hidden during Look Through so it doesn't obstruct
 navigation. Toggle Look Through off to restore your own viewport exactly where
 it was *before* you turned it on (not wherever you flew to). Look Through is
-rejected (no-op) if Camera View isn't on yet. **Auto-capture on navigation is
-skipped while Look Through is active** — viewport changes while flying are not
-recorded as camera keyframes.
+rejected (no-op) if Camera View isn't on yet. **Flying to a new shot at a frame
+saves it** — when you navigate to another frame, the re-aimed view is written to
+the departure frame's camera keyframe (a new one is created at an empty frame).
+An untouched camera never rewrites saved keyframes, so stepping through frames
+leaves your camera track exactly as authored; cut/move and easing settings are
+preserved.
 
 **Onion Skin:** click **Onion Skin: OFF** in the camera row to toggle ghost
 rendering. When on, the previous and next keyframed frames are shown as

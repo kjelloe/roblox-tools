@@ -155,6 +155,7 @@ local simpleLookThroughOn   = false
 local simpleOnionOn         = false
 local simpleCurrentEasing   = "Linear"
 local _simpleArrivalSnap    = nil  -- Part CFrames right after applyPosesAt; nil outside simple nav
+local refreshSimpleArrivalSnap     -- forward declared; defined after snapshotRigParts
 local savedSimpleCamState   = nil
 local simpleLookThroughConn = nil
 local setSimpleLookThroughOn -- forward declared; defined in the SIMPLE MODE section, used by setSimpleCameraOn below
@@ -699,9 +700,20 @@ local function applySessionData(data)
             local frame = tonumber(frameStr)
             if frame then recorder:setPropState(propName, frame, st) end
         end
-        -- Try to find the part in Workspace so it can be re-linked
-        local part = workspace:FindFirstChild(propName, true)
-        if part and part:IsA("BasePart") and not allRigs[propName] then
+        -- Re-link the live part. Prefer the session's own tagged scene
+        -- instances — a bare workspace-wide name search can bind a same-named
+        -- part from another scene folder (every scene may have a "Wall").
+        local part
+        if data.sceneName and data.sceneName ~= "" then
+            for _, inst in ipairs(CollectionService:GetTagged("MAnim:" .. data.sceneName)) do
+                if inst.Name == propName then part = getPropPart(inst) break end
+            end
+        end
+        if not part then
+            local inst = workspace:FindFirstChild(propName, true)
+            part = inst and getPropPart(inst) or nil
+        end
+        if part and not allRigs[propName] then
             allProps[propName] = part
             panel:addProp(propName, part)
         else
@@ -1421,6 +1433,7 @@ local function stopPlayback()
     panel:setPlaybackState(false)
     -- Sync viewport to current timeline position after playback ends.
     applyPosesAt(timeline:getCurrent(), false)
+    if refreshSimpleArrivalSnap then refreshSimpleArrivalSnap() end
 end
 
 local function startPlayback()
@@ -1735,15 +1748,18 @@ end
 -- Keyframe-track data only (rigs/props/camera). Used by the auto-capture-on-
 -- navigate paths, which must not stamp rig keyframes onto frames that hold
 -- only a spawned effect or subtitle.
-local function simpleFrameHasData(frame)
+local function frameHasRigPropData(frame)
     for rigName in pairs(allRigs) do
         if recorder:hasKeyframe(rigName, frame) then return true end
     end
     for propName in pairs(allProps) do
         if recorder:getPropData(propName, frame) ~= nil then return true end
     end
-    if recorder:getCameraData(frame) ~= nil then return true end
     return false
+end
+
+local function simpleFrameHasData(frame)
+    return frameHasRigPropData(frame) or recorder:getCameraData(frame) ~= nil
 end
 
 -- Wider check for the Insert/Delete Frame guards: spawned-effect-only and
@@ -1778,6 +1794,16 @@ local function snapshotRigParts()
         snap.camera = { cf = simpleCameraPart.CFrame, fov = simpleCameraFOV }
     end
     return snap
+end
+
+-- Re-baseline the arrival snapshot after anything that repositions rigs/camera
+-- outside the navigation handlers (scrub end, playback stop, frame ops).
+-- Without a snapshot the departure capture falls back to conservative
+-- re-capture, which re-stamps unchanged keyframes.
+refreshSimpleArrivalSnap = function()
+    if mode == "simple" and not isPlaying then
+        _simpleArrivalSnap = snapshotRigParts()
+    end
 end
 
 local function simpleIsDirty()
@@ -1863,19 +1889,45 @@ end
 
 -- Auto-capture of the departure frame during Simple Mode navigation — the
 -- single path shared by tile clicks, scrub start, and the test bridge.
+--
+-- Rigs/props are only re-captured when the pose actually changed (or, with no
+-- arrival snapshot to compare against, conservatively whenever the frame has
+-- rig/prop data — never lose an edit). Merely passing through a frame no
+-- longer rewrites rig keyframes with capture round-trip float noise, and a
+-- camera-only frame is never "materialized" into full rig keyframes — which
+-- would pin interpolated poses and change eased/smooth motion.
+-- The camera is handled independently by the moved-gate.
 local function simpleAutoCaptureDeparture(departureFrame)
-    if simpleFrameHasData(departureFrame) or simpleIsDirty() then
+    local dirty        = simpleIsDirty()
+    local conservative = _simpleArrivalSnap == nil
+    local wasNewFrame  = not simpleFrameHasData(departureFrame)
+    local captured     = false
+
+    if (frameHasRigPropData(departureFrame) and (dirty or conservative))
+        or (not frameHasRigPropData(departureFrame) and dirty) then
         doSimpleCaptureFrame(departureFrame, true)
         _simpleArrivalSnap = nil
-        scheduleAutoSave()
+        captured = true
     elseif simpleCameraOn and simpleCameraPart and simpleCameraPart.Parent
         and simpleCameraMoved(departureFrame) then
-        -- Camera-only capture: the user re-aimed the camera at this frame
-        -- (gizmo drag or Look Through fly); save it. An unmoved camera never
-        -- creates keyframes just by navigating through empty frames.
+        -- Camera-only update: the user re-aimed the camera at this frame
+        -- (gizmo drag or Look Through fly); save just the camera keyframe,
+        -- preserving an existing one's mode and easing.
+        local existing = recorder:getCameraData(departureFrame)
+        local kfMode   = existing and existing.mode   or "move"
+        local kfEasing = existing and existing.easing or simpleCurrentEasing
         recorder:addCameraKeyframe(departureFrame, simpleCameraPart.CFrame,
-            simpleCameraFOV, "move", simpleCurrentEasing)
-        panel:addCameraKeyframeMarker(departureFrame, "move")
+            simpleCameraFOV, kfMode, kfEasing)
+        panel:addCameraKeyframeMarker(departureFrame, kfMode)
+        captured = true
+    end
+
+    if captured then
+        if wasNewFrame then
+            -- The capture created data at a previously-empty frame: give it a
+            -- tile immediately, or the data is invisible until the next rebuild.
+            panel:setSimpleSlots(getSimpleKeyframedFrames())
+        end
         scheduleAutoSave()
     end
 end
@@ -1934,6 +1986,7 @@ local function doSimpleAddFrame()
         panel:setFrameDisplay(f, frameCount)
         applyPosesAt(f, false)
     end
+    refreshSimpleArrivalSnap()
 end
 
 -- Insert a blank frame at the current position: shift all data at frames
@@ -1954,12 +2007,21 @@ local function doSimpleInsertFrame()
     timeline:setFrameCount(newCount)
     recorder:setFrameCount(newCount)
     panel:setFrameCount(newCount)
-    -- Copy data from frame into frame+1 (the newly created gap)
+    -- Copy data from frame into frame+1 (the newly created gap). The fresh
+    -- capture defaults to move/current-easing; a duplicate must inherit the
+    -- source keyframe's camera mode (cut stays cut) and easing.
     doSimpleCaptureFrame(frame + 1)
+    local srcCam = recorder:getCameraData(frame)
+    if srcCam and recorder:getCameraData(frame + 1) then
+        recorder:setCameraMode(frame + 1, srcCam.mode)
+        recorder:setCameraEasing(frame + 1, srcCam.easing or simpleCurrentEasing)
+        panel:setCameraMarkerMode(frame + 1, srcCam.mode)
+    end
     local f = timeline:setCurrent(frame + 1)
     rebuildAllSimpleMarkers()
     panel:setFrameDisplay(f, newCount)
     applyPosesAt(f, false)
+    refreshSimpleArrivalSnap()
     scheduleAutoSave()
 end
 
@@ -1988,6 +2050,7 @@ local function doSimpleDeleteFrame()
     rebuildAllSimpleMarkers()
     panel:setFrameDisplay(f, newCount)
     applyPosesAt(f, false)
+    refreshSimpleArrivalSnap()
     scheduleAutoSave()
 end
 
@@ -2994,6 +3057,7 @@ panel.onScrubEnded:Connect(function()
     simpleScrubbing = false
     ChangeHistoryService:SetEnabled(true)
     ChangeHistoryService:SetWaypoint("MultiAnim_Scrub")
+    refreshSimpleArrivalSnap()
 end)
 
 panel.onMarkerClicked:Connect(function(rigName, frame)
@@ -4007,6 +4071,14 @@ local testBridge = TestBridge.start({
     -- what panel:setSimpleSlots receives. Used to verify load round-trips.
     getSimpleSlots = function()
         return getSimpleKeyframedFrames()
+    end,
+
+    -- The tile strip as the PANEL currently shows it (not recomputed from the
+    -- recorder) — lets tests assert the UI refreshed after captures.
+    getSimpleUISlots = function()
+        local slots = {}
+        for i, f in ipairs(panel._simpleSlotFrames or {}) do slots[i] = f end
+        return slots
     end,
 
     -- Save/load session by name — exposes the same paths used by Save As / Load
