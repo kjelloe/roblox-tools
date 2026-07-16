@@ -40,6 +40,7 @@ local Recorder      = require(script.core.Recorder)
 local Timeline      = require(script.core.Timeline)
 local Interpolator  = require(script.core.Interpolator)
 local PoseApplier   = require(script.core.PoseApplier)
+local PropCapture   = require(script.core.PropCapture)
 local Exporter      = require(script.core.Exporter)
 local CameraCapture = require(script.core.CameraCapture)
 local EffectRunner          = require(script.core.EffectRunner)
@@ -354,17 +355,20 @@ local function applyPosesAt(queryFrame, immediate)
             end
         end
     end
-    -- Apply prop poses
+    -- Apply prop poses + visual states (transparency/colour/material)
     local propCFrames = {}
+    local propVisualStates = {}
     for propName in pairs(allProps) do
         local cf = Interpolator.getPropData(recorder, propName, queryFrame)
         if cf then propCFrames[propName] = cf end
+        local st = Interpolator.getPropState(recorder, propName, queryFrame)
+        if st then propVisualStates[propName] = st end
     end
-    if next(propCFrames) then
+    if next(propCFrames) or next(propVisualStates) then
         if immediate then
-            PoseApplier.applyPropImmediate(allProps, propCFrames)
+            PoseApplier.applyPropImmediate(allProps, propCFrames, propVisualStates)
         else
-            PoseApplier.applyPropRecorded(allProps, propCFrames)
+            PoseApplier.applyPropRecorded(allProps, propCFrames, propVisualStates)
         end
     end
 
@@ -479,14 +483,17 @@ local function serializeSession()
         out.rigs[rigName] = { joints = jOut, scales = sOut, roots = rOut, easings = eOut }
     end
     for propName, propData in pairs(session.props or {}) do
-        local pOut, peOut = {}, {}
+        local pOut, peOut, psOut = {}, {}, {}
         for frame, cf in pairs(propData.propTrack) do
             pOut[tostring(frame)] = { cf:GetComponents() }
         end
         for frame, easing in pairs(propData.easingTrack or {}) do
             peOut[tostring(frame)] = easing
         end
-        out.props[propName] = { frames = pOut, easings = peOut }
+        for frame, st in pairs(propData.stateTrack or {}) do
+            psOut[tostring(frame)] = st
+        end
+        out.props[propName] = { frames = pOut, easings = peOut, states = psOut }
     end
     out.camera = {}
     for frame, kf in pairs((session.camera and session.camera.track) or {}) do
@@ -687,6 +694,10 @@ local function applySessionData(data)
         for frameStr, easing in pairs(propEasings) do
             local frame = tonumber(frameStr)
             if frame then recorder:setPropEasing(propName, frame, easing) end
+        end
+        for frameStr, st in pairs((type(propData) == "table" and propData.states) or {}) do
+            local frame = tonumber(frameStr)
+            if frame then recorder:setPropState(propName, frame, st) end
         end
         -- Try to find the part in Workspace so it can be re-linked
         local part = workspace:FindFirstChild(propName, true)
@@ -1747,7 +1758,9 @@ local function simpleFrameHasAnyData(frame)
 end
 
 local function snapshotRigParts()
-    local snap = { rigs = {}, props = {} }
+    -- snap.frame records where the snapshot was taken: camera moved-detection
+    -- must not compare against a snapshot from some other frame.
+    local snap = { rigs = {}, props = {}, frame = timeline:getCurrent() }
     for rigName, rig in pairs(allRigs) do
         local parts = {}
         for _, child in ipairs(rig:GetChildren()) do
@@ -1756,7 +1769,13 @@ local function snapshotRigParts()
         snap.rigs[rigName] = parts
     end
     for propName, part in pairs(allProps) do
-        if part.Parent then snap.props[propName] = part.CFrame end
+        if part.Parent then
+            snap.props[propName] = { cf = part.CFrame, t = part.Transparency,
+                c = part.Color, m = part.Material }
+        end
+    end
+    if simpleCameraPart and simpleCameraPart.Parent then
+        snap.camera = { cf = simpleCameraPart.CFrame, fov = simpleCameraFOV }
     end
     return snap
 end
@@ -1774,13 +1793,44 @@ local function simpleIsDirty()
         end
     end
     for propName, part in pairs(allProps) do
-        local cf = _simpleArrivalSnap.props[propName]
-        if cf and part.Parent and part.CFrame ~= cf then return true end
+        local s = _simpleArrivalSnap.props[propName]
+        if s and part.Parent then
+            if part.CFrame ~= s.cf or part.Transparency ~= s.t
+                or part.Color ~= s.c or part.Material ~= s.m then return true end
+        end
     end
     return false
 end
 
-local function doSimpleCaptureFrame(frame)
+-- Has the camera actually moved at `frame`? Compared against the frame's
+-- saved keyframe when one exists (arrival navigation snaps the camera onto
+-- it, so an untouched camera still matches), else against the arrival
+-- snapshot. The epsilons absorb write→read noise from Studio's editor-camera
+-- controller, which Look Through mirrors into the gizmo part.
+local function simpleCameraMoved(frame)
+    if not (simpleCameraPart and simpleCameraPart.Parent) then return false end
+    local refCF, refFov
+    local kf = recorder:getCameraData(frame)
+    if kf then
+        refCF, refFov = kf.cf, kf.fov
+    elseif _simpleArrivalSnap and _simpleArrivalSnap.camera and _simpleArrivalSnap.frame == frame then
+        refCF, refFov = _simpleArrivalSnap.camera.cf, _simpleArrivalSnap.camera.fov
+    else
+        return false
+    end
+    local cur = simpleCameraPart.CFrame
+    return (cur.Position - refCF.Position).Magnitude > 0.05
+        or (cur.LookVector - refCF.LookVector).Magnitude > 0.005
+        or (cur.UpVector - refCF.UpVector).Magnitude > 0.005
+        or math.abs(simpleCameraFOV - (refFov or simpleCameraFOV)) > 0.01
+end
+
+-- navCapture = true when called from navigation auto-capture (tile click,
+-- scrub start): a camera keyframe the user did not move is left exactly as
+-- saved. Without this, every step through the frames rewrote each keyframe
+-- from the live viewport — Look Through fed controller noise back into the
+-- track, and cut/easing settings were silently reset.
+local function doSimpleCaptureFrame(frame, navCapture)
     if next(allRigs) ~= nil or next(allProps) ~= nil then
         recorder:addKeyframe(frame, allRigs, allProps)
         for rigName in pairs(allRigs) do
@@ -1794,15 +1844,40 @@ local function doSimpleCaptureFrame(frame)
     end
     -- Camera is captured whenever the part exists, not gated by Camera View
     -- toggle, so the pose is always recorded along with rigs/props.
+    -- Overwrites preserve the existing keyframe's mode (cut stays cut) and easing.
     if simpleCameraPart and simpleCameraPart.Parent then
-        recorder:addCameraKeyframe(frame, simpleCameraPart.CFrame, simpleCameraFOV, "move",
-            simpleCurrentEasing)
-        panel:addCameraKeyframeMarker(frame, "move")
+        local existing = recorder:getCameraData(frame)
+        if not (navCapture and existing and not simpleCameraMoved(frame)) then
+            local kfMode   = existing and existing.mode   or "move"
+            local kfEasing = existing and existing.easing or simpleCurrentEasing
+            recorder:addCameraKeyframe(frame, simpleCameraPart.CFrame, simpleCameraFOV,
+                kfMode, kfEasing)
+            panel:addCameraKeyframeMarker(frame, kfMode)
+        end
         -- No updateCameraGizmo here: the SimpleCamera Part in FIGURES is the
         -- visual for Simple Mode. Advanced-mode orange markers would pile up at
         -- every past keyframe position and clutter the viewport.
     end
     scheduleAutoSave()
+end
+
+-- Auto-capture of the departure frame during Simple Mode navigation — the
+-- single path shared by tile clicks, scrub start, and the test bridge.
+local function simpleAutoCaptureDeparture(departureFrame)
+    if simpleFrameHasData(departureFrame) or simpleIsDirty() then
+        doSimpleCaptureFrame(departureFrame, true)
+        _simpleArrivalSnap = nil
+        scheduleAutoSave()
+    elseif simpleCameraOn and simpleCameraPart and simpleCameraPart.Parent
+        and simpleCameraMoved(departureFrame) then
+        -- Camera-only capture: the user re-aimed the camera at this frame
+        -- (gizmo drag or Look Through fly); save it. An unmoved camera never
+        -- creates keyframes just by navigating through empty frames.
+        recorder:addCameraKeyframe(departureFrame, simpleCameraPart.CFrame,
+            simpleCameraFOV, "move", simpleCurrentEasing)
+        panel:addCameraKeyframeMarker(departureFrame, "move")
+        scheduleAutoSave()
+    end
 end
 
 -- Rebuild all timeline markers from recorder state (used after insert/delete
@@ -1963,14 +2038,9 @@ function setSimpleLookThroughOn(isOn)
         -- We intentionally do NOT set CameraType = Scriptable so Studio's
         -- built-in editor controls (right-click-drag, WASD) remain active.
         -- The Heartbeat copies Camera → Part, so wherever the user flies
-        -- the camera, the part tracks it.
-        -- Also update Focus to a point in front of the Part: after restoreState,
-        -- cam.Focus sits at the original pre-Look-Through focus point, which may be
-        -- behind the new camera position. Studio's camera controller re-derives
-        -- angles from CFrame + Focus and can flip 180° if Focus is behind the eye.
+        -- the camera, the part tracks it. (CameraCapture.apply also moves
+        -- Focus ahead of the eye so the camera controller cannot flip 180°.)
         CameraCapture.apply(simpleCameraPart.CFrame, simpleCameraFOV)
-        local partCF = simpleCameraPart.CFrame
-        workspace.CurrentCamera.Focus = CFrame.new(partCF.Position + partCF.LookVector * 10)
         simpleLookThroughConn = RunService.Heartbeat:Connect(function()
             if simpleCameraPart and simpleCameraPart.Parent then
                 simpleCameraPart.CFrame = workspace.CurrentCamera.CFrame
@@ -2273,7 +2343,13 @@ buildPlaybackSnippet = function()
     panel:setPlaybackSnippet(snippet)
 end
 
-panel.onModeChanged:Connect(function(newMode)
+-- Single mode-switch path: the core `mode` variable and every side effect.
+-- Panel:setMode only flips UI visibility and does NOT fire onModeChanged, so
+-- every programmatic switch (startup default, test bridge) must come through
+-- here too — the Simple-default startup once called panel:setMode alone,
+-- leaving core mode "advanced" and silently disabling all Simple Mode
+-- auto-capture and camera navigation.
+local function applyModeChange(newMode)
     if newMode == "simple" then
         advancedFrameCount = timeline:getFrameCount()
         mode = newMode
@@ -2298,7 +2374,9 @@ panel.onModeChanged:Connect(function(newMode)
         clearOnionSkin()
         rebuildCameraUI()
     end
-end)
+end
+
+panel.onModeChanged:Connect(applyModeChange)
 
 panel.onSimpleAddFrame:Connect(doSimpleAddFrame)
 panel.onSimpleInsertFrame:Connect(doSimpleInsertFrame)
@@ -2413,6 +2491,12 @@ local function doSimplePoseToEnd()
             if pd then
                 for _, f in ipairs(framesFrom(pd.propTrack)) do
                     pd.propTrack[f] = inst.CFrame
+                end
+                if pd.stateTrack then
+                    local st = PropCapture.captureState(inst)
+                    for _, f in ipairs(framesFrom(pd.stateTrack)) do
+                        pd.stateTrack[f] = st
+                    end
                 end
                 table.insert(applied, propName)
             end
@@ -2849,18 +2933,7 @@ panel.onFrameChanged:Connect(function(newFrame)
     if mode == "simple" and not isPlaying and not simpleScrubbing then
         local departureFrame = timeline:getCurrent()
         if departureFrame ~= newFrame then
-            if simpleFrameHasData(departureFrame) or simpleIsDirty() then
-                doSimpleCaptureFrame(departureFrame)
-                _simpleArrivalSnap = nil
-                scheduleAutoSave()
-            elseif simpleCameraOn and not simpleLookThroughOn and simpleCameraPart and simpleCameraPart.Parent then
-                -- Camera-only capture: user explicitly positioned the camera Part at
-                -- this frame; save it. Skipped in Look Through mode because the Part
-                -- tracks the viewport (not an intentional pose).
-                recorder:addCameraKeyframe(departureFrame, simpleCameraPart.CFrame, simpleCameraFOV, "move", simpleCurrentEasing)
-                panel:addCameraKeyframeMarker(departureFrame, "move")
-                scheduleAutoSave()
-            end
+            simpleAutoCaptureDeparture(departureFrame)
         end
     end
     local f = timeline:setCurrent(newFrame)
@@ -2895,15 +2968,7 @@ panel.onScrubBegan:Connect(function()
             -- Simple Mode: auto-capture the departure frame so pose changes
             -- made while parked at a frame are not lost on scrub.
             simpleScrubbing = true
-            if simpleFrameHasData(frame) or simpleIsDirty() then
-                doSimpleCaptureFrame(frame)
-                _simpleArrivalSnap = nil
-                scheduleAutoSave()
-            elseif simpleCameraOn and not simpleLookThroughOn and simpleCameraPart and simpleCameraPart.Parent then
-                recorder:addCameraKeyframe(frame, simpleCameraPart.CFrame, simpleCameraFOV, "move", simpleCurrentEasing)
-                panel:addCameraKeyframeMarker(frame, "move")
-                scheduleAutoSave()
-            end
+            simpleAutoCaptureDeparture(frame)
         else
             -- Advanced Mode: re-capture if there's an existing keyframe here.
             local activeRigs  = panel:getActiveRigs()
@@ -3509,6 +3574,7 @@ scanAndSetup()
 
 -- Simple Mode is the default; Advanced is an explicit choice.
 panel:setMode("simple")
+applyModeChange("simple")
 
 -- ── Test bridge ───────────────────────────────────────────────────────────────
 -- Lets tests/test_ui_*.lua drive the live panel from execute_luau.
@@ -3592,6 +3658,12 @@ local testBridge = TestBridge.start({
     deleteKeyframe = function(a)
         recorder:deleteRigKeyframe(a.rig, a.frame)
         panel:removeKeyframeMarker(a.rig, a.frame)
+        return true
+    end,
+
+    deletePropKeyframe = function(a)
+        recorder:deletePropKeyframe(a.prop, a.frame)
+        panel:removePropKeyframeMarker(a.prop, a.frame)
         return true
     end,
 
@@ -3767,31 +3839,13 @@ local testBridge = TestBridge.start({
     getMode = function() return mode end,
 
     setMode = function(a)
-        if a.mode == "simple" then
-            advancedFrameCount = timeline:getFrameCount()
-            mode = a.mode
-            panel:setMode(a.mode)
-            clearCameraGizmos()
-            doSimpleScan()
-        elseif a.mode == "playback" then
-            if not advancedFrameCount then
-                advancedFrameCount = timeline:getFrameCount()
-            end
-            mode = a.mode
-            panel:setMode(a.mode)
-            doPlaybackScan()
-        else
-            mode = a.mode
-            panel:setMode(a.mode)
-            if advancedFrameCount then
-                timeline:setFrameCount(advancedFrameCount)
-                recorder:setFrameCount(advancedFrameCount)
-                panel:setFrameCount(advancedFrameCount)
-                advancedFrameCount = nil
-            end
-            rebuildCameraUI()
-        end
+        panel:setMode(a.mode)
+        applyModeChange(a.mode)
         return mode
+    end,
+
+    getPanelMode = function()
+        return panel:getMode()
     end,
 
     simpleAddFrame = function()
@@ -3823,6 +3877,15 @@ local testBridge = TestBridge.start({
     setSimpleCamera = function(a)
         setSimpleCameraOn(a.on and true or false)
         return simpleCameraOn
+    end,
+
+    -- Re-aim the ACTIVE camera gizmo (tests must not guess its folder — every
+    -- tagged scene can carry its own SimpleCamera part).
+    setSimpleCameraCF = function(a)
+        if not (simpleCameraPart and simpleCameraPart.Parent) then return false end
+        simpleCameraPart.CFrame = CFrame.lookAt(
+            Vector3.new(a.x, a.y, a.z), Vector3.new(a.tx, a.ty, a.tz))
+        return true
     end,
 
     simpleFrameHasData = function(a)
@@ -3996,15 +4059,7 @@ local testBridge = TestBridge.start({
         if mode == "simple" and not isPlaying then
             local departureFrame = timeline:getCurrent()
             if departureFrame ~= targetFrame then
-                if simpleFrameHasData(departureFrame) or simpleIsDirty() then
-                    doSimpleCaptureFrame(departureFrame)
-                    _simpleArrivalSnap = nil
-                    scheduleAutoSave()
-                elseif simpleCameraOn and not simpleLookThroughOn and simpleCameraPart and simpleCameraPart.Parent then
-                    recorder:addCameraKeyframe(departureFrame, simpleCameraPart.CFrame, simpleCameraFOV, "move", simpleCurrentEasing)
-                    panel:addCameraKeyframeMarker(departureFrame, "move")
-                    scheduleAutoSave()
-                end
+                simpleAutoCaptureDeparture(departureFrame)
             end
         end
         local f = timeline:setCurrent(targetFrame)
@@ -4122,12 +4177,8 @@ local testBridge = TestBridge.start({
     -- Switch to (or query) playback mode.
     setPlaybackMode = function()
         if mode ~= "playback" then
-            if not advancedFrameCount then
-                advancedFrameCount = timeline:getFrameCount()
-            end
-            mode = "playback"
             panel:setMode("playback")
-            doPlaybackScan()
+            applyModeChange("playback")
         end
         return mode
     end,

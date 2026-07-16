@@ -62,11 +62,13 @@ python3 watch.py               # or: auto-build on every save
 ## Testing
 
 ```bash
-mcp test                 # full suite — ~822 cases, ~4s
+mcp test                 # full suite — ~928 cases, ~9s
 mcp test prop            # only tests matching *prop*
 mcp test ui -v           # UI integration tests, verbose
 mcp playtest             # play-mode test: deploys, presses F5, watches the
                          # console for FINISHED/ERROR, exits play mode, reports
+mcp playtest --client    # client-path test: temp LocalScript plays a scene
+                         # through CutscenePlayer end-to-end [--scene NAME]
 ```
 
 The suite runs **against the live Studio session** — including UI tests that

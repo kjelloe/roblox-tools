@@ -76,6 +76,14 @@ ok("getMode reflects advanced", r.ok and r.result == "advanced", r.err)
 r = call("setMode", { mode = "simple" })
 ok("setMode back to simple for the rest of the suite", r.ok and r.result == "simple", r.err)
 
+-- Panel UI mode and core mode must never diverge: the Simple-default startup
+-- once set only the panel, leaving core mode "advanced" — which silently
+-- disabled all Simple Mode auto-capture and camera navigation.
+r = call("getPanelMode")
+local rc = call("getMode")
+ok("panel mode and core mode agree", r.ok and rc.ok and r.result == rc.result,
+    tostring(r.result) .. " vs " .. tostring(rc.result))
+
 -- ── Rig discovery (unaffected by mode) ───────────────────────────────────────
 
 r = call("getRigs")
@@ -601,6 +609,73 @@ do
 
         r = call("getFrameCount")
         ok("frameCount restored after auto-capture test", r.ok and r.result == navInitCount, r.err)
+    end
+end
+
+-- ── Navigation must not rewrite unmoved camera keyframes ─────────────────────
+-- Regression: every navigation departure re-captured the camera from the live
+-- gizmo/viewport, so merely stepping 1→2→1→2 mutated saved keyframes (Look
+-- Through fed camera-controller noise into the track, and cut/easing were
+-- silently reset to move/current). An unmoved camera must leave keyframes
+-- exactly as saved, including mode.
+
+do
+    if frameOccupied(1) or frameOccupied(2) then
+        table.insert(out, "SKIP  camera-keyframe-stability test (frames 1-2 hold user data)")
+    else
+        local stabInitCount = (call("getFrameCount").ok and call("getFrameCount").result) or 1
+        call("setSimpleCamera", { on = true })
+
+        local camPart = workspace:FindFirstChild("SimpleCamera", true)
+        if camPart then
+            call("setFrame", { frame = 1 })
+            camPart.CFrame = CFrame.lookAt(Vector3.new(30, 10, 30), Vector3.new(0, 2, 0))
+            call("simpleAddFrame")          -- captures frame 1, cursor to 2
+            camPart.CFrame = CFrame.lookAt(Vector3.new(-20, 6, 25), Vector3.new(0, 2, 0))
+            call("simpleAddFrame")          -- captures frame 2, cursor to 3
+
+            call("setCameraMode", { frame = 1, mode = "cut" })
+            local kf1a = call("getCameraKeyframe", { frame = 1 }).result
+            local kf2a = call("getCameraKeyframe", { frame = 2 }).result
+
+            -- Two full step-through round trips without touching the camera.
+            call("simpleNavigate", { frame = 1 })
+            call("simpleNavigate", { frame = 2 })
+            call("simpleNavigate", { frame = 1 })
+            call("simpleNavigate", { frame = 2 })
+
+            local kf1b = call("getCameraKeyframe", { frame = 1 }).result
+            local kf2b = call("getCameraKeyframe", { frame = 2 }).result
+
+            local function sameKF(a, b)
+                if not a or not b then return false end
+                if math.abs(a.fov - b.fov) > 0.001 then return false end
+                for i = 1, 12 do
+                    if math.abs(a.cf[i] - b.cf[i]) > 0.001 then return false end
+                end
+                return true
+            end
+            ok("stepping through frames leaves camera keyframe 1 unchanged", sameKF(kf1a, kf1b))
+            ok("stepping through frames leaves camera keyframe 2 unchanged", sameKF(kf2a, kf2b))
+            ok("cut mode survives navigation", kf1b and kf1b.mode == "cut",
+                kf1b and kf1b.mode)
+
+            -- A deliberate move at a frame must still rewrite that keyframe.
+            call("simpleNavigate", { frame = 2 })
+            camPart.CFrame = CFrame.lookAt(Vector3.new(0, 40, -30), Vector3.new(0, 2, 0))
+            call("simpleNavigate", { frame = 1 })
+            local kf2c = call("getCameraKeyframe", { frame = 2 }).result
+            ok("a real camera move at a frame still updates its keyframe",
+                kf2c and not sameKF(kf2b, kf2c))
+        else
+            table.insert(out, "SKIP  camera-keyframe-stability test (no SimpleCamera part)")
+        end
+
+        clearFrame(2)
+        clearFrame(1)
+        call("setSimpleCamera", { on = false })
+        r = call("getFrameCount")
+        ok("frameCount restored after camera-stability test", r.ok and r.result == stabInitCount, r.err)
     end
 end
 

@@ -17,6 +17,12 @@ end
 function CameraCapture.apply(cf, fov)
     local cam = workspace.CurrentCamera
     cam.CFrame = cf
+    -- Keep Focus just ahead of the eye: Studio's editor-camera controller
+    -- re-derives orientation from CFrame + Focus, and a stale Focus (worst
+    -- case: behind the camera) makes it snap or flip the view on its next
+    -- update — which Look Through would then mirror into the gizmo and
+    -- navigation capture would write back into saved keyframes.
+    cam.Focus = CFrame.new(cf.Position + cf.LookVector * 10)
     if fov then
         cam.FieldOfView = fov
     end

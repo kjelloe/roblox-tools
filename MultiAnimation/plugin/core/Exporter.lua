@@ -269,6 +269,34 @@ local function buildPropTracksSource(session)
         add("    },")
     end
 
+    -- Visual-state tracks (transparency/colour lerp, material stepped).
+    -- Omitted entirely for sessions recorded before state capture existed.
+    local hasPropState = false
+    for _, propData in pairs(session.props or {}) do
+        if propData.stateTrack and next(propData.stateTrack) then
+            hasPropState = true; break
+        end
+    end
+    if hasPropState then
+        add("    states = {")
+        for propName, propData in pairs(session.props or {}) do
+            if not (propData.stateTrack and next(propData.stateTrack)) then continue end
+            add(string.format("        [%q] = {", propName))
+            local sf = {}
+            for f in pairs(propData.stateTrack) do table.insert(sf, f) end
+            table.sort(sf)
+            for _, frame in ipairs(sf) do
+                local st = propData.stateTrack[frame]
+                add(string.format(
+                    "            [%d] = {t = %g, c = {%g,%g,%g}, m = %q},",
+                    frame, st.t or 0, st.c[1], st.c[2], st.c[3], st.m or "Plastic"
+                ))
+            end
+            add("        },")
+        end
+        add("    },")
+    end
+
     add("}")
     return table.concat(lines, "\n")
 end

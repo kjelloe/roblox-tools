@@ -79,6 +79,29 @@ local function easedAlpha(t, easing)
     return t
 end
 
+-- ── Prop visual state (transparency/colour lerp, material stepped) ────────────
+-- Same construction as Interpolator/MultiAnimPlayer — keep the copies in sync.
+
+local function lerpState(sa, sb, t)
+    return {
+        t = sa.t + (sb.t - sa.t) * t,
+        c = { sa.c[1] + (sb.c[1] - sa.c[1]) * t,
+              sa.c[2] + (sb.c[2] - sa.c[2]) * t,
+              sa.c[3] + (sb.c[3] - sa.c[3]) * t },
+        m = sa.m,
+    }
+end
+
+local function applyPartState(part, st)
+    if st.t then part.Transparency = st.t end
+    if st.c then part.Color = Color3.new(st.c[1], st.c[2], st.c[3]) end
+    if st.m then
+        -- Material names can change across Roblox versions; ignore unknowns.
+        local ok, mat = pcall(function() return Enum.Material[st.m] end)
+        if ok and mat then part.Material = mat end
+    end
+end
+
 -- Binary-search for the last keyframe at or before `time`.
 -- Returns (a, b, index-of-a); b is nil when clamped to an end.
 local function findKF(kfs, time)
@@ -437,6 +460,9 @@ function CutscenePlayer.play(sceneName, rigMap, options)
     for _, kfs in pairs(sceneData.props or {}) do
         duration = math.max(duration, lastKFTime(kfs))
     end
+    for _, kfs in pairs(sceneData.propStates or {}) do
+        duration = math.max(duration, lastKFTime(kfs))
+    end
     if #sceneData.camera > 0 then
         duration = math.max(duration, sceneData.camera[#sceneData.camera].time)
     end
@@ -471,6 +497,10 @@ function CutscenePlayer.play(sceneName, rigMap, options)
             local kfs = sceneData.props[propName]
             if kfs and #kfs > 0 then
                 part.CFrame = kfs[1].data
+            end
+            local sk = sceneData.propStates and sceneData.propStates[propName]
+            if sk and #sk > 0 then
+                applyPartState(part, sk[1].data)
             end
         end
     end
@@ -564,6 +594,16 @@ function CutscenePlayer.play(sceneName, rigMap, options)
                 local kfs = sceneData.props[propName]
                 if kfs and #kfs > 0 and part and part.Parent then
                     part.CFrame = sampleCFrame(kfs, t, smooth)
+                end
+                local sk = sceneData.propStates and sceneData.propStates[propName]
+                if sk and #sk > 0 and part and part.Parent then
+                    local a, b = findKF(sk, t)
+                    if b and b.time > a.time then
+                        local frac = easedAlpha((t - a.time) / (b.time - a.time), a.easing)
+                        applyPartState(part, lerpState(a.data, b.data, frac))
+                    else
+                        applyPartState(part, a.data)
+                    end
                 end
             end
 

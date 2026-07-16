@@ -12,10 +12,21 @@ Prerequisites:
     - Roblox Studio open with the place loaded (MCP plugin active)
     - Studio session initialised (list_roblox_studios → set_active_studio)
 
-Skipped automatically:
-    - test_player.lua  (requires play mode; run manually as a Script in ServerScriptService)
+Pre-flights (local, before any Studio call):
+    - copy-sync check: keep-in-sync duplicates (game players + test inline
+      copies) are diffed; drift fails the run
+    - plugin build-hash check: warns when Studio runs a stale build
 
-Exit code: 0 if all tests pass, 1 if any fail or Studio is unreachable.
+Behaviour:
+    - a failed/errored file gets exactly one retry; "PASS*" = passed on retry
+    - a file whose output lacks the `=== N passed, M failed ===` summary
+      counts as failed (never silently 0/0)
+
+Skipped automatically:
+    - test_player.lua  (requires play mode; use `mcp playtest`)
+    - test_scrubber.lua (interactive; needs real mouse movement)
+
+Exit code: 0 if all tests pass, 1 if any fail, copies drifted, or Studio is unreachable.
 """
 
 import os
@@ -207,6 +218,18 @@ _SYNCED_BLOCKS = {
     "SpawnedEffect PRESETS": [
         ("plugin/core/SpawnedEffectRunner.lua", r"^SpawnedEffectRunner\.PRESETS = {"),
         ("tests/test_spawned_effects_core.lua", r"^local PRESETS = {"),
+    ],
+    "lerpState": [
+        ("plugin/core/Interpolator.lua",      r"^local function lerpState\("),
+        ("game/MultiAnimPlayer.lua",          r"^local function lerpState\("),
+        ("game/CutscenePlayer.lua",           r"^local function lerpState\("),
+        ("tests/test_prop_state.lua",         r"^local function lerpState\("),
+    ],
+    "applyPartState": [
+        ("plugin/core/PropCapture.lua",       r"^function PropCapture\.applyState\("),
+        ("game/MultiAnimPlayer.lua",          r"^local function applyPartState\("),
+        ("game/CutscenePlayer.lua",           r"^local function applyPartState\("),
+        ("tests/test_prop_state.lua",         r"^local function applyPartState\("),
     ],
 }
 

@@ -190,6 +190,17 @@ local function getSceneData(sceneName)
         end
     end
 
+    -- Prop visual-state tracks ({t, c={r,g,b}, m}). Reshaped to sorted arrays
+    -- like everything else so the remote never carries sparse numeric-keyed dicts.
+    if propTracks and propTracks.states then
+        out.propStates = {}
+        for propName, data in pairs(propTracks.states) do
+            out.propStates[propName] = toSortedKFs(data, fps, function(raw)
+                return { t = raw.t, c = raw.c, m = raw.m }
+            end, propTracks.easings and propTracks.easings[propName])
+        end
+    end
+
     -- Camera track
     if camTrack and camTrack.frames then
         out.camera = toSortedKFs(camTrack.frames, fps, function(raw)

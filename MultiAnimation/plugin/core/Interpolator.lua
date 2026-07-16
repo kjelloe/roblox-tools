@@ -149,6 +149,40 @@ function Interpolator.getPropData(recorder, propName, queryFrame)
     return cfA:Lerp(cfB, easedAlpha(alpha, recorder:getPropEasing(propName, fA)))
 end
 
+-- Blend two prop visual states {t, c={r,g,b}, m}: transparency and colour
+-- lerp; material is stepped (holds the earlier keyframe's material).
+-- Same construction as MultiAnimPlayer/CutscenePlayer — keep the copies in sync.
+local function lerpState(sa, sb, t)
+    return {
+        t = sa.t + (sb.t - sa.t) * t,
+        c = { sa.c[1] + (sb.c[1] - sa.c[1]) * t,
+              sa.c[2] + (sb.c[2] - sa.c[2]) * t,
+              sa.c[3] + (sb.c[3] - sa.c[3]) * t },
+        m = sa.m,
+    }
+end
+
+-- Returns interpolated visual state {t, c, m} for propName at queryFrame,
+-- or nil if no state has been recorded (pre-state sessions).
+function Interpolator.getPropState(recorder, propName, queryFrame)
+    local sorted = {}
+    for _, f in ipairs(recorder:getSortedPropFrames(propName)) do
+        if recorder:getPropState(propName, f) then table.insert(sorted, f) end
+    end
+    if #sorted == 0 then return nil end
+
+    local fA, fB, alpha = surrounding(sorted, queryFrame)
+    if not fA then return nil end
+
+    local sA = recorder:getPropState(propName, fA)
+    if fA == fB or alpha == 0 then return sA end
+
+    local sB = recorder:getPropState(propName, fB)
+    if not sB then return sA end
+
+    return lerpState(sA, sB, easedAlpha(alpha, recorder:getPropEasing(propName, fA)))
+end
+
 -- Returns interpolated camera {cf, fov} at queryFrame, or nil if no camera
 -- keyframes exist.  A keyframe with mode == "cut" is not interpolated toward:
 -- the previous shot holds until the cut frame itself, then jumps.

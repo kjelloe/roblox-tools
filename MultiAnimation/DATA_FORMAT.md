@@ -56,6 +56,11 @@ session = {
             easingTrack = {     -- per-keyframe easing for this prop
                 [1] = "EaseOut",
             },
+            stateTrack = {      -- visual state, captured with every keyframe
+                -- t = Transparency, c = Color {r,g,b} 0-1 floats, m = Material name
+                [1]  = { t = 1, c = {0.6, 0.6, 0.6}, m = "Concrete" },
+                [10] = { t = 0, c = {0.6, 0.6, 0.6}, m = "Concrete" },
+            },
         },
     },
     camera = {                  -- Phase 8 — one camera track per session
@@ -146,7 +151,8 @@ CFrames and Vector3s are not JSON-native. They are serialised as arrays:
   "props": {
     "Block": {
       "frames":  { "1":  [1,0,0, 0,1,0, 0,0,1,  2, 5, 0] },
-      "easings": { "1": "EaseOut" }
+      "easings": { "1": "EaseOut" },
+      "states":  { "1":  { "t": 1, "c": [0.6, 0.6, 0.6], "m": "Concrete" } }
     }
   },
   "camera": {
@@ -272,6 +278,14 @@ return {
             [1] = "EaseOut",
         },
     },
+    -- visual-state tracks; omitted entirely for pre-state sessions
+    states = {
+        Block = {
+            -- t = Transparency, c = Color 0-1 floats, m = Material name
+            [1]  = {t = 1, c = {0.6,0.6,0.6}, m = "Concrete"},
+            [10] = {t = 0, c = {0.6,0.6,0.6}, m = "Concrete"},
+        },
+    },
 }
 ```
 
@@ -279,6 +293,12 @@ return {
 `CFrame.new(arr[1]…arr[12])` (position first — matches `CFrame:GetComponents()` order).
 `easings[propName][frame]` is the easing for that segment. Old PropTracks without `easings`
 treat all frames as Linear.
+
+`states[propName][frame]` animates the part's visual state: transparency and colour
+lerp between keyframes (with the prop's easing); material is stepped — the earlier
+keyframe's material holds until the next keyframe lands. Unknown material names are
+ignored at apply time. `MultiAnimDataServer` reshapes states to sorted arrays under
+`propStates` for the client remote (same sparse-dict rule as everything else).
 
 ---
 

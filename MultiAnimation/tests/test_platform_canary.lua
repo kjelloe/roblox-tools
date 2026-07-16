@@ -134,6 +134,42 @@ ok("WeldConstraint class instantiable with Part0/Part1",
         w:Destroy() a:Destroy() b:Destroy()
     end))
 
+-- ── Edit-mode viewport camera (Camera View / Look Through substrate) ──────────
+-- The camera-capture design assumes programmatic writes to the edit camera
+-- round-trip essentially exactly: moved-detection uses small epsilons, and the
+-- Look Through mirror copies Camera.CFrame back into the gizmo every frame.
+-- If a Studio update makes the camera controller mutate written values, these
+-- name the break before keyframes start drifting again.
+
+do
+    local cam = workspace.CurrentCamera
+    local saved = { cf = cam.CFrame, fov = cam.FieldOfView, focus = cam.Focus }
+
+    local target = CFrame.lookAt(Vector3.new(123.25, 45.5, -67.75), Vector3.new(0, 5, 0))
+    cam.CFrame = target
+    local got = cam.CFrame
+    ok("edit camera CFrame write→read is exact (position)",
+        (got.Position - target.Position).Magnitude < 1e-3,
+        (got.Position - target.Position).Magnitude)
+    ok("edit camera CFrame write→read is exact (orientation)",
+        (got.LookVector - target.LookVector).Magnitude < 1e-3
+        and (got.UpVector - target.UpVector).Magnitude < 1e-3)
+
+    local focusTarget = CFrame.new(target.Position + target.LookVector * 10)
+    cam.Focus = focusTarget
+    ok("edit camera Focus write→read round-trips",
+        (cam.Focus.Position - focusTarget.Position).Magnitude < 1e-3,
+        (cam.Focus.Position - focusTarget.Position).Magnitude)
+
+    cam.FieldOfView = 47.5
+    ok("edit camera FieldOfView write→read round-trips",
+        math.abs(cam.FieldOfView - 47.5) < 1e-3, cam.FieldOfView)
+
+    cam.CFrame      = saved.cf
+    cam.FieldOfView = saved.fov
+    cam.Focus       = saved.focus
+end
+
 -- ── Summary ───────────────────────────────────────────────────────────────────
 
 table.insert(out, string.format("\n=== %d passed, %d failed ===", passed, failed))

@@ -91,7 +91,10 @@ function Recorder:addKeyframe(frame, activeRigs, activeProps)
         if not self._session.props[propName] then
             self._session.props[propName] = { propTrack = {} }
         end
-        self._session.props[propName].propTrack[frame] = PropCapture.capture(part)
+        local prop = self._session.props[propName]
+        prop.propTrack[frame] = PropCapture.capture(part)
+        prop.stateTrack = prop.stateTrack or {}
+        prop.stateTrack[frame] = PropCapture.captureState(part)
     end
 end
 
@@ -205,11 +208,27 @@ function Recorder:setPropData(propName, frame, cf)
     self._session.props[propName].propTrack[frame] = cf
 end
 
+function Recorder:getPropState(propName, frame)
+    local prop = self._session.props and self._session.props[propName]
+    return prop and prop.stateTrack and prop.stateTrack[frame]
+end
+
+function Recorder:setPropState(propName, frame, state)
+    if not self._session.props then self._session.props = {} end
+    if not self._session.props[propName] then
+        self._session.props[propName] = { propTrack = {} }
+    end
+    local prop = self._session.props[propName]
+    prop.stateTrack = prop.stateTrack or {}
+    prop.stateTrack[frame] = state
+end
+
 function Recorder:deletePropKeyframe(propName, frame)
     local prop = self._session.props and self._session.props[propName]
     if prop then
         prop.propTrack[frame] = nil
         if prop.easingTrack then prop.easingTrack[frame] = nil end
+        if prop.stateTrack then prop.stateTrack[frame] = nil end
     end
 end
 
@@ -439,6 +458,7 @@ function Recorder:shiftFrames(fromFrame, delta)
     for _, prop in pairs(self._session.props or {}) do
         shiftTrack(prop.propTrack)
         shiftTrack(prop.easingTrack)
+        shiftTrack(prop.stateTrack)
     end
     local cam = self._session.camera
     if cam then shiftTrack(cam.track) end
@@ -464,6 +484,7 @@ function Recorder:deleteFrameAt(frame)
     for _, prop in pairs(self._session.props or {}) do
         if prop.propTrack then prop.propTrack[frame] = nil end
         if prop.easingTrack then prop.easingTrack[frame] = nil end
+        if prop.stateTrack then prop.stateTrack[frame] = nil end
     end
     local cam = self._session.camera
     if cam and cam.track then cam.track[frame] = nil end

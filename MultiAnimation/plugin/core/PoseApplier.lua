@@ -9,6 +9,7 @@
 local ChangeHistoryService = game:GetService("ChangeHistoryService")
 local JointCapture = require(script.Parent.JointCapture)
 local ScaleCapture = require(script.Parent.ScaleCapture)
+local PropCapture  = require(script.Parent.PropCapture)
 
 local PoseApplier = {}
 
@@ -43,27 +44,34 @@ function PoseApplier.restoreRestPose(rig, restJointData, restScaleData)
     ChangeHistoryService:SetWaypoint("MultiAnim_RestoreAfter")
 end
 
--- Apply world-space CFrames to prop BaseParts.
+-- Apply world-space CFrames and visual states to prop BaseParts.
 -- propInstances: { [propName] = BasePart }
 -- propCFrames:   { [propName] = CFrame }
+-- propStates:    optional { [propName] = {t, c, m} } (PropCapture state shape)
 
-local function applyPropData(propInstances, propCFrames)
+local function applyPropData(propInstances, propCFrames, propStates)
     for propName, cf in pairs(propCFrames) do
         local part = propInstances[propName]
         if part and part.Parent then
             part.CFrame = cf
         end
     end
+    for propName, st in pairs(propStates or {}) do
+        local part = propInstances[propName]
+        if part and part.Parent then
+            PropCapture.applyState(part, st)
+        end
+    end
 end
 
-function PoseApplier.applyPropRecorded(propInstances, propCFrames)
+function PoseApplier.applyPropRecorded(propInstances, propCFrames, propStates)
     ChangeHistoryService:SetWaypoint("MultiAnim_Before")
-    applyPropData(propInstances, propCFrames)
+    applyPropData(propInstances, propCFrames, propStates)
     ChangeHistoryService:SetWaypoint("MultiAnim_After")
 end
 
-function PoseApplier.applyPropImmediate(propInstances, propCFrames)
-    applyPropData(propInstances, propCFrames)
+function PoseApplier.applyPropImmediate(propInstances, propCFrames, propStates)
+    applyPropData(propInstances, propCFrames, propStates)
 end
 
 return PoseApplier

@@ -173,6 +173,29 @@ local function alpha(before, after, elapsed)
     return math.clamp((elapsed - before.time) / (after.time - before.time), 0, 1)
 end
 
+-- ── Prop visual state (transparency/colour lerp, material stepped) ────────────
+-- Same construction as Interpolator/CutscenePlayer — keep the copies in sync.
+
+local function lerpState(sa, sb, t)
+    return {
+        t = sa.t + (sb.t - sa.t) * t,
+        c = { sa.c[1] + (sb.c[1] - sa.c[1]) * t,
+              sa.c[2] + (sb.c[2] - sa.c[2]) * t,
+              sa.c[3] + (sb.c[3] - sa.c[3]) * t },
+        m = sa.m,
+    }
+end
+
+local function applyPartState(part, st)
+    if st.t then part.Transparency = st.t end
+    if st.c then part.Color = Color3.new(st.c[1], st.c[2], st.c[3]) end
+    if st.m then
+        -- Material names can change across Roblox versions; ignore unknowns.
+        local ok, mat = pcall(function() return Enum.Material[st.m] end)
+        if ok and mat then part.Material = mat end
+    end
+end
+
 local function easedAlpha(t, easing)
     if easing == "Constant" then return 0 end
     if easing == "EaseIn"   then return t * t * t end
@@ -342,6 +365,22 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap, opts)
             if #kfs > 0 then part.CFrame = kfs[1].data end
         end
     end
+    if propTracks and propTracks.states and propMap then
+        for propName, stKFData in pairs(propTracks.states) do
+            local part = propMap[propName]
+            if not part then continue end
+            local kfs = toSortedKFs(stKFData, fps, function(raw) return raw end,
+                propTracks.easings and propTracks.easings[propName])
+            for _, kf in ipairs(kfs) do
+                totalLength = math.max(totalLength, kf.time)
+            end
+            if not propStates[propName] then
+                propStates[propName] = { part = part, kfs = {} }
+            end
+            propStates[propName].stateKFs = kfs
+            if #kfs > 0 then applyPartState(part, kfs[1].data) end
+        end
+    end
 
     -- ── Effect events (one-shots, fired when playback crosses their time) ────
 
@@ -434,6 +473,10 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap, opts)
             for _, state in pairs(propStates) do
                 if #state.kfs > 0 and state.part and state.part.Parent then
                     state.part.CFrame = state.kfs[1].data
+                end
+                if state.stateKFs and #state.stateKFs > 0
+                    and state.part and state.part.Parent then
+                    applyPartState(state.part, state.stateKFs[1].data)
                 end
             end
         end
@@ -565,6 +608,16 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap, opts)
                     else
                         state.part.CFrame = b.data
                     end
+                end
+            end
+            if state.stateKFs and #state.stateKFs > 0
+                and state.part and state.part.Parent then
+                local b, a = surrounding(state.stateKFs, elapsed)
+                if b ~= a and a.time > b.time then
+                    local t = easedAlpha(alpha(b, a, elapsed), b.easing)
+                    applyPartState(state.part, lerpState(b.data, a.data, t))
+                else
+                    applyPartState(state.part, b.data)
                 end
             end
         end
