@@ -116,6 +116,7 @@ architectural changes.
 | O-09 | As an animator, scrubbing the timeline applies interpolated `CFrame` positions to all tracked props in the viewport. |
 | O-10 | As an animator, Preview playback moves props in the viewport at the configured FPS, interpolated between keyframes. |
 | O-11 | As an animator, prop tracks are included in Save As / Load so my prop keyframes persist across sessions. |
+| O-12 | As an animator, every prop keyframe also captures the part's visual state — Transparency, Color, and Material. Transparency and colour interpolate between keyframes (respecting the frame's easing); material steps at its keyframe. State animates in editor scrub/preview, in-game playback, and synchronized cutscenes. |
 
 ### Camera track & cutscenes
 
@@ -209,7 +210,7 @@ all 16 body parts; custom rigs get whatever direct-child parts they have.
 - Props must be `BasePart` instances (Part, MeshPart, etc.). Models with multiple parts are not supported; pick the root part.
 - Props must have a unique name across all tracked props and rigs in the session.
 - Props should be `Anchored = true`; the plugin warns but does not block if unanchored. Unanchored props will drift under physics during playback.
-- Sub-parts (`MeshPart`, `SpecialMesh`, `ParticleEmitter`) follow the parent part's CFrame automatically — their own properties are not animated.
+- Sub-parts (`MeshPart`, `SpecialMesh`, `ParticleEmitter`) follow the parent part's CFrame automatically — their own properties are not animated. Visual state (Transparency/Color/Material) animates on the tracked part only.
 - Props are identified by `Name` for session persistence. If a prop is not found by name on session load, that prop's tracks are skipped with a warning.
 
 ## Camera Constraints (Phase 8)

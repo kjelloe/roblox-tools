@@ -944,6 +944,7 @@ function Panel.new(widget)
     simpleCamBtn.MouseButton1Click:Connect(function()
         self._simpleCamOn = not self._simpleCamOn
         simpleCamBtn.Text = "Camera View: " .. (self._simpleCamOn and "ON" or "OFF")
+        self:_refreshPinCamEnabled()
         eSimpleCam:Fire(self._simpleCamOn)
     end)
     lbl(simpleCamRow, "FOV:", 28, 2)
@@ -965,7 +966,20 @@ function Panel.new(widget)
     simpleLookBtn.MouseButton1Click:Connect(function()
         eSimpleLook:Fire(not self._simpleLookOn)
     end)
-    local simpleOnionBtn = btn(simpleCamRow, "Onion Skin: OFF", 5)
+    -- Pin Cam: stamp the current camera at the current frame — the hold-
+    -- keyframe authoring aid. Greyed out (inert) while Camera View is off.
+    -- do…end: Panel.new rides the 200-local-register ceiling; new locals must
+    -- live in a block so their registers are freed.
+    do
+        local eSimplePinCam = mkEvent("onSimplePinCamera")
+        local simplePinBtn = btn(simpleCamRow, "📌 Pin Cam", 5)
+        self._simplePinBtn = simplePinBtn
+        simplePinBtn.MouseButton1Click:Connect(function()
+            if self._simpleCamOn then eSimplePinCam:Fire() end
+        end)
+        self:_refreshPinCamEnabled()
+    end
+    local simpleOnionBtn = btn(simpleCamRow, "Onion Skin: OFF", 6)
     self._simpleOnionBtn = simpleOnionBtn
     self._simpleOnionOn  = false
     simpleOnionBtn.MouseButton1Click:Connect(function()
@@ -974,7 +988,7 @@ function Panel.new(widget)
         eSimpleOnion:Fire(self._simpleOnionOn)
     end)
     self.onSimpleOnionToggled = eSimpleOnion.Event
-    local simpleCamDelBtn = btn(simpleCamRow, "Del Cam >=Here", 6, false, true)
+    local simpleCamDelBtn = btn(simpleCamRow, "Del Cam >=Here", 7, false, true)
     simpleCamDelBtn.MouseButton1Click:Connect(function()
         eSimpleCamDeleteFrom:Fire()
     end)
@@ -3033,6 +3047,15 @@ function Panel:setSimpleCameraState(isOn)
     if self._simpleCamBtn then
         self._simpleCamBtn.Text = "Camera View: " .. (isOn and "ON" or "OFF")
     end
+    self:_refreshPinCamEnabled()
+end
+
+-- Pin Cam is only meaningful with a camera to pin: grey it out otherwise.
+function Panel:_refreshPinCamEnabled()
+    local b = self._simplePinBtn
+    if not b then return end
+    b.AutoButtonColor = self._simpleCamOn == true
+    b.TextColor3 = self._simpleCamOn and C.btnText or C.btnDimTxt
 end
 
 function Panel:setSimpleLookThroughState(isOn)

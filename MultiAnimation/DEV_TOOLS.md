@@ -186,6 +186,20 @@ a file that returns any other format still shows PASS/FAIL status but reports
 **0/0 cases**, silently vanishing from the suite total (this hid
 `test_easing_core`'s 20 cases for a long time).
 
+**Pre-flights** (run before the suite, failures exit 1): *copy-sync* — the
+deliberately duplicated functions across game players/plugin/tests are diffed
+locally (comment/whitespace-insensitive); *deploy-sync* — every deployed game
+module's `Source` is compared against `game/*.lua`, so live tests (loadstring
+shims, playtests) can never silently validate stale deployed code (absent
+modules skip; present-but-different fails — fix with `mcp deploy`, hotpatch,
+or an export); *build-hash* — warns when Studio runs a stale plugin build.
+
+**Test self-containment:** test files must not depend on session state they
+don't create, and must restore what they change — including the LIVE rig pose
+(`test_pose_to_end` once left the arm raised; every later run's captures
+inherited it and one assertion failed forever). Tests that need guaranteed
+frames append them at the timeline END and delete them in cleanup.
+
 **Implementation** — add to `_COMMANDS` in `mcp.py`:
 ```python
 def cmd_test(argv: list[str]):

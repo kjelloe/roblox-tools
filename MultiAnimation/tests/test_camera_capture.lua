@@ -160,6 +160,21 @@ ok("Look Through fly at an empty frame creates its keyframe",
 
 call("setSimpleLookThrough", { on = false })
 
+-- ── Pin Cam: explicit stamp, preserving mode/easing; inert with camera off ───
+
+call("simpleNavigate", { frame = F1 })
+task.wait(0.1)
+aimCamera(55, 15, 55)
+local pr = call("pinCamera")
+ok("pinCamera stamps the re-aimed shot at the current frame",
+    pr.result == true and math.abs(call("getCameraKeyframe", { frame = F1 }).result.cf[1] - 55) < 0.01)
+ok("pinCamera preserves the keyframe's cut mode",
+    call("getCameraKeyframe", { frame = F1 }).result.mode == "cut")
+
+call("setSimpleCamera", { on = false })
+ok("pinCamera is a no-op while Camera View is off", call("pinCamera").result == false)
+call("setSimpleCamera", { on = true })
+
 -- ── Cleanup: delete the frames this test appended (highest first) ─────────────
 
 for _, f in ipairs({ EMPTY, F2, F1 }) do

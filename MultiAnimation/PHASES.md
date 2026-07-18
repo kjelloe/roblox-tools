@@ -1424,3 +1424,102 @@ silently diverge from the code they claim to test. (3) New live tests:
 `test_cutscene_server_loaders.lua` (9 — exercises the REAL deployed module's
 loaders via loadstring shim) and `test_fade_runtime.lua` (7 — fade overlay
 timing, fade-in removal, image mode). Suite ~928.
+
+---
+
+## Didge round: mode-desync, prop state, camera drift, capture hygiene (done, 2026-07-16/17)
+
+**Simple-default mode desync (both "Didge bugs" in one root cause):**
+`panel:setMode("simple")` at startup only flips UI visibility — it deliberately
+does not fire `onModeChanged` — so core `mode` stayed `"advanced"` and every
+`mode == "simple"` gate was dead until the user manually toggled modes: tile
+auto-capture (pose changes lost), camera capture on navigation, and the Look
+Through per-frame viewport drive. The four scattered copies of the mode-switch
+logic (button handler, two bridge commands, startup) are now one
+`applyModeChange()`; startup goes through it. `getPanelMode` bridge command +
+panel/core agreement assertion guard the desync.
+
+**Prop visual-state tracks:** every prop keyframe now also captures
+Transparency, Color, and Material (`stateTrack`, parallel to easingTrack).
+Transparency/colour lerp with the frame's easing; material is stepped. Flows
+end-to-end: editor scrub/preview, session JSON + place-file mirror, PropTracks
+`states` block (omitted when empty — backward compatible), MultiAnimDataServer
+`propStates` remote reshape, MultiAnimPlayer + CutscenePlayer sampling,
+Pose→End propagation, dirty-detection. Two deliberate copies (`lerpState`,
+`applyPartState`) registered in the copy-sync pre-flight.
+`test_prop_state.lua` (13, headless); client playtest verified the remote path.
+
+**Camera keyframe drift on navigation (Didge report: "camera frames save
+wrongly / change on every iteration"):** two compounding causes. (1) Every
+navigation departure unconditionally rewrote the frame's camera keyframe from
+the live viewport — stepping through frames re-stamped every keyframe, reset
+cut→move, and overwrote easing. Now a keyframe is only rewritten when the
+camera actually moved at that frame (epsilon compare vs the saved keyframe /
+arrival snapshot); overwrites preserve mode + easing. (2) `CameraCapture.apply`
+never updated `Camera.Focus`; Studio's editor camera re-derives orientation
+from CFrame+Focus and snapped/flipped the view with a stale Focus, which Look
+Through mirrored into the gizmo and captures wrote into the track. Focus now
+follows 10 studs ahead on every apply. `test_camera_capture.lua` (16, live —
+appends frames at the timeline END so it runs regardless of session content);
+platform canary +4 edit-camera write→read contract cases.
+
+**Simple-mode capture-hygiene review (5 fixes):** (1) departure capture is
+dirty-gated — rigs/props only re-captured when the pose actually changed
+(conservative capture when no arrival snapshot, so edits are never lost);
+camera-only frames are no longer materialized into rig keyframes (was pinning
+interpolated poses and changing eased/smooth motion — confirmed live on Didge),
+and untouched poses are no longer re-stamped with capture round-trip float
+noise (measured 1.3e-5/2 passes before). (2) Arrival snapshot re-baselined
+after scrub end / playback stop / Add-Insert-Delete frame. (3) Tile strip
+refreshes immediately when navigation capture creates data at a new frame
+(was invisible until the next rebuild). (4) Insert Frame duplicates inherit
+the source camera keyframe's cut mode + easing. (5) Session-load prop re-link
+prefers the session's tagged scene instances over a workspace-wide name search
+(multi-scene places: every scene can have a "Wall"/"SimpleCamera" — verified
+with a decoy). `test_simple_capture_hygiene.lua` (9, live, end-appended);
+bridge: `setSimpleCameraCF`, `deletePropKeyframe`, `getSimpleUISlots`.
+
+**Suite: ~1006 cases, 42 runnable files** (fewer reported when the live
+session holds user data — several test_ui_simple blocks skip; the two new
+end-appended files always run).
+
+---
+
+## Structural self-tests round (done, 2026-07-17)
+
+**Three new guards against "code change with unattended side consequences",
+plus the navigation consolidation** (`simpleNavigate` bridge = the panel's
+`navigateToFrame` — no more hand-mirrored copies, the mode-desync divergence
+pattern):
+
+1. **`test_session_integrity.lua` (11, live):** fully-populated session (all
+   track types) must survive serialize→load→serialize losslessly (deep diff by
+   path); `shiftFrames(+1)/(−1)` must be identity; eight passive operations
+   (mode round-trips, play+stop, Camera View / Look Through / Onion toggles,
+   navigation sweep, export) must leave the serialization byte-identical.
+   Backs up + restores the live session. New bridge cmd: `shiftFrames`.
+2. **Deploy-sync pre-flight in `run_tests.py`:** every deployed game module's
+   Source vs `game/*.lua` (normalized) — live tests can no longer silently
+   validate stale deployed code.
+3. Consolidation as above.
+
+**The integrity test caught two shipped bugs on its first run:**
+- `applyModeChange` overwrote `advancedFrameCount` on every Simple entry, so
+  simple→playback→simple degraded the saved frameCount (120 → collapsed
+  count). Now captured only when actually coming from Advanced (also closes
+  the documented simple→simple re-entry trap).
+- **Camera easing wiped on every session load and every switch to Advanced:**
+  the camera-gizmo `GetPropertyChangedSignal("CFrame")` handler re-captured
+  keyframes with a 4-arg `addCameraKeyframe` (drops easing), and the
+  `gizmoSyncing` boolean guard is DEFEATED BY DEFERRED SIGNAL DELIVERY — the
+  callback fires after the flag is reset, so `rebuildCameraUI`'s programmatic
+  sync echoed into a re-capture. Fixed: skip when the gizmo CFrame equals the
+  stored keyframe, pass easing through (also in the advanced C-key capture).
+  Lesson recorded in CLAUDE.md Key Constraints: guard programmatic writes by
+  VALUE, never by a same-frame boolean flag.
+
+Also fixed: `test_pose_to_end` was not self-contained (never reset the live
+arm pose or deleted its frames) — one failing run poisoned every subsequent
+run via capture inheritance. Now rest-pose baseline + full cleanup.
+
+**Suite: ~1017 cases, 43 runnable files.**

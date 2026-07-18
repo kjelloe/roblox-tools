@@ -170,6 +170,28 @@ do
     cam.Focus       = saved.focus
 end
 
+-- ── Signal delivery semantics (reentrancy-guard strategy) ─────────────────────
+-- Plugin guards assume DEFERRED delivery: a boolean flag set around a
+-- programmatic write does NOT suppress the property-changed callback (it runs
+-- after the flag is reset), so echo-prone handlers guard by value-compare
+-- instead. If a Studio update changes delivery semantics, the guard strategy
+-- needs a re-audit — this probe measures the actual behaviour.
+
+do
+    local p = Instance.new("Part")
+    local flag = true
+    local firedWhileFlagged = nil
+    p:GetPropertyChangedSignal("Transparency"):Connect(function()
+        firedWhileFlagged = flag
+    end)
+    p.Transparency = 0.5
+    flag = false
+    task.wait()   -- flush deferred callbacks
+    ok("property-changed signals are deferred (flag guards do not work; value-compare does)",
+        firedWhileFlagged == false, tostring(firedWhileFlagged))
+    p:Destroy()
+end
+
 -- ── Summary ───────────────────────────────────────────────────────────────────
 
 table.insert(out, string.format("\n=== %d passed, %d failed ===", passed, failed))

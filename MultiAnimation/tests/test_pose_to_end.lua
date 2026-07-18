@@ -46,6 +46,15 @@ prop.CFrame = CFrame.new(30, 5, 30)
 prop.Parent = figures
 task.wait(0.3)
 
+-- Deterministic baseline: pose the arm at its R6 rest position BEFORE adding
+-- frames. A previous run leaves the arm raised (Pose→End applies live poses),
+-- and simpleAddFrame captures the LIVE pose — without this reset every frame
+-- would inherit the raised arm and "frame 2 differs" fails forever after.
+local torso = rig.Torso
+local arm = rig["Right Arm"]
+local REST_ARM = torso.CFrame * CFrame.new(1.5, 0, 0)
+arm.CFrame = REST_ARM
+
 for _ = 1, 5 do call("simpleAddFrame") end
 
 -- ── Empty selection → notice, returns false ──────────────────────────────────
@@ -57,8 +66,6 @@ ok("empty selection returns false", r.ok and r.result == false, hs:JSONEncode(r)
 -- ── At frame 3: raise the arm, move the prop, select both, propagate ─────────
 
 call("setFrame", { frame = 3 })
-local torso = rig.Torso
-local arm = rig["Right Arm"]
 arm.CFrame = torso.CFrame * CFrame.new(1.5, 0.5, 0)
     * CFrame.Angles(math.rad(60), 0, 0) * CFrame.new(0, -0.5, 0)
 prop.CFrame = CFrame.new(35, 8, 30)
@@ -98,8 +105,13 @@ task.wait(0.1)
 ok("prop at frame 2 keeps the original position",
     (prop.Position - Vector3.new(30, 5, 30)).Magnitude < 0.01, tostring(prop.Position))
 
--- ── Cleanup ───────────────────────────────────────────────────────────────────
+-- ── Cleanup: remove the five test frames and restore the rest pose ───────────
 
+for f = 5, 1, -1 do
+    call("setFrame", { frame = f })
+    call("simpleDeleteKeyframe")
+end
+arm.CFrame = REST_ARM
 prop:Destroy()
 call("scanFigures")
 

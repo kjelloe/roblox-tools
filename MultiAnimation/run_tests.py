@@ -12,9 +12,12 @@ Prerequisites:
     - Roblox Studio open with the place loaded (MCP plugin active)
     - Studio session initialised (list_roblox_studios → set_active_studio)
 
-Pre-flights (local, before any Studio call):
-    - copy-sync check: keep-in-sync duplicates (game players + test inline
-      copies) are diffed; drift fails the run
+Pre-flights (in order):
+    - copy-sync check (local): keep-in-sync duplicates (game players + test
+      inline copies) are diffed; drift fails the run
+    - deploy-sync check (Studio): every deployed game module's Source is
+      compared against game/*.lua — live tests must never exercise stale
+      deployed code. Absent modules skip; present-but-different fails.
     - plugin build-hash check: warns when Studio runs a stale build
 
 Behaviour:
@@ -287,6 +290,70 @@ end)
 return ok and res or "unreachable"
 """
 
+# Deployed game modules that live tests exercise (loadstring shims, playtests).
+# If a deployed copy is stale vs game/*.lua, the suite silently validates old
+# code — make that a named failure. Absent modules are fine (never exported in
+# this place); PRESENT-but-different fails.
+_DEPLOY_MAP = {
+    "MultiAnimPlayer":     ("game.ServerStorage.MultiAnimationData", "game/MultiAnimPlayer.lua"),
+    "CutsceneServer":      ("game.ServerStorage.MultiAnimationData", "game/CutsceneServer.lua"),
+    "MultiAnimDataServer": ("game.ServerStorage.MultiAnimationData", "game/MultiAnimDataServer.lua"),
+    "CutscenePlayer":      ("game.ReplicatedStorage",                "game/CutscenePlayer.lua"),
+    "CutsceneCamera":      ("game.ReplicatedStorage",                "game/CutsceneCamera.lua"),
+    "PlayerRigProxy":      ("game.ReplicatedStorage",                "game/PlayerRigProxy.lua"),
+    "LetterboxGui":        ("game.ReplicatedStorage",                "game/LetterboxGui.lua"),
+    "SpawnedEffectRunner": ("game.ReplicatedStorage",                "game/SpawnedEffectRunner.lua"),
+    "SubtitleGui":         ("game.ReplicatedStorage",                "game/SubtitleGui.lua"),
+}
+
+_DEPLOY_FETCH_LUA = """
+local hs = game:GetService("HttpService")
+local out = {}
+local function grab(container, name)
+    local m = container and container:FindFirstChild(name)
+    if m and m:IsA("ModuleScript") then out[name] = m.Source end
+end
+local mad = game:GetService("ServerStorage"):FindFirstChild("MultiAnimationData")
+local rs  = game:GetService("ReplicatedStorage")
+%s
+return hs:JSONEncode(out)
+"""
+
+def _normalise_source(src: str) -> str:
+    return "\n".join(line.rstrip() for line in src.replace("\r\n", "\n").splitlines()).strip()
+
+def check_deploy_sync() -> bool:
+    """Compare every deployed game module's Source against its game/*.lua file."""
+    import json
+    grabs = []
+    for name, (path, _) in _DEPLOY_MAP.items():
+        container = "mad" if "ServerStorage" in path else "rs"
+        grabs.append(f'grab({container}, "{name}")')
+    code = _DEPLOY_FETCH_LUA % "\n".join(grabs)
+    texts, err = call_mcp("execute_luau", {"code": code, "datamodel_type": "Edit"}, timeout=15)
+    if err or not texts:
+        print("  *** DEPLOY SYNC: could not fetch deployed sources (skipping) ***")
+        return True
+    try:
+        deployed = json.loads(texts[0])
+    except (ValueError, IndexError):
+        print("  *** DEPLOY SYNC: unparseable response (skipping) ***")
+        return True
+
+    root = os.path.dirname(os.path.abspath(__file__))
+    ok = True
+    for name, (_, rel) in _DEPLOY_MAP.items():
+        if name not in deployed:
+            continue   # never exported here — nothing stale to test against
+        with open(os.path.join(root, rel), encoding="utf-8") as f:
+            local = _normalise_source(f.read())
+        if _normalise_source(deployed[name]) != local:
+            print(f"  *** DEPLOY DRIFT: deployed {name} differs from {rel} ***")
+            print(f"  ***   live tests would exercise STALE code — run: mcp deploy / export ***")
+            ok = False
+    return ok
+
+
 def check_plugin_version() -> None:
     hash_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".build_hash")
     if not os.path.exists(hash_file):
@@ -319,9 +386,10 @@ def main():
         sys.exit(1)
 
     sync_ok = check_copy_sync()
+    deploy_ok = check_deploy_sync()
     check_plugin_version()
     ok = run_all(files, verbose)
-    sys.exit(0 if (ok and sync_ok) else 1)
+    sys.exit(0 if (ok and sync_ok and deploy_ok) else 1)
 
 if __name__ == "__main__":
     main()

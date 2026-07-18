@@ -270,11 +270,12 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 | **Simple mode** `Duplicate` | Click | Capture current frame, duplicate it into a new frame immediately after, and move cursor there |
 | **Simple mode** `▶ Play` / `■ Stop` | Click | Play from the current frame to the end, or stop mid-playback |
 | **Simple mode** `Del Frame` | Click | Delete the current frame's data, shift all subsequent frames left by 1, shrink the timeline |
-| **Simple mode** `Pose→End` | Click | Overwrite all following keyframes with the selected rig part / rig / prop's current live pose (earlier frames untouched) |
+| **Simple mode** `Pose→End` | Click | Overwrite all following keyframes with the selected rig part / rig / prop's current live state — for props this includes Transparency, Color, and Material, so one click applies e.g. a material change to the rest of the animation (earlier frames untouched) |
 | **Simple mode** `Attach` | Click | With a tracked prop + target part selected: attach the prop so it follows the part while you pose (grip offset frozen). With only an attached prop selected: detach. Authoring aid — never saved or exported. |
 | **Simple mode** `Camera View` | Click | ON: create/show the manipulable `SimpleCamera` part in the animation folder and arm camera capture on `+ Add Frame`. OFF: hide the part (kept in the folder for next toggle-on). Requires an animation folder to be selected first — shows a warning if none is set. |
 | **Simple mode** FOV box | Type + Tab/Enter | Set the `SimpleCamera`'s field of view (clamped 1–120) |
 | **Simple mode** `Look Through` | Click | Slave the viewport to the `SimpleCamera`'s view, then fly freely with Studio's normal edit-camera controls; toggle off to restore your original viewport exactly. Flying to a new shot at a frame saves that frame's camera keyframe when you navigate away; an untouched camera never rewrites saved keyframes. |
+| **Simple mode** `📌 Pin Cam` | Click | Stamp the current camera at the current frame (greyed out while Camera View is off). Existing keyframes keep their cut/move mode and easing. Use it to author a **hold**: pin the shot at the last frame it should stay put, so the move to the next keyframe happens only over the final stretch instead of easing across the whole gap. |
 | **Simple mode** `Del Cam >=Here` | Click | Opens a confirm dialog then deletes all camera keyframes at the current frame and onwards — useful for extending a fixed frame-1 camera without accumulating stale keyframes. |
 | `SimpleCamera` part (viewport) | Move / rotate | Pose the camera like any rig or prop — captured the same way on step-forward; shows a wireframe FOV-frustum outline |
 | **Simple mode** `Onion Skin: OFF/ON` | Click | Toggle ghost poses: semi-transparent red = previous keyframe, blue = next keyframe; ghosts refresh on every frame change |
@@ -545,6 +546,13 @@ the departure frame's camera keyframe (a new one is created at an empty frame).
 An untouched camera never rewrites saved keyframes, so stepping through frames
 leaves your camera track exactly as authored; cut/move and easing settings are
 preserved.
+
+**Holding a shot (📌 Pin Cam):** an unmoved camera creates no keyframes, so if
+you set a shot at frame 1 and next move the camera at frame 5, the camera eases
+from 1 all the way to 5. To hold the shot first, park on the last frame it
+should stay put (frame 4), click **📌 Pin Cam**, then fly to the new shot at
+frame 5 — the camera now stays locked through 4 and moves only across 4→5.
+Pin Cam is greyed out while Camera View is off.
 
 **Onion Skin:** click **Onion Skin: OFF** in the camera row to toggle ghost
 rendering. When on, the previous and next keyframed frames are shown as

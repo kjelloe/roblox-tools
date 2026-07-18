@@ -810,12 +810,12 @@ local function loadNamed(name)
         return false
     end
     applySessionData(data)
-    -- Old saves have no sceneName field; fall back to the slot name itself.
-    if (not data.sceneName or data.sceneName == "") and name ~= "_autosave" then
-        panel:setSimpleSceneName(name)
-    end
     print("[MultiAnimation] Loaded '" .. name .. "'")
-    return true
+    -- hadSceneName tells callers whether a tag-scene rescan is safe. Saves
+    -- without a scene name must NOT be renamed after the slot: rescanning or
+    -- retagging under a fallback name sprays junk "MAnim:<slot>" tags over
+    -- whatever folder is active and orphans the rig links.
+    return true, type(data.sceneName) == "string" and data.sceneName ~= ""
 end
 
 -- ── Scene tagging ─────────────────────────────────────────────────────────────
@@ -1089,11 +1089,17 @@ function updateCameraGizmo(frame)
         gizmo.Parent = getGizmoFolder()
 
         -- Dragging the gizmo with Studio tools re-aims that keyframe.
+        -- The gizmoSyncing flag alone is not enough: with deferred signal
+        -- delivery the callback runs AFTER the flag is reset, so programmatic
+        -- syncs (rebuildCameraUI on load / mode switch) echoed back into a
+        -- re-capture — which also dropped the keyframe's easing. Skip when
+        -- the CFrame matches the stored keyframe, and preserve easing.
         gizmo:GetPropertyChangedSignal("CFrame"):Connect(function()
             if gizmoSyncing then return end
             local current = recorder:getCameraData(frame)
-            if current then
-                recorder:addCameraKeyframe(frame, gizmo.CFrame, current.fov, current.mode)
+            if current and gizmo.CFrame ~= current.cf then
+                recorder:addCameraKeyframe(frame, gizmo.CFrame,
+                    current.fov, current.mode, current.easing)
                 scheduleAutoSave()
             end
         end)
@@ -1362,7 +1368,8 @@ local function doCameraCapture()
     local existing = recorder:getCameraData(frame)
     local mode = existing and existing.mode or "move"
 
-    recorder:addCameraKeyframe(frame, snap.cf, snap.fov, mode)
+    recorder:addCameraKeyframe(frame, snap.cf, snap.fov, mode,
+        existing and existing.easing or nil)
     panel:addCameraKeyframeMarker(frame, mode)
     updateCameraGizmo(frame)
     panel:setCameraModeDisplay(mode)
@@ -1851,6 +1858,20 @@ local function simpleCameraMoved(frame)
         or math.abs(simpleCameraFOV - (refFov or simpleCameraFOV)) > 0.01
 end
 
+-- Stamp the camera part's current pose as the keyframe at `frame`, preserving
+-- an existing keyframe's mode (cut stays cut) and easing. The single write
+-- path for capture, navigation departure, and the Pin Cam button.
+local function stampCameraKeyframe(frame)
+    if not (simpleCameraPart and simpleCameraPart.Parent) then return false end
+    local existing = recorder:getCameraData(frame)
+    local kfMode   = existing and existing.mode   or "move"
+    local kfEasing = existing and existing.easing or simpleCurrentEasing
+    recorder:addCameraKeyframe(frame, simpleCameraPart.CFrame, simpleCameraFOV,
+        kfMode, kfEasing)
+    panel:addCameraKeyframeMarker(frame, kfMode)
+    return true
+end
+
 -- navCapture = true when called from navigation auto-capture (tile click,
 -- scrub start): a camera keyframe the user did not move is left exactly as
 -- saved. Without this, every step through the frames rewrote each keyframe
@@ -1870,21 +1891,35 @@ local function doSimpleCaptureFrame(frame, navCapture)
     end
     -- Camera is captured whenever the part exists, not gated by Camera View
     -- toggle, so the pose is always recorded along with rigs/props.
-    -- Overwrites preserve the existing keyframe's mode (cut stays cut) and easing.
     if simpleCameraPart and simpleCameraPart.Parent then
         local existing = recorder:getCameraData(frame)
         if not (navCapture and existing and not simpleCameraMoved(frame)) then
-            local kfMode   = existing and existing.mode   or "move"
-            local kfEasing = existing and existing.easing or simpleCurrentEasing
-            recorder:addCameraKeyframe(frame, simpleCameraPart.CFrame, simpleCameraFOV,
-                kfMode, kfEasing)
-            panel:addCameraKeyframeMarker(frame, kfMode)
+            stampCameraKeyframe(frame)
         end
         -- No updateCameraGizmo here: the SimpleCamera Part in FIGURES is the
         -- visual for Simple Mode. Advanced-mode orange markers would pile up at
         -- every past keyframe position and clutter the viewport.
     end
     scheduleAutoSave()
+end
+
+-- Pin Cam: explicitly stamp the current camera at the current frame. The
+-- hold-keyframe workflow — pin the shot at the last held frame so the move to
+-- the next keyframe happens only over the final segment instead of easing
+-- across the whole gap.
+local function doPinCamera()
+    if not (simpleCameraOn and simpleCameraPart and simpleCameraPart.Parent) then
+        return false
+    end
+    local frame = timeline:getCurrent()
+    local wasNewFrame = not simpleFrameHasData(frame)
+    if not stampCameraKeyframe(frame) then return false end
+    if wasNewFrame then
+        panel:setSimpleSlots(getSimpleKeyframedFrames())
+    end
+    scheduleAutoSave()
+    print(string.format("[MultiAnimation] Camera pinned at frame %d", frame))
+    return true
 end
 
 -- Auto-capture of the departure frame during Simple Mode navigation — the
@@ -1911,15 +1946,8 @@ local function simpleAutoCaptureDeparture(departureFrame)
     elseif simpleCameraOn and simpleCameraPart and simpleCameraPart.Parent
         and simpleCameraMoved(departureFrame) then
         -- Camera-only update: the user re-aimed the camera at this frame
-        -- (gizmo drag or Look Through fly); save just the camera keyframe,
-        -- preserving an existing one's mode and easing.
-        local existing = recorder:getCameraData(departureFrame)
-        local kfMode   = existing and existing.mode   or "move"
-        local kfEasing = existing and existing.easing or simpleCurrentEasing
-        recorder:addCameraKeyframe(departureFrame, simpleCameraPart.CFrame,
-            simpleCameraFOV, kfMode, kfEasing)
-        panel:addCameraKeyframeMarker(departureFrame, kfMode)
-        captured = true
+        -- (gizmo drag or Look Through fly); save just the camera keyframe.
+        captured = stampCameraKeyframe(departureFrame)
     end
 
     if captured then
@@ -2414,7 +2442,13 @@ end
 -- auto-capture and camera navigation.
 local function applyModeChange(newMode)
     if newMode == "simple" then
-        advancedFrameCount = timeline:getFrameCount()
+        -- Only capture the advanced count when actually coming FROM advanced.
+        -- Re-entering simple (from playback, or simple→simple) must not
+        -- overwrite it with the collapsed simple count — that silently
+        -- degraded the frameCount saved into sessions.
+        if not advancedFrameCount then
+            advancedFrameCount = timeline:getFrameCount()
+        end
         mode = newMode
         clearCameraGizmos()
         doSimpleScan()
@@ -2461,6 +2495,7 @@ panel.onSceneRenamed:Connect(function(oldName, newName)
     doSimpleScan()
 end)
 panel.onSimpleCameraToggled:Connect(setSimpleCameraOn)
+panel.onSimplePinCamera:Connect(doPinCamera)
 panel.onSimpleLookThroughToggled:Connect(function(isOn)
     local result = setSimpleLookThroughOn(isOn)
     panel:setSimpleLookThroughState(result)
@@ -2990,7 +3025,12 @@ end)
 
 local simpleScrubbing = false  -- true while Simple Mode scrubber is being dragged
 
-panel.onFrameChanged:Connect(function(newFrame)
+-- Shared navigation body: departure auto-capture (Simple), cursor move, pose
+-- apply, arrival snapshot, easing/subtitle display sync. The SINGLE path for
+-- the panel handler and the simpleNavigate bridge command — they were once
+-- separate hand-mirrored copies, the exact divergence pattern that caused the
+-- mode-desync bug (bridge worked, real UI silently broken, tests stayed green).
+local function navigateToFrame(newFrame)
     -- Simple Mode: auto-capture the departure frame when navigating via icons or
     -- nav buttons (scrubber drag is handled by onScrubBegan instead).
     if mode == "simple" and not isPlaying and not simpleScrubbing then
@@ -3022,7 +3062,10 @@ panel.onFrameChanged:Connect(function(newFrame)
             panel:updateSubtitleShowBtn(f, recorder:getSubtitleEventAt(f) ~= nil)
         end
     end
-end)
+    return f
+end
+
+panel.onFrameChanged:Connect(navigateToFrame)
 
 panel.onScrubBegan:Connect(function()
     if not isPlaying then
@@ -3220,11 +3263,14 @@ end)
 panel.onLoadRequested:Connect(function()
     panel:showLoadList(getIndex())
 end)
-panel.onLoadNamedRequested:Connect(function(name)
-    loadNamed(name)
-    if mode == "simple" then
-        -- Re-apply CollectionService tags before scanning so scanByTag finds rigs even
-        -- when the place was opened fresh or tags were cleared since the last save.
+-- Shared load path (panel Load overlay + loadSession bridge command).
+-- Rescans only when the save carried its own scene name; a no-name save keeps
+-- the current scene context and rig links untouched.
+local function loadNamedAndRescan(name)
+    local loaded, hadSceneName = loadNamed(name)
+    if loaded and mode == "simple" and hadSceneName then
+        -- Re-apply CollectionService tags before scanning so scanByTag finds rigs
+        -- even when the place was opened fresh or tags were cleared since the save.
         local sn = panel:getSimpleSceneName()
         local tf = panel._tagFolderName
         if sn and sn ~= "" and tf and tf ~= "" then
@@ -3233,6 +3279,11 @@ panel.onLoadNamedRequested:Connect(function(name)
             doSimpleScan()
         end
     end
+    return loaded
+end
+
+panel.onLoadNamedRequested:Connect(function(name)
+    loadNamedAndRescan(name)
     panel:hideLoadList()
 end)
 panel.onDeleteRequested:Connect(function()
@@ -3943,6 +3994,10 @@ local testBridge = TestBridge.start({
         return simpleCameraOn
     end,
 
+    pinCamera = function()
+        return doPinCamera()
+    end,
+
     -- Re-aim the ACTIVE camera gizmo (tests must not guess its folder — every
     -- tagged scene can carry its own SimpleCamera part).
     setSimpleCameraCF = function(a)
@@ -4090,17 +4145,7 @@ local testBridge = TestBridge.start({
     end,
 
     loadSession = function(a)
-        local loaded = loadNamed(a.name)
-        if mode == "simple" then
-            local sn = panel:getSimpleSceneName()
-            local tf = panel._tagFolderName
-            if sn and sn ~= "" and tf and tf ~= "" then
-                doRefreshTags()
-            else
-                doSimpleScan()
-            end
-        end
-        return loaded
+        return loadNamedAndRescan(a.name)
     end,
 
     deleteSession = function(a)
@@ -4124,31 +4169,18 @@ local testBridge = TestBridge.start({
         return fps
     end,
 
-    -- Simulates clicking a frame icon: auto-captures the departure frame (same
-    -- logic as onFrameChanged in Simple Mode), then navigates to targetFrame.
+    -- Simulates clicking a frame icon — the SAME function the panel handler
+    -- runs, so bridge-driven tests exercise the real navigation path.
     simpleNavigate = function(a)
-        local targetFrame = a.frame
-        if mode == "simple" and not isPlaying then
-            local departureFrame = timeline:getCurrent()
-            if departureFrame ~= targetFrame then
-                simpleAutoCaptureDeparture(departureFrame)
-            end
-        end
-        local f = timeline:setCurrent(targetFrame)
-        panel:setFrameDisplay(f, timeline:getFrameCount())
-        applyPosesAt(f, false)
-        _simpleArrivalSnap = snapshotRigParts()
-        if mode == "simple" then
-            for rName in pairs(allRigs) do
-                if recorder:hasKeyframe(rName, f) then
-                    local fe = recorder:getEasing(rName, f)
-                    simpleCurrentEasing = fe
-                    panel:setSimpleEasingDisplay(fe)
-                    break
-                end
-            end
-        end
-        return f
+        return navigateToFrame(a.frame)
+    end,
+
+    -- Test-only: raw Recorder frame shift (used by the session round-trip test
+    -- to verify shift(+1) then shift(-1) is identity across ALL track types).
+    shiftFrames = function(a)
+        recorder:shiftFrames(a.from, a.delta)
+        rebuildAllSimpleMarkers()
+        return true
     end,
 
     -- ── Tag-scene TestBridge commands ────────────────────────────────────────

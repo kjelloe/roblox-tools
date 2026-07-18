@@ -62,7 +62,7 @@ python3 watch.py               # or: auto-build on every save
 ## Testing
 
 ```bash
-mcp test                 # full suite — ~928 cases, ~9s
+mcp test                 # full suite — ~1006 cases, ~14s
 mcp test prop            # only tests matching *prop*
 mcp test ui -v           # UI integration tests, verbose
 mcp playtest             # play-mode test: deploys, presses F5, watches the
