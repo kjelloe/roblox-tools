@@ -2532,7 +2532,8 @@ panel.onSimpleCamDeleteFrom:Connect(function()
     end)
 end)
 
--- Pose→End: propagate the LIVE pose of the selected rigs/parts/props from the
+-- Apply→End (panel label; internally still poseToEnd): propagate the LIVE
+-- pose/state of the selected rigs/parts/props from the
 -- current frame onto every following frame that already has data for that
 -- track. Selection scope: tracked prop → its CFrame track; rig part → just
 -- that limb's joint; rig Model or HumanoidRootPart → the whole rig

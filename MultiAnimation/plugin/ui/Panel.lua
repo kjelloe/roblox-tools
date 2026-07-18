@@ -806,7 +806,7 @@ function Panel.new(widget)
     end)
     do -- Pose→End (do-block: Panel.new is at the 200-local-register ceiling)
         local ePoseEnd = mkEvent("onSimplePoseToEnd")
-        local poseEndBtn = btn(simpleActionRow, "Pose→End", 8)
+        local poseEndBtn = btn(simpleActionRow, "Apply→End", 8)
         poseEndBtn.MouseButton1Click:Connect(function()
             if not self._isPlaying then ePoseEnd:Fire() end
         end)

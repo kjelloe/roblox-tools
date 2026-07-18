@@ -1523,3 +1523,35 @@ arm pose or deleted its frames) — one failing run poisoned every subsequent
 run via capture inheritance. Now rest-pose baseline + full cleanup.
 
 **Suite: ~1017 cases, 43 runnable files.**
+
+---
+
+## Pin Cam + Apply→End + guard follow-ups (done, 2026-07-18)
+
+**📌 Pin Cam (hold keyframes):** the moved-gate means an unmoved camera creates
+no keyframes — correct, but it left no way to HOLD a shot (set at frame 1, move
+at frame 5 → eases across the whole 1→5 gap; the re-authored Didge hit exactly
+this with keyframes only at 1 and 4). New Simple Mode button stamps the current
+camera at the current frame — greyed out while Camera View is off, preserves an
+existing keyframe's cut/easing, surfaces the tile for new frames. Camera-stamp
+logic consolidated into ONE `stampCameraKeyframe` (capture + departure + pin).
+Bridge `pinCamera`; +3 cases in test_camera_capture (19). Workflow documented
+in the USER_GUIDE as "holding a shot". Panel.new register ceiling hit for the
+THIRD time adding the button (boot failure) — do…end block rule re-confirmed;
+the per-section-builder refactor is overdue.
+
+**Apply→End rename:** the Pose→End button now reads Apply→End — it applies the
+live pose AND, for props, Transparency/Color/Material forward (state
+propagation verified live; the button had already done this since the
+prop-state feature, it was a docs gap). Internal names/bridge cmd unchanged.
+
+**Deferred-signal canary probe:** SignalBehavior isn't script-readable, so the
+canary now empirically measures delivery — sets a property inside a flag
+window and asserts the callback observes the flag already reset (canary 20).
+
+**Session-load retag gate:** loadNamed no longer renames the scene after the
+slot for saves without a scene name, and the shared `loadNamedAndRescan`
+(panel Load + bridge) rescans/retags ONLY when the save carried its own scene
+name — no more junk `MAnim:<slot>` tags sprayed over the active folder.
+
+**Suite: ~1021 cases, 43 runnable files.**

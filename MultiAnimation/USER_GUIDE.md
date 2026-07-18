@@ -270,7 +270,7 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 | **Simple mode** `Duplicate` | Click | Capture current frame, duplicate it into a new frame immediately after, and move cursor there |
 | **Simple mode** `▶ Play` / `■ Stop` | Click | Play from the current frame to the end, or stop mid-playback |
 | **Simple mode** `Del Frame` | Click | Delete the current frame's data, shift all subsequent frames left by 1, shrink the timeline |
-| **Simple mode** `Pose→End` | Click | Overwrite all following keyframes with the selected rig part / rig / prop's current live state — for props this includes Transparency, Color, and Material, so one click applies e.g. a material change to the rest of the animation (earlier frames untouched) |
+| **Simple mode** `Apply→End` | Click | Overwrite all following keyframes with the selected rig part / rig / prop's current live state — for props this includes Transparency, Color, and Material, so one click applies e.g. a material change to the rest of the animation (earlier frames untouched) |
 | **Simple mode** `Attach` | Click | With a tracked prop + target part selected: attach the prop so it follows the part while you pose (grip offset frozen). With only an attached prop selected: detach. Authoring aid — never saved or exported. |
 | **Simple mode** `Camera View` | Click | ON: create/show the manipulable `SimpleCamera` part in the animation folder and arm camera capture on `+ Add Frame`. OFF: hide the part (kept in the folder for next toggle-on). Requires an animation folder to be selected first — shows a warning if none is set. |
 | **Simple mode** FOV box | Type + Tab/Enter | Set the `SimpleCamera`'s field of view (clamped 1–120) |
@@ -470,11 +470,11 @@ that holds only a spawned effect or subtitle counts as having data — you can
 delete or duplicate it like any other frame (deleting removes the effect or
 subtitle event at that frame).
 
-**Pose→End — hold this pose for the rest of the timeline:**
+**Apply→End — hold this pose/state for the rest of the timeline:**
 
 Select the things to hold — a **rig part** (just that limb's joint), a whole
 **rig** or its HumanoidRootPart (all joints + root), and/or a **tracked prop**
-— pose them how you want, then press **Pose→End**. The live pose overwrites
+— pose them how you want, then press **Apply→End**. The live pose (and, for props, Transparency/Color/Material) overwrites
 those tracks on every following keyframe (earlier frames untouched, no new
 frames created). Typical use: a character settles at frame 5 of 20 and should
 stay put — pose once, one click, done.

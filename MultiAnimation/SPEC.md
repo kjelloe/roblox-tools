@@ -133,6 +133,8 @@ architectural changes.
 | C-09 | As a developer, calling `CutsceneServer.play(scene, rigMap)` plays the animation and synchronizes every connected player's camera to the camera track via a shared server timestamp. |
 | C-10 | As a player, my camera is restored to normal when the cutscene ends or is stopped. |
 | C-11 | As an animator in Simple Mode, I can click **Del Cam >=Here** to delete all camera keyframes from the current frame onwards (with a confirm overlay), leaving keyframes before the current frame intact. |
+| C-12 | As an animator in Simple Mode, navigating between frames never rewrites a camera keyframe I did not move: an unmoved camera leaves keyframes bit-identical (cut/easing included), a re-aimed camera saves at the departure frame, and passing through empty frames creates nothing. |
+| C-13 | As an animator in Simple Mode, I can click **📌 Pin Cam** (greyed out while Camera View is off) to stamp the current camera at the current frame — the hold-keyframe workflow: pin the shot at the last held frame so the move to the next keyframe happens only over the final segment. Pinning an existing keyframe preserves its cut/move mode and easing. |
 
 ### In-game playback
 
