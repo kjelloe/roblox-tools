@@ -1555,3 +1555,44 @@ slot for saves without a scene name, and the shared `loadNamedAndRescan`
 name — no more junk `MAnim:<slot>` tags sprayed over the active folder.
 
 **Suite: ~1021 cases, 43 runnable files.**
+
+## Simple KF toggle + zombie-mirror hunt (done, 2026-07-20)
+
+**KF:move/cut in Simple Mode (C-14):** hard cuts previously required switching
+to Advanced for its `KF:` button. New Simple camera-row button (order 6; Onion
+7, Del Cam 8) fires the SAME `_eCamMode` event, so one handler serves both
+modes; `setCameraModeDisplay` updates both labels, `_refreshPinCamEnabled`
+greys it with Pin Cam while Camera View is off. Locals in a do…end block
+(register ceiling). doPinCamera now refreshes the mode label after stamping.
+
+**Zombie Look Through mirror (root cause of a day of failures):** a devsync
+hot-reload done while Look Through was on leaked the old build's Heartbeat
+connection — the flag read false but an orphaned closure kept snapping the
+SimpleCamera part to the viewport every frame. Downstream symptoms looked like
+FOUR unrelated bugs: phantom camera keyframes stamped on navigation (moved-gate
+compared against the viewport-forced pose), Look Through viewport tests
+failing, "camera move not saved" failures, and pose_to_end prop corruption.
+Fix: the mirror conn is now `track()`ed (devConns sweep kills it on reload) and
+`_G.__MultiAnimTeardown` calls `setSimpleLookThroughOn(false)` explicitly.
+RULE: every persistent connection in init.server.lua goes through `track()`.
+Diagnostic for a live zombie: a part that snaps back after you move it; kill by
+destroying the captured part (closure guard goes nil) and re-toggling.
+
+**Load re-baseline (C-15):** `applySessionData` now refreshes the arrival
+snapshot at its tail — before this, the first departure after any load hit the
+conservative no-snapshot branch and stamped a phantom keyframe at the restored
+cursor frame.
+
+**Active-camera resolution in tests:** `getSimpleCameraInfo` now returns
+`path`; test_ui_simple resolves the camera part via a shared `activeCamPart()`
+helper (bridge path → instance walk) instead of FIGURES/workspace name search,
+which grabbed the wrong part whenever a tagged scene (Didge) was loaded.
+
+**Discovery — full-suite order-dependence (pre-existing, verified on the
+committed build):** all-45-files back-to-back runs fail ~10 cases in
+test_pose_to_end + test_ui_simple that pass standalone; earlier files leak
+scene context/frames (junk frames 54-59/81-83, wrong Wall resolved). Trust
+standalone file runs until per-file isolation is hardened; pose_to_end still
+operates on fixed frames 1-5 and needs an occupied-gate or end-append rewrite.
+
+**Suite: ~1020 cases; counts vary with skip-gated blocks (~985 clean start).**

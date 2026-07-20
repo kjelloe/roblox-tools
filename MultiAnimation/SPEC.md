@@ -135,6 +135,8 @@ architectural changes.
 | C-11 | As an animator in Simple Mode, I can click **Del Cam >=Here** to delete all camera keyframes from the current frame onwards (with a confirm overlay), leaving keyframes before the current frame intact. |
 | C-12 | As an animator in Simple Mode, navigating between frames never rewrites a camera keyframe I did not move: an unmoved camera leaves keyframes bit-identical (cut/easing included), a re-aimed camera saves at the departure frame, and passing through empty frames creates nothing. |
 | C-13 | As an animator in Simple Mode, I can click **📌 Pin Cam** (greyed out while Camera View is off) to stamp the current camera at the current frame — the hold-keyframe workflow: pin the shot at the last held frame so the move to the next keyframe happens only over the final segment. Pinning an existing keyframe preserves its cut/move mode and easing. |
+| C-14 | As an animator in Simple Mode, I can click the **KF:move/cut** button (camera row) to flip the camera keyframe at the current frame between an eased move and an instant cut, without switching to Advanced Mode. The label always shows the current frame's mode (`KF:—` when no camera keyframe exists), stays in sync with the Advanced `KF:` button, and is greyed out while Camera View is off. |
+| C-15 | As an animator, loading a session never manufactures keyframes: the first navigation after a load must not stamp data at the restored cursor frame (the arrival snapshot is re-baselined at load time). |
 
 ### In-game playback
 

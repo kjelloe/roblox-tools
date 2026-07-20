@@ -47,6 +47,20 @@ local function call(cmd, args)
     return HttpService:JSONDecode(resJson)
 end
 
+-- The ACTIVE camera part must come from the bridge: tagged scenes carry their
+-- own "SimpleCamera" parts, so a workspace name search can find the wrong one
+-- (e.g. FIGURES.SimpleCamera while a loaded scene's camera is the live part).
+local function activeCamPart()
+    local r = call("getSimpleCameraInfo")
+    if not (r.ok and r.result and r.result.path) then return nil end
+    local node = game
+    for seg in string.gmatch(r.result.path, "[^%.]+") do
+        node = node:FindFirstChild(seg)
+        if not node then return nil end
+    end
+    return node
+end
+
 -- ── Save state to restore at the end ─────────────────────────────────────────
 
 local prevMode       = call("getMode")
@@ -353,8 +367,8 @@ do
     r = call("getSimpleCameraInfo")
     ok("getSimpleCameraInfo returns data once Camera View is on", r.ok and r.result ~= nil, r.err)
 
-    local camPart = fig and fig:FindFirstChild("SimpleCamera")
-    ok("SimpleCamera part exists in FIGURES", camPart ~= nil)
+    local camPart = activeCamPart()
+    ok("active SimpleCamera part resolved via bridge", camPart ~= nil)
 
     -- Spawn position: first creation should place the Part at the Studio
     -- viewer's angle relative to the rigs, not at world origin.
@@ -626,7 +640,7 @@ do
         local stabInitCount = (call("getFrameCount").ok and call("getFrameCount").result) or 1
         call("setSimpleCamera", { on = true })
 
-        local camPart = workspace:FindFirstChild("SimpleCamera", true)
+        local camPart = activeCamPart()
         if camPart then
             call("setFrame", { frame = 1 })
             camPart.CFrame = CFrame.lookAt(Vector3.new(30, 10, 30), Vector3.new(0, 2, 0))

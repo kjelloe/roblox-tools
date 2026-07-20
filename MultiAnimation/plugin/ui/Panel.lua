@@ -979,7 +979,19 @@ function Panel.new(widget)
         end)
         self:_refreshPinCamEnabled()
     end
-    local simpleOnionBtn = btn(simpleCamRow, "Onion Skin: OFF", 6)
+    -- KF mode toggle: same recorder-side toggle as the Advanced "KF:" button
+    -- (fires the shared _eCamMode event). Greyed out while Camera View is off.
+    do
+        local simpleCamModeBtn = btn(simpleCamRow, "KF:—", 6)
+        self._simpleCamModeBtn = simpleCamModeBtn
+        simpleCamModeBtn.MouseButton1Click:Connect(function()
+            if self._simpleCamOn and not self._isPlaying then
+                self._eCamMode:Fire()
+            end
+        end)
+        self:_refreshPinCamEnabled()
+    end
+    local simpleOnionBtn = btn(simpleCamRow, "Onion Skin: OFF", 7)
     self._simpleOnionBtn = simpleOnionBtn
     self._simpleOnionOn  = false
     simpleOnionBtn.MouseButton1Click:Connect(function()
@@ -988,7 +1000,7 @@ function Panel.new(widget)
         eSimpleOnion:Fire(self._simpleOnionOn)
     end)
     self.onSimpleOnionToggled = eSimpleOnion.Event
-    local simpleCamDelBtn = btn(simpleCamRow, "Del Cam >=Here", 7, false, true)
+    local simpleCamDelBtn = btn(simpleCamRow, "Del Cam >=Here", 8, false, true)
     simpleCamDelBtn.MouseButton1Click:Connect(function()
         eSimpleCamDeleteFrom:Fire()
     end)
@@ -3050,12 +3062,15 @@ function Panel:setSimpleCameraState(isOn)
     self:_refreshPinCamEnabled()
 end
 
--- Pin Cam is only meaningful with a camera to pin: grey it out otherwise.
+-- Pin Cam / KF mode are only meaningful with a camera: grey them out otherwise.
 function Panel:_refreshPinCamEnabled()
-    local b = self._simplePinBtn
-    if not b then return end
-    b.AutoButtonColor = self._simpleCamOn == true
-    b.TextColor3 = self._simpleCamOn and C.btnText or C.btnDimTxt
+    local on = self._simpleCamOn == true
+    for _, b in ipairs({ self._simplePinBtn, self._simpleCamModeBtn }) do
+        if b then
+            b.AutoButtonColor = on
+            b.TextColor3 = on and C.btnText or C.btnDimTxt
+        end
+    end
 end
 
 function Panel:setSimpleLookThroughState(isOn)
@@ -3178,6 +3193,9 @@ end
 function Panel:setCameraModeDisplay(mode)
     if self._camModeBtn then
         self._camModeBtn.Text = "KF:" .. (mode or "—")
+    end
+    if self._simpleCamModeBtn then
+        self._simpleCamModeBtn.Text = "KF:" .. (mode or "—")
     end
 end
 

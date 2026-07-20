@@ -788,6 +788,10 @@ local function applySessionData(data)
     if data.tagFolder then
         panel:setTagFolder(data.tagFolder)
     end
+    -- Re-baseline the arrival snapshot: without this the first departure after
+    -- a load falls into the conservative no-snapshot branch and stamps a
+    -- phantom keyframe at the restored cursor frame.
+    if refreshSimpleArrivalSnap then refreshSimpleArrivalSnap() end
 end
 
 local function loadNamed(name)
@@ -1917,6 +1921,8 @@ local function doPinCamera()
     if wasNewFrame then
         panel:setSimpleSlots(getSimpleKeyframedFrames())
     end
+    local kf = recorder:getCameraData(frame)
+    panel:setCameraModeDisplay(kf and kf.mode or nil)
     scheduleAutoSave()
     print(string.format("[MultiAnimation] Camera pinned at frame %d", frame))
     return true
@@ -2132,13 +2138,16 @@ function setSimpleLookThroughOn(isOn)
         -- the camera, the part tracks it. (CameraCapture.apply also moves
         -- Focus ahead of the eye so the camera controller cannot flip 180°.)
         CameraCapture.apply(simpleCameraPart.CFrame, simpleCameraFOV)
-        simpleLookThroughConn = RunService.Heartbeat:Connect(function()
+        -- track(): a devsync hot-reload while Look Through is on must kill this
+        -- conn, or a zombie mirror keeps snapping the gizmo to the viewport
+        -- (breaks the moved-gate: every departure stamps phantom keyframes).
+        simpleLookThroughConn = track(RunService.Heartbeat:Connect(function()
             if simpleCameraPart and simpleCameraPart.Parent then
                 simpleCameraPart.CFrame = workspace.CurrentCamera.CFrame
                 workspace.CurrentCamera.FieldOfView = simpleCameraFOV
                 simpleCameraPart:SetAttribute("FOV", simpleCameraFOV)
             end
-        end)
+        end))
     else
         if not simpleLookThroughOn then return false end
         simpleLookThroughOn = false
@@ -4062,7 +4071,10 @@ local testBridge = TestBridge.start({
 
     getSimpleCameraInfo = function()
         if not (simpleCameraPart and simpleCameraPart.Parent) then return nil end
-        return { fov = simpleCameraFOV, cf = { simpleCameraPart.CFrame:GetComponents() } }
+        -- path: tagged scenes can carry their own "SimpleCamera" — tests must
+        -- resolve the ACTIVE part from this, never by workspace name search.
+        return { fov = simpleCameraFOV, cf = { simpleCameraPart.CFrame:GetComponents() },
+                 path = simpleCameraPart:GetFullName() }
     end,
 
     getSimpleCameraFrustumInfo = function()
@@ -4425,6 +4437,9 @@ local testBridge = TestBridge.start({
 _G.__MultiAnimTeardown = function()
     pcall(stopPlayback)
     pcall(reconnectAllRigs)
+    if simpleLookThroughOn then
+        pcall(function() setSimpleLookThroughOn(false) end)
+    end
     if camPreviewOn then
         pcall(function() CameraCapture.restoreState(savedCamState) end)
     end

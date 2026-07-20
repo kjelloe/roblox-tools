@@ -276,6 +276,7 @@ The **Step** box in CONTROLS sets how far `J`/`L` jump.
 | **Simple mode** FOV box | Type + Tab/Enter | Set the `SimpleCamera`'s field of view (clamped 1–120) |
 | **Simple mode** `Look Through` | Click | Slave the viewport to the `SimpleCamera`'s view, then fly freely with Studio's normal edit-camera controls; toggle off to restore your original viewport exactly. Flying to a new shot at a frame saves that frame's camera keyframe when you navigate away; an untouched camera never rewrites saved keyframes. |
 | **Simple mode** `📌 Pin Cam` | Click | Stamp the current camera at the current frame (greyed out while Camera View is off). Existing keyframes keep their cut/move mode and easing. Use it to author a **hold**: pin the shot at the last frame it should stay put, so the move to the next keyframe happens only over the final stretch instead of easing across the whole gap. |
+| **Simple mode** `KF:move/cut` | Click | Toggle the camera keyframe at the current frame between **move** (eased transition into it) and **cut** (instant snap, marker turns red). Shows `KF:—` when the frame has no camera keyframe; greyed out while Camera View is off. Same toggle as Advanced mode's `KF:` button. |
 | **Simple mode** `Del Cam >=Here` | Click | Opens a confirm dialog then deletes all camera keyframes at the current frame and onwards — useful for extending a fixed frame-1 camera without accumulating stale keyframes. |
 | `SimpleCamera` part (viewport) | Move / rotate | Pose the camera like any rig or prop — captured the same way on step-forward; shows a wireframe FOV-frustum outline |
 | **Simple mode** `Onion Skin: OFF/ON` | Click | Toggle ghost poses: semi-transparent red = previous keyframe, blue = next keyframe; ghosts refresh on every frame change |
@@ -553,6 +554,13 @@ from 1 all the way to 5. To hold the shot first, park on the last frame it
 should stay put (frame 4), click **📌 Pin Cam**, then fly to the new shot at
 frame 5 — the camera now stays locked through 4 and moves only across 4→5.
 Pin Cam is greyed out while Camera View is off.
+
+**Hard cuts (KF:move/cut):** by default every camera keyframe is a **move** —
+playback eases into it from the previous keyframe. Click **KF:move** in the
+camera row to flip the current frame's keyframe to **cut**: playback snaps to
+that shot instantly with no motion (the timeline marker turns red). Click again
+to flip back. The button reads `KF:—` when the current frame has no camera
+keyframe (pin or capture one first) and is greyed out while Camera View is off.
 
 **Onion Skin:** click **Onion Skin: OFF** in the camera row to toggle ghost
 rendering. When on, the previous and next keyframed frames are shown as

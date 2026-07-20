@@ -200,6 +200,13 @@ don't create, and must restore what they change — including the LIVE rig pose
 inherited it and one assertion failed forever). Tests that need guaranteed
 frames append them at the timeline END and delete them in cleanup.
 
+**Full-suite order-dependence (open, 2026-07-20):** back-to-back all-file runs
+fail ~10 cases in `test_pose_to_end` + `test_ui_simple` that pass standalone —
+earlier files leak scene context and stray frames (verified pre-existing on the
+committed build). Trust standalone runs for pass/fail; suite totals vary
+(~985–1020) with skip-gated blocks. `test_pose_to_end` still uses fixed frames
+1–5 (first hardening target). Restore the user's scene after suite work.
+
 **Implementation** — add to `_COMMANDS` in `mcp.py`:
 ```python
 def cmd_test(argv: list[str]):
@@ -419,6 +426,21 @@ save to a named slot before pushing mid-authoring and load it back after.
 
 The teardown changes in `init.server.lua` are inert for the normally installed
 plugin (`_G` is per plugin VM, empty on every normal load).
+
+**Zombie connections (hard-won, 2026-07-20):** the teardown only disconnects
+what it knows about — `devConns` (the `track()` list) plus its explicit calls.
+A persistent connection created OUTSIDE `track()` survives the hot-reload as a
+zombie: the old closure keeps running with its old upvalues while the new build's
+flags all read false. The leaked Look Through Heartbeat mirror snapped the
+SimpleCamera part to the viewport every frame and produced four seemingly
+unrelated failure modes (phantom camera keyframes on navigation, Look Through
+viewport test failures, "camera move not saved", prop corruption downstream).
+Rules: (1) every `RunService`/instance connection that outlives one call must be
+wrapped in `track()`; (2) mode-flag teardowns (`setSimpleLookThroughOn(false)`
+etc.) belong in `_G.__MultiAnimTeardown` too, so viewport state is restored.
+Diagnosing a live zombie: move the suspect part — if it snaps back, an orphaned
+mirror owns it; destroy the part (the zombie's `part.Parent` guard goes nil) and
+re-toggle the feature to recreate it, or restart Studio.
 
 ## Tool 14 — `mcp scene` (animation version control)
 
