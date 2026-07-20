@@ -246,6 +246,51 @@ local fcAfter = call("getFrameCount") or 0
 ok(fcAfter >= origFrameCount,
     string.format("frameCount restored after playback→advanced (%d→%d)", origFrameCount, fcAfter))
 
+-- ── 32. insertPlaybackSnippet: best-practice structure in the place ──────────
+-- Uses the "TestScene" playback selection from test 9 (not exported — insert
+-- still works, just warns). Pre-existing user instances are left untouched.
+do
+    call("setPlaybackScene", { name = "TestScene" })
+    local SSS = game:GetService("ServerScriptService")
+    local sps = game:GetService("StarterPlayer"):FindFirstChildOfClass("StarterPlayerScripts")
+    local hadSetup  = SSS:FindFirstChild("MultiAnimSetup") ~= nil
+    local hadFolder = sps and sps:FindFirstChild("MultiAnimCutscenes") ~= nil
+
+    local insOk = call("insertPlaybackSnippet")
+    ok(insOk == true, "insertPlaybackSnippet returns true")
+
+    local setup = SSS:FindFirstChild("MultiAnimSetup")
+    ok(setup ~= nil and setup:IsA("Script"), "MultiAnimSetup Script created in ServerScriptService")
+    ok(setup ~= nil and setup.Source:find("MultiAnimDataServer", 1, true) ~= nil,
+        "setup script requires MultiAnimDataServer")
+
+    local folder = sps and sps:FindFirstChild("MultiAnimCutscenes")
+    ok(folder ~= nil and folder:IsA("Folder"), "MultiAnimCutscenes folder created in StarterPlayerScripts")
+    local ls = folder and folder:FindFirstChild("Play_TestScene")
+    ok(ls ~= nil and ls:IsA("LocalScript"), "Play_<scene> LocalScript created")
+    ok(ls ~= nil and ls.Source:find("TestScene", 1, true) ~= nil, "LocalScript source references the scene")
+    ok(ls ~= nil and ls.Source:find("CutscenePlayer", 1, true) ~= nil, "LocalScript source calls CutscenePlayer")
+    -- Disabled must agree with the Pads-ON header comment (both come from autoPadsEnabled)
+    ok(ls ~= nil and ls.Disabled == (ls.Source:sub(1, 11) == "-- DISABLED"),
+        "Disabled state consistent with Pads header comment")
+
+    -- Re-insert replaces (no duplicate scripts)
+    call("insertPlaybackSnippet")
+    local count = 0
+    if folder then
+        for _, c in ipairs(folder:GetChildren()) do
+            if c.Name == "Play_TestScene" then count += 1 end
+        end
+    end
+    ok(count == 1, "re-insert replaces the LocalScript (no duplicates)")
+
+    -- Cleanup: remove what this test created, keep pre-existing user instances
+    local ls2 = folder and folder:FindFirstChild("Play_TestScene")
+    if ls2 then ls2:Destroy() end
+    if folder and not hadFolder and #folder:GetChildren() == 0 then folder:Destroy() end
+    if setup and not hadSetup then setup:Destroy() end
+end
+
 -- ── Restore original state ────────────────────────────────────────────────────
 -- (mode already restored in test 26 above)
 -- Reset playback state

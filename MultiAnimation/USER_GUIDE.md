@@ -668,7 +668,25 @@ as one of the rigs.
    `SubtitleGui.lua` to `ReplicatedStorage`.
    Pressing **Export** in the plugin does all of this automatically.
 
-3. **Paste the snippet** from the Playback tab into a `LocalScript`. Example:
+3. **Insert or paste the snippet.** The fastest path is **⬇ Add to Roblox**
+   (next to 📋 Copy Snippet): it inserts the current snippet — with your rig
+   mapping and Loop/Movie Mode/Reset settings — as real instances in a
+   best-practice layout:
+
+   - `ServerScriptService.MultiAnimSetup` (`Script`) — the one-line server
+     setup, created once and shared by all scenes.
+   - `StarterPlayerScripts/MultiAnimCutscenes/Play_<Scene>` (`LocalScript`) —
+     the playback call. Re-inserting the same scene replaces this script.
+   - **Pads ON:** the LocalScript is inserted **Disabled** (the scene's trigger
+     pad already plays it — an enabled script would double-trigger). Enable it
+     manually if you want auto-play on player spawn instead. With Pads OFF it
+     is inserted enabled.
+
+   The inserted script is selected in the Explorer so you can review it, and
+   the action is one undo step. If the scene isn't exported yet you get a
+   warning — press **⬆ Export** first.
+
+   Or **📋 Copy Snippet** and paste into a `LocalScript` yourself. Example:
    ```lua
    local CutscenePlayer = require(game.ReplicatedStorage.CutscenePlayer)
    local handle = CutscenePlayer.play(

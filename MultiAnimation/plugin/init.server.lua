@@ -3544,6 +3544,80 @@ panel.onExportRequested:Connect(function(sceneName)
     end
 end)
 
+-- ── Add to Roblox: insert the playback snippet as real Script instances ──────
+-- Best-practice structure: one shared setup Script in ServerScriptService plus
+-- a per-scene LocalScript under StarterPlayerScripts/MultiAnimCutscenes.
+-- With Pads ON the LocalScript is inserted Disabled (the pad already triggers
+-- the scene; enabling it switches to auto-play on spawn).
+local function doInsertSnippet(text)
+    if not playbackScene then
+        warn("[MultiAnimation] Select a scene in the Playback tab first")
+        return false
+    end
+    if not text or text == "" or text:sub(1, 4) == "-- n" then  -- "-- no scene/scenes"
+        warn("[MultiAnimation] No snippet to insert")
+        return false
+    end
+
+    local mad = game:GetService("ServerStorage"):FindFirstChild("MultiAnimationData")
+    if not (mad and mad:FindFirstChild(playbackScene)) then
+        warn(string.format(
+            "[MultiAnimation] Scene '%s' is not exported yet — the inserted script will error until you ⬆ Export it",
+            playbackScene))
+    end
+
+    local sss = game:GetService("ServerScriptService")
+    local setupScript = sss:FindFirstChild("MultiAnimSetup")
+    if not setupScript then
+        setupScript = Instance.new("Script")
+        setupScript.Name = "MultiAnimSetup"
+        setupScript.Source = table.concat({
+            "-- MultiAnimation server setup (inserted by the plugin).",
+            "-- Reconnects exported rig joints and creates the MultiAnimGetScene",
+            "-- RemoteFunction; required once per place, shared by all scenes.",
+            "require(game.ServerStorage.MultiAnimationData.MultiAnimDataServer).setup()",
+            "",
+        }, "\n")
+        setupScript.Parent = sss
+    end
+
+    local sps = game:GetService("StarterPlayer"):FindFirstChildOfClass("StarterPlayerScripts")
+    if not sps then
+        warn("[MultiAnimation] StarterPlayerScripts not found")
+        return false
+    end
+    local folder = sps:FindFirstChild("MultiAnimCutscenes")
+    if not folder then
+        folder = Instance.new("Folder")
+        folder.Name = "MultiAnimCutscenes"
+        folder.Parent = sps
+    end
+
+    local scriptName = "Play_" .. playbackScene
+    local existing = folder:FindFirstChild(scriptName)
+    if existing then existing:Destroy() end
+    local ls = Instance.new("LocalScript")
+    ls.Name = scriptName
+    local header = ""
+    if autoPadsEnabled then
+        ls.Disabled = true
+        header = "-- DISABLED: Pads are ON, so stepping on the scene's pad plays it.\n"
+            .. "-- Enable this script instead to auto-play the scene on player spawn.\n"
+    end
+    ls.Source = header .. text
+    ls.Parent = folder
+
+    Selection:Set({ ls })
+    ChangeHistoryService:SetWaypoint("MultiAnim_InsertSnippet")
+    print(string.format("[MultiAnimation] Inserted %s (%s); server setup: %s",
+        ls:GetFullName(),
+        ls.Disabled and "Disabled — Pads ON" or "auto-plays on spawn",
+        setupScript:GetFullName()))
+    return true
+end
+
+panel.onPlaybackInsertSnippet:Connect(doInsertSnippet)
+
 -- ── Viewport selection → rig selector sync ───────────────────────────────────
 
 local function findRigForInstance(instance)
@@ -4359,6 +4433,12 @@ local testBridge = TestBridge.start({
     getPlaybackSnippet = function()
         buildPlaybackSnippet()
         return panel._pbSnipBox and panel._pbSnipBox.Text or ""
+    end,
+
+    -- Insert the snippet into the place (same path as the ⬇ Add to Roblox button).
+    insertPlaybackSnippet = function()
+        buildPlaybackSnippet()
+        return doInsertSnippet(panel._pbSnipBox and panel._pbSnipBox.Text or "")
     end,
 
     -- Subtitle bridge commands

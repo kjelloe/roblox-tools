@@ -2444,8 +2444,17 @@ function Panel.new(widget)
     pbCopyBtn.MouseButton1Click:Connect(function()
         ePlaybackCopy:Fire(pbSnipBox.Text)
     end)
+    -- Insert the snippet as real Script instances in the place (best-practice
+    -- structure); the handler in init.server.lua reads settings (Pads etc.).
+    do
+        local ePlaybackInsert = mkEvent("onPlaybackInsertSnippet")
+        local pbInsertBtn = btn(pbCopyRow, "⬇ Add to Roblox", 2)
+        pbInsertBtn.MouseButton1Click:Connect(function()
+            ePlaybackInsert:Fire(pbSnipBox.Text)
+        end)
+    end
     -- Preview button: shows snippet in a modal overlay
-    local pbPreviewBtn = btn(pbCopyRow, "Preview", 2, true)
+    local pbPreviewBtn = btn(pbCopyRow, "Preview", 3, true)
 
     -- Preview modal overlay (shows full snippet in a larger scrollable box)
     local pbPreviewOv = Instance.new("Frame")

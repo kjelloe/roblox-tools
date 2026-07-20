@@ -1596,3 +1596,22 @@ standalone file runs until per-file isolation is hardened; pose_to_end still
 operates on fixed frames 1-5 and needs an occupied-gate or end-append rewrite.
 
 **Suite: ~1020 cases; counts vary with skip-gated blocks (~985 clean start).**
+
+## Add to Roblox — snippet insertion (done, 2026-07-20)
+
+**⬇ Add to Roblox (G-09):** the Playback tab's snippet no longer has to be
+hand-pasted — the new button (Copy 1, Add 2, Preview 3 in pbCopyRow) inserts it
+as real instances in a best-practice layout: one shared
+`ServerScriptService.MultiAnimSetup` Script (the DataServer `.setup()` line,
+created once for all scenes) plus `StarterPlayerScripts/MultiAnimCutscenes/
+Play_<Scene>` (LocalScript, replaced on re-insert — never duplicated). Settings
+travel with the snippet (rig mapping, movieMode/loop/resetOnEnd) and the Pads
+toggle decides the script state: Pads ON → inserted **Disabled** with a header
+comment (pad already triggers the scene; enabling = auto-play on spawn),
+Pads OFF → enabled. Explorer-selects the script, single undo waypoint, warns
+when the scene isn't exported. Handler lives after the auto-pads section
+(needs the `autoPadsEnabled` upvalue); panel event `onPlaybackInsertSnippet`
+fired with the snippet text (locals in a do…end — Playback tab block).
+Bridge `insertPlaybackSnippet`; test_ui_playback +9 cases (67) covering
+structure, Disabled↔Pads-header consistency, replace-on-reinsert, and
+leave-user-instances-alone cleanup.

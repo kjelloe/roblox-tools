@@ -150,6 +150,7 @@ architectural changes.
 | G-06 | As a developer, prop `CFrame` is interpolated between keyframes in the same Heartbeat loop as scale tracks. |
 | G-07 | As a developer, calling `CutscenePlayer.play(sceneName)` with no rigMap plays the full scene: rigs named `"RigPlayer"` are implicitly mapped to the LocalPlayer clone; all other rigs are resolved from CollectionService-tagged instances, then `workspace.FIGURES` as a legacy fallback. |
 | G-08 | As a developer, I can still pass an explicit rigMap entry for any rig to override the implicit resolution — e.g. to use a different player or a specific workspace instance. |
+| G-09 | As a developer, I can click **⬇ Add to Roblox** in the Playback tab to insert the current snippet (rig mapping + Loop/Movie Mode/Reset settings) as real instances in a best-practice layout: a shared `ServerScriptService.MultiAnimSetup` Script (created once) and a per-scene LocalScript under `StarterPlayerScripts/MultiAnimCutscenes` (replaced on re-insert, selected in Explorer, one undo step). With Pads ON the LocalScript is inserted Disabled — the trigger pad already plays the scene; enabling it switches to auto-play on spawn. Inserting an un-exported scene warns. |
 
 ---
 
