@@ -574,7 +574,7 @@ one-shot world-position event (particle burst or sound) at any frame. An overlay
 
 ```
 ADD EFFECT  •  FRAME 5                                     [✕]
-Type:  [Explosion ◄►]
+Type:  [Explosion ▾]
 Size:     [3     ]
 Color R:  [255   ]    Color G:  [80    ]
 Count:    [50    ]    Duration: [0.6   ]
@@ -587,18 +587,35 @@ For the **Sound** type the overlay shows different fields:
 
 ```
 ADD EFFECT  •  FRAME 5                                     [✕]
-Type:  [Sound ◄►]
+Type:  [Sound ▾]
 Sound ID:   [rbxassetid://          ]
 Volume:     [1   ]
 Max Dist:   [80  ]
+Speed:      [1   ]    Start (s): [0  ]
+[Looped: OFF]         Stop @ fr: [0  ]
 [Select Position]     X: —  Y: —  Z: —
 [  Add to Frame  ]    [Cancel]
 ```
 
-- **Type** cycles through `Explosion` (orange burst), `Smoke` (gray column),
-  `Sound` (plays a Roblox Sound asset at the world position with 3-D rolloff),
-  and `Fade` (full-screen fade). Each type loads its defaults automatically;
-  only the relevant fields are shown.
+- **Type** opens a dropdown of all effect types. Each type loads its defaults
+  automatically; only the relevant fields are shown:
+  - `Explosion` — orange one-shot burst.
+  - `Flame` — continuous burning energy flame: rising fire licks that taper
+    out, glowing. **Count is flames per second**, `Duration` is how long the
+    fire burns, and colour/size shape the look.
+  - `Electric` — sizzling static surrounding the chosen point: short-lived
+    glowing sparks in every direction, spinning fast. Continuous like Flame.
+  - `Sparkles` — gentle floating glitter around the point (continuous).
+  - `Smoke` — gray one-shot column.
+  - `Sound` — plays a Roblox Sound asset at the world position with 3-D rolloff.
+  - `Fade` — full-screen fade.
+- **Sound playback fields:** **Speed** maps to `Sound.PlaybackSpeed` — `1` is
+  normal, `0.5` slower and deeper, `2` faster and higher-pitched. **Start (s)**
+  begins playback that many seconds into the asset. **Looped** repeats the
+  sound until **Stop @ fr** (a later frame on the timeline) or, when 0, until
+  the scene ends — looped sounds are always cleaned up when playback stops.
+  The edit-mode preview of a looped sound auditions for the authored span
+  (or ~3 s when it would run to scene end).
 - **Fade** fields: Color R/G/B (the colour faded to — default black), an
   optional **Image ID** (`rbxassetid://` of an uploaded decal/PNG, shown over
   the colour), **Duration** (seconds, default 1.0), and **Direction** —
@@ -615,7 +632,8 @@ Max Dist:   [80  ]
 - **Add to Frame** saves the effect to the current frame and fires a preview
   immediately (edit-mode only, no play mode needed).
 - A small **coloured sphere gizmo** appears at the effect's position
-  (orange = Explosion, gray = Smoke, blue = Sound). Click the sphere to reopen the
+  (orange = Explosion, amber = Flame, ice-blue = Electric, gold = Sparkles,
+  gray = Smoke, blue = Sound, violet = Fade). Click the sphere to reopen the
   overlay in **edit mode** with a **Delete** button, so you can adjust or remove it.
 - Effects are saved with the session and exported with the scene. During in-game playback
   via `CutscenePlayer`, spawned effects fire automatically using the same crossing-pointer
@@ -683,8 +701,18 @@ as one of the rigs.
      is inserted enabled.
 
    The inserted script is selected in the Explorer so you can review it, and
-   the action is one undo step. If the scene isn't exported yet you get a
-   warning — press **⬆ Export** first.
+   the action is one undo step. If the scene isn't exported yet and it is the
+   session you're currently editing, it is **auto-exported first** (pad
+   included when Pads is ON); otherwise you get a warning — load the scene and
+   press **⬆ Export**.
+
+   **⬇ Touch Trigger** inserts a `Touch_<Scene>` LocalScript instead: the
+   scene plays when the local player touches a trigger part, debounced via
+   `handle.onComplete` so overlapping `Touched` events can't double-start it.
+   Select a BasePart in the viewport first and the script is wired to it;
+   with nothing selected you get an editable `workspace.TriggerPart`
+   placeholder. Touch triggers are always inserted enabled — they don't
+   conflict with Pads.
 
    Or **📋 Copy Snippet** and paste into a `LocalScript` yourself. Example:
    ```lua

@@ -82,13 +82,20 @@ session = {
         },
     },
     spawnedEffects = {          -- array (not frame-keyed); ids are stable
-        { id = 1, frame = 12, effectType = "Explosion",  -- or "Smoke"
+        -- Particle types: Explosion/Smoke are one-shot bursts (`count` emitted
+        -- once); Flame/Electric/Sparkles are CONTINUOUS (`count` = particles
+        -- per second for `duration`, lingering particles live out `lifetime`).
+        { id = 1, frame = 12, effectType = "Explosion",
           posX = 0, posY = 5, posZ = 0,
           size = 3, colorR = 255, colorG = 80, colorB = 0,
           count = 50, duration = 0.6, speed = 20, lifetime = 1.0 },
         { id = 2, frame = 30, effectType = "Sound",
           posX = 0, posY = 5, posZ = 0,
-          soundId = "rbxassetid://…", volume = 1, maxDistance = 80 },
+          soundId = "rbxassetid://…", volume = 1, maxDistance = 80,
+          playbackSpeed = 1,     -- Sound.PlaybackSpeed (0.05–20)
+          looped = false,        -- loop until stopAtFrame / scene end
+          stopAtFrame = 0,       -- looped only: frame the loop stops (0 = scene end)
+          timePosition = 0 },    -- start offset in seconds
         { id = 3, frame = 27, effectType = "Fade",   posX = 0, posY = 0, posZ = 0,
           colorR = 0, colorG = 0, colorB = 0, imageId = "", duration = 1.0,
           direction = "out" },   -- "out" = to colour/image, "in" = reveal

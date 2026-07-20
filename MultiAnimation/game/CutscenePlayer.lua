@@ -525,8 +525,10 @@ function CutscenePlayer.play(sceneName, rigMap, options)
         teardownRigs()
         if movieMode then LetterboxGui.hide() end
         if SubtitleGui then pcall(SubtitleGui.hide) end
-        -- A scene that ends faded-out must not leave the view black.
+        -- A scene that ends faded-out must not leave the view black, and
+        -- looped sounds / continuous emitters must not outlive the scene.
         pcall(SpawnedEffectRunner.clearFades)
+        pcall(SpawnedEffectRunner.stopAll)
         -- Snap camera back to the live player character before restoring CameraType so
         -- Roblox's CameraModule resumes from the character position, not the cinematic
         -- endpoint (which would look like the camera is stuck far from the player).
@@ -637,10 +639,17 @@ function CutscenePlayer.play(sceneName, rigMap, options)
             -- Spawned effects crossing-pointer
             for _, ev in ipairs(spawnedFxEvents) do
                 if ev.time > lastSfxTime and ev.time <= t then
+                    local params = ev.sfx
+                    -- Looped sounds with a stop frame: fire() takes seconds.
+                    if params.effectType == "Sound" and params.looped
+                        and (params.stopAtFrame or 0) > params.frame then
+                        params = table.clone(ev.sfx)
+                        params.stopAfterSeconds = (ev.sfx.stopAtFrame - ev.sfx.frame) / fps
+                    end
                     SpawnedEffectRunner.fire(
                         Vector3.new(ev.sfx.posX, ev.sfx.posY, ev.sfx.posZ),
                         ev.sfx.effectType,
-                        ev.sfx
+                        params
                     )
                 end
             end

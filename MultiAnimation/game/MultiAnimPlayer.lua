@@ -32,6 +32,7 @@ local _finishedCb = nil
 local _heartbeat  = nil
 local _sceneName  = nil
 local _resetFn    = nil   -- set when resetOnEnd=true; called on stop/finish
+local _sfxRunner  = nil   -- SpawnedEffectRunner module; stopAll() on teardown
 
 -- ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -226,6 +227,8 @@ end
 
 local function clearActive()
     if _heartbeat then _heartbeat:Disconnect(); _heartbeat = nil end
+    -- Looped sounds / continuous emitters must not outlive the scene.
+    if _sfxRunner then pcall(_sfxRunner.stopAll) end
     _sceneName = nil
     _resetFn   = nil
 end
@@ -269,6 +272,7 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap, opts)
     local sfxData     = sfxModule   and require(sfxModule)   or nil
     local sfxRunner   = script.Parent:FindFirstChild("SpawnedEffectRunner")
     if sfxRunner then sfxRunner = require(sfxRunner) end
+    _sfxRunner = sfxRunner
     local fps = (scaleTracks and scaleTracks.fps)
              or (propTracks  and propTracks.fps)
              or (rootTracks  and rootTracks.fps)
@@ -441,7 +445,14 @@ function MultiAnimPlayer.play(sceneName, rigMap, propMap, opts)
 
     local function fireSpawnedFx(ev)
         local fx = ev.fx
-        sfxRunner.fire(Vector3.new(fx.posX, fx.posY, fx.posZ), fx.effectType, fx)
+        local params = fx
+        -- Looped sounds with a stop frame: fire() takes seconds.
+        if fx.effectType == "Sound" and fx.looped
+            and (fx.stopAtFrame or 0) > fx.frame then
+            params = table.clone(fx)
+            params.stopAfterSeconds = (fx.stopAtFrame - fx.frame) / fps
+        end
+        sfxRunner.fire(Vector3.new(fx.posX, fx.posY, fx.posZ), fx.effectType, params)
     end
 
     if totalLength <= 0 then

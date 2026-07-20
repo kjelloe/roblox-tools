@@ -83,6 +83,26 @@ function SpawnedEffectRunner.clearFades()
     end
 end
 
+-- Continuous emitters: `count` is particles/second over `duration`; burst
+-- types (Explosion, Smoke) emit `count` once.
+SpawnedEffectRunner.CONTINUOUS = { Flame = true, Electric = true, Sparkles = true }
+
+-- Live cancel functions for long-running effects (looped sounds, continuous
+-- emitters). Player teardown calls stopAll() so nothing outlives its scene.
+local activeCancels = {}
+
+local function register(cancel)
+    activeCancels[cancel] = true
+    return cancel
+end
+
+function SpawnedEffectRunner.stopAll()
+    for cancel in pairs(activeCancels) do
+        pcall(cancel)
+    end
+    table.clear(activeCancels)
+end
+
 function SpawnedEffectRunner.fire(pos, effectType, params)
     if effectType == "Fade" then
         local RunService = game:GetService("RunService")
@@ -110,14 +130,29 @@ function SpawnedEffectRunner.fire(pos, effectType, params)
         snd.SoundId           = params.soundId or ""
         snd.Volume            = math.clamp(params.volume or 1, 0, 10)
         snd.RollOffMaxDistance = params.maxDistance or 80
+        snd.PlaybackSpeed     = math.clamp(params.playbackSpeed or 1, 0.05, 20)
+        snd.Looped            = params.looped == true
         snd.Parent            = part
         snd:Play()
+        -- Play() resets TimePosition, so the start offset must be set after it.
+        if (params.timePosition or 0) > 0 then
+            snd.TimePosition = params.timePosition
+        end
         local function cleanup()
+            activeCancels[cleanup] = nil
             if part and part.Parent then part:Destroy() end
         end
-        snd.Ended:Connect(cleanup)
-        task.delay(30, cleanup)
-        return
+        if snd.Looped then
+            -- Loops end at stopAfterSeconds (callers convert stopAtFrame → s)
+            -- or at scene teardown via stopAll().
+            if (params.stopAfterSeconds or 0) > 0 then
+                task.delay(params.stopAfterSeconds, cleanup)
+            end
+        else
+            snd.Ended:Connect(cleanup)
+            task.delay(30, cleanup)
+        end
+        return register(cleanup)
     end
 
     local part            = Instance.new("Part")
@@ -153,6 +188,33 @@ function SpawnedEffectRunner.fire(pos, effectType, params)
         pe.SpreadAngle    = Vector2.new(25, 25)
         pe.LightEmission  = 0
         pe.LightInfluence = 1
+    elseif effectType == "Flame" then
+        pe.Texture        = "rbxasset://textures/particles/fire_main.dds"
+        pe.SpreadAngle    = Vector2.new(12, 12)
+        pe.Acceleration   = Vector3.new(0, 6, 0)
+        pe.LightEmission  = 1
+        pe.LightInfluence = 0
+        pe.Size           = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, params.size or 4),
+            NumberSequenceKeypoint.new(1, 0),
+        })
+        pe.Transparency   = NumberSequence.new({
+            NumberSequenceKeypoint.new(0,   0.1),
+            NumberSequenceKeypoint.new(0.7, 0.4),
+            NumberSequenceKeypoint.new(1,   1),
+        })
+    elseif effectType == "Electric" then
+        pe.Texture        = "rbxasset://textures/particles/sparkles_main.dds"
+        pe.SpreadAngle    = Vector2.new(180, 180)
+        pe.LightEmission  = 1
+        pe.LightInfluence = 0
+        pe.RotSpeed       = NumberRange.new(-400, 400)
+    elseif effectType == "Sparkles" then
+        pe.Texture        = "rbxasset://textures/particles/sparkles_main.dds"
+        pe.SpreadAngle    = Vector2.new(180, 180)
+        pe.Acceleration   = Vector3.new(0, 1, 0)
+        pe.LightEmission  = 1
+        pe.LightInfluence = 0
     else  -- Explosion
         pe.SpreadAngle    = Vector2.new(180, 180)
         pe.LightEmission  = 0.8
@@ -160,11 +222,28 @@ function SpawnedEffectRunner.fire(pos, effectType, params)
     end
 
     pe.Parent = part
-    pe:Emit(params.count or 50)
 
-    task.delay((params.duration or 0.6) + (params.lifetime or 1.0), function()
+    local function cleanup()
         if part and part.Parent then part:Destroy() end
-    end)
+    end
+
+    if SpawnedEffectRunner.CONTINUOUS[effectType] then
+        pe.Rate    = params.count or 30
+        pe.Enabled = true
+        local dur = math.max(params.duration or 2, 0.05)
+        local function cancelNow()
+            activeCancels[cancelNow] = nil
+            cleanup()
+        end
+        task.delay(dur, function()
+            if pe and pe.Parent then pe.Enabled = false end
+        end)
+        task.delay(dur + (params.lifetime or 1.0), cancelNow)
+        return register(cancelNow)
+    end
+
+    pe:Emit(params.count or 50)
+    task.delay((params.duration or 0.6) + (params.lifetime or 1.0), cleanup)
 end
 
 return SpawnedEffectRunner

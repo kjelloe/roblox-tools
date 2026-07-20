@@ -19,8 +19,12 @@ end
 
 local PRESETS = {
     Explosion = { size=3, colorR=255, colorG=80,  colorB=0,   count=50, duration=0.6, speed=20, lifetime=1.0 },
+    Flame     = { size=4, colorR=255, colorG=140, colorB=30,  count=40, duration=3.0, speed=6,  lifetime=1.2 },
+    Electric  = { size=2, colorR=140, colorG=210, colorB=255, count=60, duration=2.0, speed=10, lifetime=0.3 },
+    Sparkles  = { size=1.5, colorR=255, colorG=230, colorB=120, count=30, duration=2.0, speed=5, lifetime=1.5 },
     Smoke     = { size=5, colorR=160, colorG=160, colorB=160, count=25, duration=4.0, speed=4,  lifetime=5.0 },
-    Sound     = { soundId="", volume=1, maxDistance=80 },
+    Sound     = { soundId="", volume=1, maxDistance=80,
+                  playbackSpeed=1, looped=false, stopAtFrame=0, timePosition=0 },
     Fade      = { colorR=0, colorG=0, colorB=0, imageId="", duration=1.0, direction="out" },
 }
 
@@ -163,6 +167,28 @@ ok("buildParams non-overridden kept",   p3 and p3.colorR == 255)
 
 ok("buildParams unknown type = nil",    buildParams("Laser") == nil)
 
+local pf = buildParams("Flame")
+ok("buildParams Flame non-nil",         pf ~= nil)
+ok("buildParams Flame warm colour",     pf and pf.colorR == 255 and pf.colorG == 140)
+ok("buildParams Flame continuous-ish duration", pf and pf.duration == 3.0)
+
+local pel = buildParams("Electric")
+ok("buildParams Electric non-nil",      pel ~= nil)
+ok("buildParams Electric short lifetime", pel and pel.lifetime == 0.3)
+
+local psp = buildParams("Sparkles")
+ok("buildParams Sparkles non-nil",      psp ~= nil)
+ok("buildParams Sparkles count=30",     psp and psp.count == 30)
+
+local psnd = buildParams("Sound")
+ok("buildParams Sound playbackSpeed default 1", psnd and psnd.playbackSpeed == 1)
+ok("buildParams Sound looped default false",    psnd and psnd.looped == false)
+ok("buildParams Sound stopAtFrame default 0",   psnd and psnd.stopAtFrame == 0)
+ok("buildParams Sound timePosition default 0",  psnd and psnd.timePosition == 0)
+local psnd2 = buildParams("Sound", { looped = true, playbackSpeed = 0.5, stopAtFrame = 12 })
+ok("buildParams Sound loop overrides merge",
+    psnd2 and psnd2.looped == true and psnd2.playbackSpeed == 0.5 and psnd2.stopAtFrame == 12)
+
 -- ── 4. Recorder CRUD ─────────────────────────────────────────────────────────
 
 local rec = newRecorder()
@@ -203,6 +229,22 @@ rec:clearSession()
 ok("clearSession empties list",         #rec:getSpawnedEffects() == 0)
 local fx3 = rec:addSpawnedEffect({ frame=1, effectType="Explosion", posX=0, posY=0, posZ=0 })
 ok("after clearSession id restarts at 1", fx3.id == 1)
+
+-- ── 5b. Sound playback fields pass through CRUD ──────────────────────────────
+
+local fxSnd = rec:addSpawnedEffect({ frame=15, effectType="Sound", posX=0, posY=0, posZ=0,
+    soundId="rbxassetid://1", volume=0.5, maxDistance=60,
+    playbackSpeed=1.5, looped=true, stopAtFrame=30, timePosition=2 })
+ok("Sound CRUD keeps playbackSpeed",    fxSnd.playbackSpeed == 1.5)
+ok("Sound CRUD keeps looped",           fxSnd.looped == true)
+ok("Sound CRUD keeps stopAtFrame",      fxSnd.stopAtFrame == 30)
+ok("Sound CRUD keeps timePosition",     fxSnd.timePosition == 2)
+rec:updateSpawnedEffect(fxSnd.id, { playbackSpeed = 0.75, looped = false })
+local updSnd = rec:getSpawnedEffectById(fxSnd.id)
+ok("Sound CRUD update playbackSpeed",   updSnd and updSnd.playbackSpeed == 0.75)
+ok("Sound CRUD update looped",          updSnd and updSnd.looped == false)
+ok("Sound CRUD update keeps stopAtFrame", updSnd and updSnd.stopAtFrame == 30)
+rec:deleteSpawnedEffect(fxSnd.id)
 
 -- ── 6. id preservation on restore ───────────────────────────────────────────
 

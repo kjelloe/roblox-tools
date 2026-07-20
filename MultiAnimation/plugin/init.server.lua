@@ -527,10 +527,15 @@ local function serializeSession()
         }
         if sfx.effectType == "Sound" then
             entry.soundId = sfx.soundId; entry.volume = sfx.volume; entry.maxDistance = sfx.maxDistance
+            entry.playbackSpeed = sfx.playbackSpeed; entry.looped = sfx.looped
+            entry.stopAtFrame = sfx.stopAtFrame; entry.timePosition = sfx.timePosition
         else
             entry.size = sfx.size; entry.colorR = sfx.colorR; entry.colorG = sfx.colorG
             entry.colorB = sfx.colorB; entry.count = sfx.count; entry.duration = sfx.duration
             entry.speed = sfx.speed; entry.lifetime = sfx.lifetime
+            -- Fade rides the else branch; without these two its direction and
+            -- image were silently dropped from saved sessions.
+            entry.imageId = sfx.imageId; entry.direction = sfx.direction
         end
         table.insert(out.spawnedEffects, entry)
     end
@@ -1159,9 +1164,12 @@ createEffectGizmo = function(fx)
     p.CastShadow    = false
     p.Transparency  = 0.3
     p.Archivable    = false
-    p.Color         = fx.effectType == "Smoke" and Color3.fromRGB(150, 150, 150)
-                   or fx.effectType == "Sound" and Color3.fromRGB(80, 160, 255)
-                   or fx.effectType == "Fade"  and Color3.fromRGB(140, 60, 200)
+    p.Color         = fx.effectType == "Smoke"    and Color3.fromRGB(150, 150, 150)
+                   or fx.effectType == "Sound"    and Color3.fromRGB(80, 160, 255)
+                   or fx.effectType == "Fade"     and Color3.fromRGB(140, 60, 200)
+                   or fx.effectType == "Flame"    and Color3.fromRGB(255, 170, 40)
+                   or fx.effectType == "Electric" and Color3.fromRGB(140, 210, 255)
+                   or fx.effectType == "Sparkles" and Color3.fromRGB(255, 230, 120)
                    or Color3.fromRGB(255, 120, 0)
     p.CFrame        = CFrame.new(fx.posX or 0, fx.posY or 0, fx.posZ or 0)
     p.Parent        = getEffectGizmoFolder()
@@ -1433,6 +1441,7 @@ end
 
 local function stopPlayback()
     SpawnedEffectRunner.clearFades()
+    SpawnedEffectRunner.stopAll()   -- looped sounds / continuous emitters
     if playConn then
         playConn:Disconnect()
         playConn = nil
@@ -1495,9 +1504,16 @@ local function startPlayback()
             end
             for _, sfx in ipairs(recorder:getSpawnedEffects()) do
                 if sfx.frame > lastEventFrame and sfx.frame <= intFrame then
+                    local params = sfx
+                    -- Looped sounds with a stop frame: fire() takes seconds.
+                    if sfx.effectType == "Sound" and sfx.looped
+                        and (sfx.stopAtFrame or 0) > sfx.frame then
+                        params = table.clone(sfx)
+                        params.stopAfterSeconds = (sfx.stopAtFrame - sfx.frame) / fps
+                    end
                     SpawnedEffectRunner.fire(
                         Vector3.new(sfx.posX, sfx.posY, sfx.posZ),
-                        sfx.effectType, sfx
+                        sfx.effectType, params
                     )
                 end
             end
@@ -2361,12 +2377,9 @@ local function doPlaybackScan()
 end
 
 -- Build the Lua snippet string and push to the panel's TextBox.
-buildPlaybackSnippet = function()
-    if not playbackScene then
-        panel:setPlaybackSnippet("-- no scene selected --")
-        return
-    end
-
+-- Shared by the paste snippet and the touch-trigger insert: the rig-mapping
+-- block and the opts literal, both derived from the tab's current settings.
+local function buildRigBlockAndOpts()
     -- Rig mapping lines (sorted by rig name for deterministic output).
     local rigPairs = {}
     for rigName, modeKey in pairs(playbackRigModes) do
@@ -2401,6 +2414,15 @@ buildPlaybackSnippet = function()
     if playbackLoop        then table.insert(optExtras, "loop = true") end
     if playbackResetOnEnd  then table.insert(optExtras, "resetOnEnd = true") end
     local optsStr = "{ " .. table.concat(optExtras, ", ") .. " }"
+    return rigBlock, optsStr
+end
+
+buildPlaybackSnippet = function()
+    if not playbackScene then
+        panel:setPlaybackSnippet("-- no scene selected --")
+        return
+    end
+    local rigBlock, optsStr = buildRigBlockAndOpts()
 
     -- Scene-contents comment lines.
     local extraLines = {}
@@ -2986,6 +3008,22 @@ panel.onSpawnedFxPickPosRequested:Connect(function()
     end)
 end)
 
+-- Edit-mode audition of a spawned effect. A looped sound must not loop
+-- forever outside playback: cap the preview at the authored stop span, or a
+-- short audition when it would run to scene end.
+local function previewSpawnedFx(fx)
+    local params = fx
+    if fx.effectType == "Sound" and fx.looped then
+        params = table.clone(fx)
+        if (fx.stopAtFrame or 0) > fx.frame then
+            params.stopAfterSeconds = (fx.stopAtFrame - fx.frame) / timeline:getFps()
+        else
+            params.stopAfterSeconds = 3
+        end
+    end
+    SpawnedEffectRunner.fire(Vector3.new(fx.posX, fx.posY, fx.posZ), fx.effectType, params)
+end
+
 panel.onSpawnedFxAdded:Connect(function(data)
     -- A Fade has no world position; give its gizmo an edit handle where the
     -- author's camera was, so the event stays clickable/editable.
@@ -2995,7 +3033,7 @@ panel.onSpawnedFxAdded:Connect(function(data)
     end
     local fx = recorder:addSpawnedEffect(data)
     createEffectGizmo(fx)
-    SpawnedEffectRunner.fire(Vector3.new(fx.posX, fx.posY, fx.posZ), fx.effectType, fx)
+    previewSpawnedFx(fx)
     scheduleAutoSave()
 end)
 
@@ -3003,7 +3041,7 @@ panel.onSpawnedFxUpdated:Connect(function(data)
     local fx = recorder:updateSpawnedEffect(data.id, data)
     if fx then
         createEffectGizmo(fx)
-        SpawnedEffectRunner.fire(Vector3.new(fx.posX, fx.posY, fx.posZ), fx.effectType, fx)
+        previewSpawnedFx(fx)
     end
     scheduleAutoSave()
 end)
@@ -3241,7 +3279,9 @@ panel.onSimpleEasingChanged:Connect(function(easing)
     simpleCurrentEasing = easing
 end)
 
-panel.onNewSessionConfirmed:Connect(function()
+-- Full new-session reset — panel New button and the resetSession bridge cmd
+-- (test isolation) share this single path.
+local function doNewSession()
     -- Reconnect before re-scan so rest poses are captured from a clean rig.
     reconnectAllRigs()
     -- Clear prop UI
@@ -3264,8 +3304,10 @@ panel.onNewSessionConfirmed:Connect(function()
     timeline:setCurrent(1)
     scanAndSetup()
     panel:setFrameDisplay(1, timeline:getFrameCount())
+    if refreshSimpleArrivalSnap then refreshSimpleArrivalSnap() end
     print("[MultiAnimation] New session started")
-end)
+end
+panel.onNewSessionConfirmed:Connect(doNewSession)
 
 panel.onSaveConfirmed:Connect(function(name)
     saveNamed(name)
@@ -3544,28 +3586,34 @@ panel.onExportRequested:Connect(function(sceneName)
     end
 end)
 
--- ── Add to Roblox: insert the playback snippet as real Script instances ──────
+-- ── Add to Roblox: insert playback scripts as real instances ─────────────────
 -- Best-practice structure: one shared setup Script in ServerScriptService plus
--- a per-scene LocalScript under StarterPlayerScripts/MultiAnimCutscenes.
--- With Pads ON the LocalScript is inserted Disabled (the pad already triggers
--- the scene; enabling it switches to auto-play on spawn).
-local function doInsertSnippet(text)
-    if not playbackScene then
-        warn("[MultiAnimation] Select a scene in the Playback tab first")
-        return false
-    end
-    if not text or text == "" or text:sub(1, 4) == "-- n" then  -- "-- no scene/scenes"
-        warn("[MultiAnimation] No snippet to insert")
-        return false
-    end
+-- per-scene LocalScripts under StarterPlayerScripts/MultiAnimCutscenes.
 
+-- Auto-export before insert. Only when the LIVE session IS the selected scene —
+-- exporting the current recorder state under a different scene's name would
+-- ship the wrong data. Non-fatal: the insert proceeds either way.
+local function ensureSceneExported()
     local mad = game:GetService("ServerStorage"):FindFirstChild("MultiAnimationData")
-    if not (mad and mad:FindFirstChild(playbackScene)) then
-        warn(string.format(
-            "[MultiAnimation] Scene '%s' is not exported yet — the inserted script will error until you ⬆ Export it",
-            playbackScene))
+    if mad and mad:FindFirstChild(playbackScene) then return true end
+    if panel:getSimpleSceneName() == playbackScene then
+        local okExp, result = Exporter.export(recorder:getSession(), playbackScene)
+        if okExp then
+            if autoPadsEnabled then ensureTriggerPad(result) end
+            print(string.format("[MultiAnimation] Auto-exported '%s' before insert", playbackScene))
+            return true
+        end
+        warn(string.format("[MultiAnimation] Auto-export of '%s' failed: %s",
+            playbackScene, tostring(result)))
+        return false
     end
+    warn(string.format(
+        "[MultiAnimation] Scene '%s' is not exported and is not the live session — load it and ⬆ Export, or the inserted script will error",
+        playbackScene))
+    return false
+end
 
+local function ensureInsertTargets()
     local sss = game:GetService("ServerScriptService")
     local setupScript = sss:FindFirstChild("MultiAnimSetup")
     if not setupScript then
@@ -3580,11 +3628,10 @@ local function doInsertSnippet(text)
         }, "\n")
         setupScript.Parent = sss
     end
-
     local sps = game:GetService("StarterPlayer"):FindFirstChildOfClass("StarterPlayerScripts")
     if not sps then
         warn("[MultiAnimation] StarterPlayerScripts not found")
-        return false
+        return setupScript, nil
     end
     local folder = sps:FindFirstChild("MultiAnimCutscenes")
     if not folder then
@@ -3592,31 +3639,104 @@ local function doInsertSnippet(text)
         folder.Name = "MultiAnimCutscenes"
         folder.Parent = sps
     end
+    return setupScript, folder
+end
 
-    local scriptName = "Play_" .. playbackScene
+-- Create/replace a LocalScript in the cutscenes folder, select it, one undo step.
+local function insertCutsceneScript(scriptName, source, disabled, note)
+    local setupScript, folder = ensureInsertTargets()
+    if not folder then return false end
     local existing = folder:FindFirstChild(scriptName)
     if existing then existing:Destroy() end
     local ls = Instance.new("LocalScript")
     ls.Name = scriptName
-    local header = ""
-    if autoPadsEnabled then
-        ls.Disabled = true
-        header = "-- DISABLED: Pads are ON, so stepping on the scene's pad plays it.\n"
-            .. "-- Enable this script instead to auto-play the scene on player spawn.\n"
-    end
-    ls.Source = header .. text
+    ls.Disabled = disabled or false
+    ls.Source = source
     ls.Parent = folder
-
     Selection:Set({ ls })
     ChangeHistoryService:SetWaypoint("MultiAnim_InsertSnippet")
     print(string.format("[MultiAnimation] Inserted %s (%s); server setup: %s",
-        ls:GetFullName(),
-        ls.Disabled and "Disabled — Pads ON" or "auto-plays on spawn",
-        setupScript:GetFullName()))
+        ls:GetFullName(), note, setupScript:GetFullName()))
     return true
 end
 
+-- ⬇ Add to Roblox: the tab's snippet as an auto-play LocalScript. With Pads ON
+-- it is inserted Disabled (the pad already triggers the scene; enabling it
+-- switches to auto-play on spawn).
+local function doInsertSnippet(text)
+    if not playbackScene then
+        warn("[MultiAnimation] Select a scene in the Playback tab first")
+        return false
+    end
+    if not text or text == "" or text:sub(1, 4) == "-- n" then  -- "-- no scene/scenes"
+        warn("[MultiAnimation] No snippet to insert")
+        return false
+    end
+    ensureSceneExported()
+    local header = ""
+    if autoPadsEnabled then
+        header = "-- DISABLED: Pads are ON, so stepping on the scene's pad plays it.\n"
+            .. "-- Enable this script instead to auto-play the scene on player spawn.\n"
+    end
+    return insertCutsceneScript("Play_" .. playbackScene, header .. text,
+        autoPadsEnabled, autoPadsEnabled and "Disabled — Pads ON" or "auto-plays on spawn")
+end
+
 panel.onPlaybackInsertSnippet:Connect(doInsertSnippet)
+
+-- ⬇ Add Touch Trigger: play the scene when the local player touches a part.
+-- Uses the currently selected BasePart as the trigger when its full name is a
+-- clean Lua path; otherwise inserts an editable placeholder. Debounced via
+-- handle.onComplete (Touched fires once per body part).
+local function doInsertTouchTrigger()
+    if not playbackScene then
+        warn("[MultiAnimation] Select a scene in the Playback tab first")
+        return false
+    end
+    ensureSceneExported()
+
+    local triggerRef  = "workspace.TriggerPart  -- TODO: point this at your trigger part"
+    local triggerNote = "placeholder trigger — edit the script"
+    local sel = Selection:Get()[1]
+    if sel and sel:IsA("BasePart") then
+        local path = sel:GetFullName()
+        if path:match("^[%w_%.]+$") then
+            triggerRef  = (path:gsub("^Workspace", "workspace"))
+            triggerNote = "trigger: " .. path
+        else
+            warn("[MultiAnimation] Selected part's path has non-identifier characters — inserted a placeholder instead")
+        end
+    end
+
+    local rigBlock, optsStr = buildRigBlockAndOpts()
+    local src = string.format(
+        '-- Touch trigger for scene "%s" (inserted by MultiAnimation).\n' ..
+        '-- Plays the cutscene when the local player touches the trigger part.\n' ..
+        'local CutscenePlayer = require(game.ReplicatedStorage:WaitForChild("CutscenePlayer"))\n' ..
+        'local trigger = %s\n' ..
+        'local debounce = false\n' ..
+        '\n' ..
+        'trigger.Touched:Connect(function(hit)\n' ..
+        '    local character = game.Players.LocalPlayer.Character\n' ..
+        '    if debounce or not character or not hit:IsDescendantOf(character) then return end\n' ..
+        '    debounce = true\n' ..
+        '    local handle = CutscenePlayer.play(\n' ..
+        '        "%s",\n' ..
+        '        {\n' ..
+        '%s\n' ..
+        '        },\n' ..
+        '        %s\n' ..
+        '    )\n' ..
+        '    handle.onComplete(function()\n' ..
+        '        debounce = false\n' ..
+        '    end)\n' ..
+        'end)\n',
+        playbackScene, triggerRef, playbackScene, rigBlock, optsStr)
+
+    return insertCutsceneScript("Touch_" .. playbackScene, src, false, triggerNote)
+end
+
+panel.onPlaybackInsertTouch:Connect(doInsertTouchTrigger)
 
 -- ── Viewport selection → rig selector sync ───────────────────────────────────
 
@@ -4441,13 +4561,25 @@ local testBridge = TestBridge.start({
         return doInsertSnippet(panel._pbSnipBox and panel._pbSnipBox.Text or "")
     end,
 
+    -- Insert a touch-trigger LocalScript (same path as ⬇ Touch Trigger).
+    insertTouchTrigger = function()
+        return doInsertTouchTrigger()
+    end,
+
+    -- Full new-session reset (same path as the panel New button). Used by
+    -- run_tests.py between files to kill cross-file state leaks.
+    resetSession = function()
+        doNewSession()
+        return true
+    end,
+
     -- Subtitle bridge commands
     addSpawnedEffect = function(a)
         -- Same path as the overlay's Add to Frame (panel.onSpawnedFxAdded):
-        -- record, create gizmo, fire an edit-mode preview.
+        -- record, create gizmo, fire an edit-mode preview (loop-capped).
         local fx = recorder:addSpawnedEffect(a)
         createEffectGizmo(fx)
-        SpawnedEffectRunner.fire(Vector3.new(fx.posX, fx.posY, fx.posZ), fx.effectType, fx)
+        previewSpawnedFx(fx)
         return fx.id
     end,
 

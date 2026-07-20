@@ -1973,11 +1973,15 @@ function Panel.new(widget)
     do -- SPAWNED FX OVERLAY
     -- Card overlay for adding/editing single-frame spawned effects (Explosion, Smoke, Sound).
     -- Opened by the Effects button in Simple Mode action row, or by clicking a gizmo sphere.
-    local FX_TYPES = { "Explosion", "Smoke", "Sound", "Fade" }
+    local FX_TYPES = { "Explosion", "Flame", "Electric", "Sparkles", "Smoke", "Sound", "Fade" }
     local FX_DEFAULTS = {
-        Explosion = { size=3, colorR=255, colorG=80,  colorB=0,   count=50, duration=0.6, speed=20, lifetime=1.0 },
-        Smoke     = { size=5, colorR=160, colorG=160, colorB=160, count=25, duration=4.0, speed=4,  lifetime=5.0 },
-        Sound     = { soundId="", volume=1, maxDistance=80 },
+        Explosion = { size=3,   colorR=255, colorG=80,  colorB=0,   count=50, duration=0.6, speed=20, lifetime=1.0 },
+        Flame     = { size=4,   colorR=255, colorG=140, colorB=30,  count=40, duration=3.0, speed=6,  lifetime=1.2 },
+        Electric  = { size=2,   colorR=140, colorG=210, colorB=255, count=60, duration=2.0, speed=10, lifetime=0.3 },
+        Sparkles  = { size=1.5, colorR=255, colorG=230, colorB=120, count=30, duration=2.0, speed=5,  lifetime=1.5 },
+        Smoke     = { size=5,   colorR=160, colorG=160, colorB=160, count=25, duration=4.0, speed=4,  lifetime=5.0 },
+        Sound     = { soundId="", volume=1, maxDistance=80,
+                      playbackSpeed=1, looped=false, stopAtFrame=0, timePosition=0 },
         Fade      = { colorR=0, colorG=0, colorB=0, imageId="", duration=1.0, direction="out" },
     }
     local FX_PROPS = {
@@ -2060,7 +2064,7 @@ function Panel.new(widget)
         fxBoxRows[prop.key] = row
     end
 
-    -- Sound-specific rows (LayoutOrder 3-5; hidden by default; shown only for Sound type)
+    -- Sound-specific rows (LayoutOrder 3-7; hidden by default; shown only for Sound type)
     local fxSoundIdRow = hrow(fxOv, 3, 4)
     fxSoundIdRow.Visible = false
     lbl(fxSoundIdRow, "Sound ID:", 62, 1)
@@ -2078,6 +2082,31 @@ function Panel.new(widget)
     lbl(fxSoundDistRow, "Max Dist:", 62, 1)
     local fxSoundDistBox = textBox(fxSoundDistRow, "80", 80, 2)
     fxSoundDistBox.ZIndex = 56
+
+    -- Speed (PlaybackSpeed: 1 = normal, <1 slower/deeper, >1 faster/higher)
+    -- and start offset in seconds.
+    local fxSoundSpeedRow = hrow(fxOv, 6, 4)
+    fxSoundSpeedRow.Visible = false
+    lbl(fxSoundSpeedRow, "Speed:", 62, 1)
+    local fxSoundSpeedBox = textBox(fxSoundSpeedRow, "1", 60, 2)
+    fxSoundSpeedBox.ZIndex = 56
+    lbl(fxSoundSpeedRow, "Start (s):", 56, 3)
+    local fxSoundTimeBox = textBox(fxSoundSpeedRow, "0", 60, 4)
+    fxSoundTimeBox.ZIndex = 56
+
+    -- Looped toggle + stop frame (loops end at the stop frame, else scene end).
+    local fxSoundLoopRow = hrow(fxOv, 7, 4)
+    fxSoundLoopRow.Visible = false
+    local fxSoundLoopBtn = btn(fxSoundLoopRow, "Looped: OFF", 1)
+    fxSoundLoopBtn.ZIndex = 56
+    self._spawnedFxLooped = false
+    fxSoundLoopBtn.MouseButton1Click:Connect(function()
+        self._spawnedFxLooped = not self._spawnedFxLooped
+        fxSoundLoopBtn.Text = self._spawnedFxLooped and "  Looped: ON  " or "  Looped: OFF  "
+    end)
+    lbl(fxSoundLoopRow, "Stop @ fr:", 58, 2)
+    local fxSoundStopBox = textBox(fxSoundLoopRow, "0", 50, 3)
+    fxSoundStopBox.ZIndex = 56
 
     -- Fade-specific rows (hidden by default)
     local fxFadeImgRow = hrow(fxOv, 8, 4)
@@ -2107,11 +2136,13 @@ function Panel.new(widget)
             if isFade and FX_PARTICLE_ONLY[prop.key] then vis = false end
             fxBoxRows[prop.key].Visible = vis
         end
-        fxSoundIdRow.Visible   = isSound
-        fxSoundVolRow.Visible  = isSound
-        fxSoundDistRow.Visible = isSound
-        fxFadeImgRow.Visible   = isFade
-        fxFadeDirRow.Visible   = isFade
+        fxSoundIdRow.Visible    = isSound
+        fxSoundVolRow.Visible   = isSound
+        fxSoundDistRow.Visible  = isSound
+        fxSoundSpeedRow.Visible = isSound
+        fxSoundLoopRow.Visible  = isSound
+        fxFadeImgRow.Visible    = isFade
+        fxFadeDirRow.Visible    = isFade
     end
 
     -- Position row
@@ -2145,33 +2176,46 @@ function Panel.new(widget)
     fxDeleteBtn.Visible = false
     fxCancelBtn.MouseButton1Click:Connect(function() fxOv.Visible = false end)
 
-    fxTypeBtn.MouseButton1Click:Connect(function()
-        local cur = self._spawnedFxType or "Explosion"
-        local nextType = FX_TYPES[1]
-        for i, t in ipairs(FX_TYPES) do
-            if t == cur and FX_TYPES[i + 1] then nextType = FX_TYPES[i + 1]; break end
-        end
-        self._spawnedFxType = nextType
-        fxTypeBtn.Text = "  " .. nextType .. "  "
-        fxApplyTypeVisibility(nextType)
-        fxPosRow.Visible = nextType ~= "Fade"
-        local p = FX_DEFAULTS[nextType]
+    -- Select a type: swap visible rows and load that type's defaults.
+    local function selectFxType(newType)
+        self._spawnedFxType = newType
+        fxTypeBtn.Text = "  " .. newType .. " ▾ "
+        fxApplyTypeVisibility(newType)
+        fxPosRow.Visible = newType ~= "Fade"
+        local p = FX_DEFAULTS[newType]
         if p then
-            if nextType == "Sound" then
-                fxSoundIdBox.Text  = p.soundId or ""
-                fxSoundVolBox.Text = tostring(p.volume or 1)
-                fxSoundDistBox.Text = tostring(p.maxDistance or 80)
+            if newType == "Sound" then
+                fxSoundIdBox.Text    = p.soundId or ""
+                fxSoundVolBox.Text   = tostring(p.volume or 1)
+                fxSoundDistBox.Text  = tostring(p.maxDistance or 80)
+                fxSoundSpeedBox.Text = tostring(p.playbackSpeed or 1)
+                fxSoundTimeBox.Text  = tostring(p.timePosition or 0)
+                fxSoundStopBox.Text  = tostring(p.stopAtFrame or 0)
+                self._spawnedFxLooped = p.looped == true
+                fxSoundLoopBtn.Text = self._spawnedFxLooped and "  Looped: ON  " or "  Looped: OFF  "
             else
                 for _, prop in ipairs(FX_PROPS) do
                     if p[prop.key] ~= nil then fxBoxes[prop.key].Text = tostring(p[prop.key]) end
                 end
-                if nextType == "Fade" then
+                if newType == "Fade" then
                     fxFadeImgBox.Text = p.imageId or ""
                     self._spawnedFxDir = p.direction or "out"
                     fxFadeDirBtn.Text = "  out (to colour)  "
                 end
             end
         end
+    end
+
+    -- Type dropdown (the list keeps growing — cycling is no longer usable).
+    fxTypeBtn.MouseButton1Click:Connect(function()
+        local items = {}
+        for _, t in ipairs(FX_TYPES) do
+            table.insert(items, { text = t, action = function() selectFxType(t) end })
+        end
+        local ox = self._ctxOverlay.AbsolutePosition.X
+        local oy = self._ctxOverlay.AbsolutePosition.Y
+        local absPos = fxTypeBtn.AbsolutePosition
+        self:_showMenu(items, absPos.X - ox, absPos.Y - oy + fxTypeBtn.AbsoluteSize.Y + 2)
     end)
 
     fxAddBtn.MouseButton1Click:Connect(function()
@@ -2186,9 +2230,13 @@ function Panel.new(widget)
             data.posX, data.posY, data.posZ = pos.X, pos.Y, pos.Z
         end
         if self._spawnedFxType == "Sound" then
-            data.soundId     = fxSoundIdBox.Text
-            data.volume      = tonumber(fxSoundVolBox.Text) or 1
-            data.maxDistance = tonumber(fxSoundDistBox.Text) or 80
+            data.soundId       = fxSoundIdBox.Text
+            data.volume        = tonumber(fxSoundVolBox.Text) or 1
+            data.maxDistance   = tonumber(fxSoundDistBox.Text) or 80
+            data.playbackSpeed = tonumber(fxSoundSpeedBox.Text) or 1
+            data.timePosition  = tonumber(fxSoundTimeBox.Text) or 0
+            data.looped        = self._spawnedFxLooped == true
+            data.stopAtFrame   = math.floor(tonumber(fxSoundStopBox.Text) or 0)
         elseif isFade then
             data.colorR   = tonumber(fxBoxes.colorR.Text) or 0
             data.colorG   = tonumber(fxBoxes.colorG.Text) or 0
@@ -2234,7 +2282,7 @@ function Panel.new(widget)
         self._spawnedFxEditId = data and data.id or nil
         local effectType = (data and data.effectType) or "Explosion"
         self._spawnedFxType = effectType
-        fxTypeBtn.Text = "  " .. effectType .. "  "
+        fxTypeBtn.Text = "  " .. effectType .. " ▾ "
         fxApplyTypeVisibility(effectType)
         fxPosRow.Visible = effectType ~= "Fade"
         local isSound = effectType == "Sound"
@@ -2252,6 +2300,11 @@ function Panel.new(widget)
                 fxSoundIdBox.Text   = data.soundId     or defaults.soundId or ""
                 fxSoundVolBox.Text  = tostring(data.volume      ~= nil and data.volume      or (defaults.volume or 1))
                 fxSoundDistBox.Text = tostring(data.maxDistance ~= nil and data.maxDistance or (defaults.maxDistance or 80))
+                fxSoundSpeedBox.Text = tostring(data.playbackSpeed ~= nil and data.playbackSpeed or 1)
+                fxSoundTimeBox.Text  = tostring(data.timePosition  ~= nil and data.timePosition  or 0)
+                fxSoundStopBox.Text  = tostring(data.stopAtFrame   ~= nil and data.stopAtFrame   or 0)
+                self._spawnedFxLooped = data.looped == true
+                fxSoundLoopBtn.Text = self._spawnedFxLooped and "  Looped: ON  " or "  Looped: OFF  "
             else
                 for _, prop in ipairs(FX_PROPS) do
                     fxBoxes[prop.key].Text = tostring(data[prop.key] ~= nil and data[prop.key] or (defaults[prop.key] or ""))
@@ -2269,6 +2322,11 @@ function Panel.new(widget)
                 fxSoundIdBox.Text   = defaults.soundId or ""
                 fxSoundVolBox.Text  = tostring(defaults.volume or 1)
                 fxSoundDistBox.Text = tostring(defaults.maxDistance or 80)
+                fxSoundSpeedBox.Text = tostring(defaults.playbackSpeed or 1)
+                fxSoundTimeBox.Text  = tostring(defaults.timePosition or 0)
+                fxSoundStopBox.Text  = tostring(defaults.stopAtFrame or 0)
+                self._spawnedFxLooped = defaults.looped == true
+                fxSoundLoopBtn.Text = self._spawnedFxLooped and "  Looped: ON  " or "  Looped: OFF  "
             else
                 for _, prop in ipairs(FX_PROPS) do
                     fxBoxes[prop.key].Text = tostring(defaults[prop.key] ~= nil and defaults[prop.key] or "")
@@ -2445,16 +2503,21 @@ function Panel.new(widget)
         ePlaybackCopy:Fire(pbSnipBox.Text)
     end)
     -- Insert the snippet as real Script instances in the place (best-practice
-    -- structure); the handler in init.server.lua reads settings (Pads etc.).
+    -- structure); the handlers in init.server.lua read settings (Pads etc.).
     do
         local ePlaybackInsert = mkEvent("onPlaybackInsertSnippet")
         local pbInsertBtn = btn(pbCopyRow, "⬇ Add to Roblox", 2)
         pbInsertBtn.MouseButton1Click:Connect(function()
             ePlaybackInsert:Fire(pbSnipBox.Text)
         end)
+        local ePlaybackTouch = mkEvent("onPlaybackInsertTouch")
+        local pbTouchBtn = btn(pbCopyRow, "⬇ Touch Trigger", 3)
+        pbTouchBtn.MouseButton1Click:Connect(function()
+            ePlaybackTouch:Fire()
+        end)
     end
     -- Preview button: shows snippet in a modal overlay
-    local pbPreviewBtn = btn(pbCopyRow, "Preview", 3, true)
+    local pbPreviewBtn = btn(pbCopyRow, "Preview", 4, true)
 
     -- Preview modal overlay (shows full snippet in a larger scrollable box)
     local pbPreviewOv = Instance.new("Frame")
@@ -2548,7 +2611,8 @@ function Panel.new(widget)
     ctxOverlay.BackgroundTransparency = 1
     ctxOverlay.Text              = ""
     ctxOverlay.AutoButtonColor   = false
-    ctxOverlay.ZIndex            = 40
+    -- Above every overlay (FX overlay is 55/56): the context menu is modal.
+    ctxOverlay.ZIndex            = 90
     ctxOverlay.Visible           = false
     ctxOverlay.Parent            = widget
     self._ctxOverlay = ctxOverlay
@@ -2559,7 +2623,7 @@ function Panel.new(widget)
     ctxMenu.AutomaticSize     = Enum.AutomaticSize.Y
     ctxMenu.BackgroundColor3  = Color3.fromRGB(55, 55, 55)
     ctxMenu.BorderSizePixel   = 0
-    ctxMenu.ZIndex            = 41
+    ctxMenu.ZIndex            = 91
     ctxMenu.Visible           = false
     ctxMenu.Parent            = widget
     Instance.new("UICorner", ctxMenu).CornerRadius = UDim.new(0, 4)
@@ -3142,7 +3206,7 @@ function Panel:_showMenu(items, posX, posY)
         r.Font             = Enum.Font.Gotham
         r.TextXAlignment   = Enum.TextXAlignment.Left
         r.AutoButtonColor  = false
-        r.ZIndex           = 41
+        r.ZIndex           = 91
         r.LayoutOrder      = i
         r.Parent           = menu
         local defBg = r.BackgroundColor3

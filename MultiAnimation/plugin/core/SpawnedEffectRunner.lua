@@ -8,18 +8,36 @@ SpawnedEffectRunner.PRESETS = {
         size = 3, colorR = 255, colorG = 80, colorB = 0,
         count = 50, duration = 0.6, speed = 20, lifetime = 1.0,
     },
+    Flame = {
+        size = 4, colorR = 255, colorG = 140, colorB = 30,
+        count = 40, duration = 3.0, speed = 6, lifetime = 1.2,
+    },
+    Electric = {
+        size = 2, colorR = 140, colorG = 210, colorB = 255,
+        count = 60, duration = 2.0, speed = 10, lifetime = 0.3,
+    },
+    Sparkles = {
+        size = 1.5, colorR = 255, colorG = 230, colorB = 120,
+        count = 30, duration = 2.0, speed = 5, lifetime = 1.5,
+    },
     Smoke = {
         size = 5, colorR = 160, colorG = 160, colorB = 160,
         count = 25, duration = 4.0, speed = 4, lifetime = 5.0,
     },
     Sound = {
         soundId = "", volume = 1, maxDistance = 80,
+        playbackSpeed = 1, looped = false, stopAtFrame = 0, timePosition = 0,
     },
     Fade = {
         colorR = 0, colorG = 0, colorB = 0,
         imageId = "", duration = 1.0, direction = "out",
     },
 }
+
+-- Continuous emitters: `count` is particles/second over `duration`, then the
+-- emitter shuts off and lingering particles live out `lifetime`. Burst types
+-- (Explosion, Smoke) emit `count` once.
+SpawnedEffectRunner.CONTINUOUS = { Flame = true, Electric = true, Sparkles = true }
 
 -- Ordered list of editable properties shown in the Effects overlay.
 SpawnedEffectRunner.PROPS = {
@@ -117,6 +135,23 @@ function SpawnedEffectRunner.clearFades()
     if gui then gui:Destroy() end
 end
 
+-- Live cancel functions for long-running effects (looped sounds, continuous
+-- emitters). Every playback teardown path calls stopAll() so nothing outlives
+-- its scene; already-finished effects cancel harmlessly (guards inside).
+local activeCancels = {}
+
+local function register(cancel)
+    activeCancels[cancel] = true
+    return cancel
+end
+
+function SpawnedEffectRunner.stopAll()
+    for cancel in pairs(activeCancels) do
+        pcall(cancel)
+    end
+    table.clear(activeCancels)
+end
+
 -- Create a temporary Part+ParticleEmitter (or Sound) at pos, fire it, then Destroy.
 -- Returns a cancel function that destroys it early.
 function SpawnedEffectRunner.fire(pos, effectType, params)
@@ -134,14 +169,29 @@ function SpawnedEffectRunner.fire(pos, effectType, params)
         snd.SoundId           = params.soundId or ""
         snd.Volume            = math.clamp(params.volume or 1, 0, 10)
         snd.RollOffMaxDistance = params.maxDistance or 80
+        snd.PlaybackSpeed     = math.clamp(params.playbackSpeed or 1, 0.05, 20)
+        snd.Looped            = params.looped == true
         snd.Parent            = part
         snd:Play()
+        -- Play() resets TimePosition, so the start offset must be set after it.
+        if (params.timePosition or 0) > 0 then
+            snd.TimePosition = params.timePosition
+        end
         local function cleanup()
+            activeCancels[cleanup] = nil
             if part and part.Parent then part:Destroy() end
         end
-        snd.Ended:Connect(cleanup)
-        task.delay(30, cleanup)  -- fallback if Ended never fires
-        return cleanup
+        if snd.Looped then
+            -- Loops end at stopAfterSeconds (callers convert stopAtFrame → s)
+            -- or at scene teardown via stopAll().
+            if (params.stopAfterSeconds or 0) > 0 then
+                task.delay(params.stopAfterSeconds, cleanup)
+            end
+        else
+            snd.Ended:Connect(cleanup)
+            task.delay(30, cleanup)  -- fallback if Ended never fires
+        end
+        return register(cleanup)
     end
 
     local part            = Instance.new("Part")
@@ -178,6 +228,36 @@ function SpawnedEffectRunner.fire(pos, effectType, params)
         pe.SpreadAngle    = Vector2.new(25, 25)
         pe.LightEmission  = 0
         pe.LightInfluence = 1
+    elseif effectType == "Flame" then
+        -- Rising fire licks: taper to nothing, glow, drift upward.
+        pe.Texture        = "rbxasset://textures/particles/fire_main.dds"
+        pe.SpreadAngle    = Vector2.new(12, 12)
+        pe.Acceleration   = Vector3.new(0, 6, 0)
+        pe.LightEmission  = 1
+        pe.LightInfluence = 0
+        pe.Size           = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, params.size or 4),
+            NumberSequenceKeypoint.new(1, 0),
+        })
+        pe.Transparency   = NumberSequence.new({
+            NumberSequenceKeypoint.new(0,   0.1),
+            NumberSequenceKeypoint.new(0.7, 0.4),
+            NumberSequenceKeypoint.new(1,   1),
+        })
+    elseif effectType == "Electric" then
+        -- Sizzling static surrounding the point: short-lived sparks in every
+        -- direction, spinning fast, full glow.
+        pe.Texture        = "rbxasset://textures/particles/sparkles_main.dds"
+        pe.SpreadAngle    = Vector2.new(180, 180)
+        pe.LightEmission  = 1
+        pe.LightInfluence = 0
+        pe.RotSpeed       = NumberRange.new(-400, 400)
+    elseif effectType == "Sparkles" then
+        pe.Texture        = "rbxasset://textures/particles/sparkles_main.dds"
+        pe.SpreadAngle    = Vector2.new(180, 180)
+        pe.Acceleration   = Vector3.new(0, 1, 0)
+        pe.LightEmission  = 1
+        pe.LightInfluence = 0
     else  -- Explosion
         pe.SpreadAngle    = Vector2.new(180, 180)
         pe.LightEmission  = 0.8
@@ -185,16 +265,32 @@ function SpawnedEffectRunner.fire(pos, effectType, params)
     end
 
     pe.Parent = part
-    pe:Emit(params.count or 50)
 
-    local destroyAfter = (params.duration or 0.6) + (params.lifetime or 1.0)
-    task.delay(destroyAfter, function()
-        if part and part.Parent then part:Destroy() end
-    end)
-
-    return function()
+    local function cleanup()
         if part and part.Parent then part:Destroy() end
     end
+
+    if SpawnedEffectRunner.CONTINUOUS[effectType] then
+        -- Continuous: emit `count`/second for `duration`, then let lingering
+        -- particles live out `lifetime` before the part goes away.
+        pe.Rate    = params.count or 30
+        pe.Enabled = true
+        local dur = math.max(params.duration or 2, 0.05)
+        local function cancelNow()
+            activeCancels[cancelNow] = nil
+            cleanup()
+        end
+        task.delay(dur, function()
+            if pe and pe.Parent then pe.Enabled = false end
+        end)
+        task.delay(dur + (params.lifetime or 1.0), cancelNow)
+        return register(cancelNow)
+    end
+
+    pe:Emit(params.count or 50)
+    local destroyAfter = (params.duration or 0.6) + (params.lifetime or 1.0)
+    task.delay(destroyAfter, cleanup)
+    return cleanup
 end
 
 return SpawnedEffectRunner

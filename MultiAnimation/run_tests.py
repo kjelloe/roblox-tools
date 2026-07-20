@@ -105,7 +105,25 @@ def discover(pattern: str = "") -> list[str]:
 
 # ── runner ─────────────────────────────────────────────────────────────────────
 
-def run_all(files: list[str], verbose: bool) -> bool:
+# Reset the live session between files: full-suite runs used to be
+# order-dependent (~10 failures from cross-file scene/frame leaks that never
+# reproduced standalone). Same path as the panel's New button.
+_RESET_SESSION_CODE = """
+local ok, res = pcall(function()
+    local bf = game:GetService("CoreGui"):WaitForChild("__MultiAnimTestBridge", 3)
+    return bf:Invoke("resetSession", nil)
+end)
+return ok and tostring(res) or ("unreachable: " .. tostring(res))
+"""
+
+def reset_session() -> bool:
+    texts, err = call_mcp("execute_luau", {"code": _RESET_SESSION_CODE,
+                                           "datamodel_type": "Edit"}, timeout=30)
+    if err and not texts:
+        return False
+    return '"ok":true' in "".join(texts or [])
+
+def run_all(files: list[str], verbose: bool, isolate: bool = True) -> bool:
     if not files:
         print("No test files found.")
         return True
@@ -120,6 +138,9 @@ def run_all(files: list[str], verbose: bool) -> bool:
     for path in files:
         name = os.path.basename(path)[:-4]  # strip .lua
         label = name.ljust(col)
+
+        if isolate and len(files) > 1 and not reset_session():
+            print(f"  {label}  (session reset failed — running on current state)")
 
         with open(path, encoding="utf-8") as fh:
             code = fh.read()
@@ -377,7 +398,8 @@ def check_plugin_version() -> None:
 def main():
     args = sys.argv[1:]
     verbose = "-v" in args
-    args = [a for a in args if a != "-v"]
+    isolate = "--no-isolate" not in args
+    args = [a for a in args if a not in ("-v", "--no-isolate")]
     pattern = args[0] if args else ""
 
     files = discover(pattern)
@@ -388,7 +410,7 @@ def main():
     sync_ok = check_copy_sync()
     deploy_ok = check_deploy_sync()
     check_plugin_version()
-    ok = run_all(files, verbose)
+    ok = run_all(files, verbose, isolate)
     sys.exit(0 if (ok and sync_ok and deploy_ok) else 1)
 
 if __name__ == "__main__":

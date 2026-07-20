@@ -291,6 +291,43 @@ do
     if setup and not hadSetup then setup:Destroy() end
 end
 
+-- ── 33. insertTouchTrigger: Touch_<scene> LocalScript ────────────────────────
+do
+    call("setPlaybackScene", { name = "TestScene" })
+    local SSS = game:GetService("ServerScriptService")
+    local sps = game:GetService("StarterPlayer"):FindFirstChildOfClass("StarterPlayerScripts")
+    local hadSetup  = SSS:FindFirstChild("MultiAnimSetup") ~= nil
+    local hadFolder = sps and sps:FindFirstChild("MultiAnimCutscenes") ~= nil
+
+    local insOk = call("insertTouchTrigger")
+    ok(insOk == true, "insertTouchTrigger returns true")
+    local folder = sps and sps:FindFirstChild("MultiAnimCutscenes")
+    local ls = folder and folder:FindFirstChild("Touch_TestScene")
+    ok(ls ~= nil and ls:IsA("LocalScript"), "Touch_<scene> LocalScript created")
+    ok(ls ~= nil and ls.Disabled == false, "touch trigger inserted enabled (independent of Pads)")
+    ok(ls ~= nil and ls.Source:find("Touched:Connect", 1, true) ~= nil, "source wires trigger.Touched")
+    ok(ls ~= nil and ls.Source:find("debounce", 1, true) ~= nil, "source debounces")
+    ok(ls ~= nil and ls.Source:find("onComplete", 1, true) ~= nil, "debounce resets via handle.onComplete")
+    ok(ls ~= nil and ls.Source:find("TestScene", 1, true) ~= nil, "source references the scene")
+
+    local ls2 = folder and folder:FindFirstChild("Touch_TestScene")
+    if ls2 then ls2:Destroy() end
+    if folder and not hadFolder and #folder:GetChildren() == 0 then folder:Destroy() end
+    local setup = SSS:FindFirstChild("MultiAnimSetup")
+    if setup and not hadSetup then setup:Destroy() end
+end
+
+-- ── 34. resetSession bridge cmd (backup → reset → assert → restore) ──────────
+do
+    call("saveSession", { name = "__rt_backup" })
+    local resetOk = call("resetSession")
+    ok(resetOk == true, "resetSession returns true")
+    local camAfter = call("getCameraFrames")
+    ok(type(camAfter) == "table" and #camAfter == 0, "resetSession clears the camera track")
+    call("loadSession", { name = "__rt_backup" })
+    call("deleteSession", { name = "__rt_backup" })
+end
+
 -- ── Restore original state ────────────────────────────────────────────────────
 -- (mode already restored in test 26 above)
 -- Reset playback state

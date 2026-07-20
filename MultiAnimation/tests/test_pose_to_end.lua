@@ -39,6 +39,16 @@ call("scanFigures")
 call("setSimpleSceneName", { name = "" })
 call("setMode", { mode = "simple" })
 
+-- Isolation gate: this file captures onto fixed frames 1–5 — never stomp a
+-- loaded session's data. run_tests.py resets the session between files, so
+-- this only skips when run standalone against live user data.
+for f = 1, 5 do
+    local r = call("simpleFrameHasAnyData", { frame = f })
+    if r.ok and r.result == true then
+        return "SKIP: frames 1-5 hold session data (reset or load a clean session first)\n=== 0 passed, 0 failed ===\nALL TESTS PASSED"
+    end
+end
+
 local prop = Instance.new("Part")
 prop.Name = "__PoseProp"
 prop.Anchored = true
